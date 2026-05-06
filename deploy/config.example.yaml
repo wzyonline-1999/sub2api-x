@@ -20,6 +20,10 @@ server:
   # Mode: "debug" for development, "release" for production
   # 运行模式："debug" 用于开发，"release" 用于生产环境
   mode: "release"
+  # Optional backend mount path. Use "/sub2api" when Nginx forwards /sub2api/*
+  # without stripping the prefix.
+  # 可选后端挂载路径。Nginx 原样转发 /sub2api/* 时设置为 "/sub2api"。
+  base_path: ""
   # Frontend base URL used to generate external links in emails (e.g. password reset)
   # 用于生成邮件中的外部链接（例如：重置密码链接）的前端基础地址
   # Example: "https://example.com"
@@ -735,6 +739,9 @@ database:
   # SSL 模式：disable（禁用）, prefer（优先加密，默认）, require（要求）, verify-ca（验证CA）, verify-full（完全验证）
   # 默认值为 "prefer"，数据库支持 SSL 时自动使用加密连接，不支持时回退明文
   sslmode: "prefer"
+  # Optional PostgreSQL schema for isolating Sub2API tables in a shared database
+  # 可选 PostgreSQL schema，用于在同一个数据库中隔离 Sub2API 表
+  schema: ""
   # Max open connections (高并发场景建议 256+，需配合 PostgreSQL max_connections 调整)
   # 最大打开连接数
   max_open_conns: 256

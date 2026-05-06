@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	pathpkg "path"
 	"strings"
 	"time"
 
@@ -492,6 +493,7 @@ type ServerConfig struct {
 	Host               string    `mapstructure:"host"`
 	Port               int       `mapstructure:"port"`
 	Mode               string    `mapstructure:"mode"`                  // debug/release
+	BasePath           string    `mapstructure:"base_path"`             // HTTP 路由前缀，例如 /sub2api
 	FrontendURL        string    `mapstructure:"frontend_url"`          // 前端基础 URL，用于生成邮件中的外部链接
 	ReadHeaderTimeout  int       `mapstructure:"read_header_timeout"`   // 读取请求头超时（秒）
 	IdleTimeout        int       `mapstructure:"idle_timeout"`          // 空闲连接超时（秒）
@@ -946,6 +948,8 @@ type DatabaseConfig struct {
 	Password string `mapstructure:"password"`
 	DBName   string `mapstructure:"dbname"`
 	SSLMode  string `mapstructure:"sslmode"`
+	// Schema optionally isolates Sub2API tables inside a PostgreSQL schema.
+	Schema string `mapstructure:"schema"`
 	// 连接池配置（性能优化：可配置化连接池参数）
 	// MaxOpenConns: 最大打开连接数，控制数据库连接上限，防止资源耗尽
 	MaxOpenConns int `mapstructure:"max_open_conns"`
@@ -957,17 +961,45 @@ type DatabaseConfig struct {
 	ConnMaxIdleTimeMinutes int `mapstructure:"conn_max_idle_time_minutes"`
 }
 
+func IsValidPostgresIdentifier(name string) bool {
+	if name == "" || len(name) > 63 {
+		return false
+	}
+	for i, r := range name {
+		isLetter := r >= 'a' && r <= 'z'
+		isDigit := r >= '0' && r <= '9'
+		if i == 0 {
+			if !isLetter {
+				return false
+			}
+			continue
+		}
+		if !isLetter && !isDigit && r != '_' {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *DatabaseConfig) searchPathParam() string {
+	schema := strings.TrimSpace(d.Schema)
+	if schema == "" {
+		return ""
+	}
+	return fmt.Sprintf(" search_path=%s,public", schema)
+}
+
 func (d *DatabaseConfig) DSN() string {
 	// 当密码为空时不包含 password 参数，避免 libpq 解析错误
 	if d.Password == "" {
 		return fmt.Sprintf(
-			"host=%s port=%d user=%s dbname=%s sslmode=%s",
-			d.Host, d.Port, d.User, d.DBName, d.SSLMode,
+			"host=%s port=%d user=%s dbname=%s sslmode=%s%s",
+			d.Host, d.Port, d.User, d.DBName, d.SSLMode, d.searchPathParam(),
 		)
 	}
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode,
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s%s",
+		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode, d.searchPathParam(),
 	)
 }
 
@@ -979,13 +1011,13 @@ func (d *DatabaseConfig) DSNWithTimezone(tz string) string {
 	// 当密码为空时不包含 password 参数，避免 libpq 解析错误
 	if d.Password == "" {
 		return fmt.Sprintf(
-			"host=%s port=%d user=%s dbname=%s sslmode=%s TimeZone=%s",
-			d.Host, d.Port, d.User, d.DBName, d.SSLMode, tz,
+			"host=%s port=%d user=%s dbname=%s sslmode=%s%s TimeZone=%s",
+			d.Host, d.Port, d.User, d.DBName, d.SSLMode, d.searchPathParam(), tz,
 		)
 	}
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
-		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode, tz,
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s%s TimeZone=%s",
+		d.Host, d.Port, d.User, d.Password, d.DBName, d.SSLMode, d.searchPathParam(), tz,
 	)
 }
 
@@ -1185,6 +1217,44 @@ func NormalizeRunMode(value string) string {
 	}
 }
 
+// NormalizeBasePath canonicalizes an optional URL path prefix used when the
+// backend is mounted below a sub-path such as /sub2api.
+func NormalizeBasePath(raw string) string {
+	basePath := strings.TrimSpace(raw)
+	if basePath == "" || basePath == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(basePath, "/") {
+		basePath = "/" + basePath
+	}
+	basePath = pathpkg.Clean(basePath)
+	if basePath == "." || basePath == "/" {
+		return ""
+	}
+	return basePath
+}
+
+// ValidateBasePath verifies a normalized backend mount path.
+func ValidateBasePath(basePath string) error {
+	basePath = strings.TrimSpace(basePath)
+	if basePath == "" {
+		return nil
+	}
+	if !strings.HasPrefix(basePath, "/") {
+		return fmt.Errorf("must start with /")
+	}
+	if strings.HasSuffix(basePath, "/") {
+		return fmt.Errorf("must not end with /")
+	}
+	if strings.ContainsAny(basePath, " \t\r\n?#\\") {
+		return fmt.Errorf("must be a clean URL path without whitespace, query, fragment, or backslash")
+	}
+	if strings.Contains(basePath, "//") || pathpkg.Clean(basePath) != basePath {
+		return fmt.Errorf("must be a clean URL path")
+	}
+	return nil
+}
+
 // Load 读取并校验完整配置（要求 jwt.secret 已显式提供）。
 func Load() (*Config, error) {
 	return load(false)
@@ -1239,7 +1309,9 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	if cfg.Server.Mode == "" {
 		cfg.Server.Mode = "debug"
 	}
+	cfg.Server.BasePath = NormalizeBasePath(cfg.Server.BasePath)
 	cfg.Server.FrontendURL = strings.TrimSpace(cfg.Server.FrontendURL)
+	cfg.Database.Schema = strings.TrimSpace(cfg.Database.Schema)
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
 	cfg.LinuxDo.ClientID = strings.TrimSpace(cfg.LinuxDo.ClientID)
 	cfg.LinuxDo.ClientSecret = strings.TrimSpace(cfg.LinuxDo.ClientSecret)
@@ -1363,6 +1435,7 @@ func setDefaults() {
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "release")
+	viper.SetDefault("server.base_path", "")
 	viper.SetDefault("server.frontend_url", "")
 	viper.SetDefault("server.read_header_timeout", 30) // 30秒读取请求头
 	viper.SetDefault("server.idle_timeout", 120)       // 120秒空闲超时
@@ -1501,6 +1574,7 @@ func setDefaults() {
 	viper.SetDefault("database.password", "postgres")
 	viper.SetDefault("database.dbname", "sub2api")
 	viper.SetDefault("database.sslmode", "prefer")
+	viper.SetDefault("database.schema", "")
 	viper.SetDefault("database.max_open_conns", 256)
 	viper.SetDefault("database.max_idle_conns", 128)
 	viper.SetDefault("database.conn_max_lifetime_minutes", 30)
@@ -1823,6 +1897,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("subscription_maintenance.queue_size must be non-negative")
 	}
 
+	if err := ValidateBasePath(c.Server.BasePath); err != nil {
+		return fmt.Errorf("server.base_path invalid: %w", err)
+	}
+
 	// Gemini OAuth 配置校验：client_id 与 client_secret 必须同时设置或同时留空。
 	// 留空时表示使用内置的 Gemini CLI OAuth 客户端（其 client_secret 通过环境变量注入）。
 	geminiClientID := strings.TrimSpace(c.Gemini.OAuth.ClientID)
@@ -2054,6 +2132,9 @@ func (c *Config) Validate() error {
 		if c.Billing.CircuitBreaker.HalfOpenRequests <= 0 {
 			return fmt.Errorf("billing.circuit_breaker.half_open_requests must be positive")
 		}
+	}
+	if c.Database.Schema != "" && !IsValidPostgresIdentifier(c.Database.Schema) {
+		return fmt.Errorf("database.schema must be a lowercase PostgreSQL identifier")
 	}
 	if c.Database.MaxOpenConns <= 0 {
 		return fmt.Errorf("database.max_open_conns must be positive")
@@ -2601,6 +2682,25 @@ func GetServerAddress() string {
 	host := v.GetString("server.host")
 	port := v.GetInt("server.port")
 	return fmt.Sprintf("%s:%d", host, port)
+}
+
+// GetServerBasePath returns the optional backend mount path from config file or
+// environment variable. It is lightweight for setup wizard startup.
+func GetServerBasePath() string {
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(".")
+	v.AddConfigPath("./config")
+	v.AddConfigPath("/etc/sub2api")
+
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.SetDefault("server.base_path", "")
+
+	_ = v.ReadInConfig()
+
+	return NormalizeBasePath(v.GetString("server.base_path"))
 }
 
 // ValidateAbsoluteHTTPURL 验证是否为有效的绝对 HTTP(S) URL

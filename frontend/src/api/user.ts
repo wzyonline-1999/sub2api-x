@@ -3,7 +3,7 @@
  * Handles user profile management and password changes
  */
 
-import { apiClient } from './client'
+import { API_BASE_URL, apiClient } from './client'
 import {
   resolveWeChatOAuthStartStrict,
   prepareOAuthBindAccessTokenCookie,
@@ -142,8 +142,7 @@ export function buildOAuthBindingStartURL(
   options: BuildOAuthBindingStartURLOptions = {}
 ): string | null {
   const redirectTo = options.redirectTo?.trim() || '/profile'
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '/api/v1'
-  const normalized = apiBase.replace(/\/$/, '')
+  const normalized = API_BASE_URL.replace(/\/$/, '')
   const params = new URLSearchParams({
     redirect: redirectTo,
     intent: 'bind_current_user'

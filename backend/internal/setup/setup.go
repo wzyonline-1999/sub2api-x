@@ -88,6 +88,27 @@ type DatabaseConfig struct {
 	Password string `json:"password" yaml:"password"`
 	DBName   string `json:"dbname" yaml:"dbname"`
 	SSLMode  string `json:"sslmode" yaml:"sslmode"`
+	Schema   string `json:"schema" yaml:"schema"`
+}
+
+func setupPostgresDSN(cfg *DatabaseConfig, includeSchema bool) string {
+	searchPath := ""
+	if includeSchema {
+		schema := strings.TrimSpace(cfg.Schema)
+		if schema != "" {
+			searchPath = fmt.Sprintf(" search_path=%s,public", schema)
+		}
+	}
+	if cfg.Password == "" {
+		return fmt.Sprintf(
+			"host=%s port=%d user=%s dbname=%s sslmode=%s%s",
+			cfg.Host, cfg.Port, cfg.User, cfg.DBName, cfg.SSLMode, searchPath,
+		)
+	}
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode, searchPath,
+	)
 }
 
 type RedisConfig struct {
@@ -104,9 +125,10 @@ type AdminConfig struct {
 }
 
 type ServerConfig struct {
-	Host string `json:"host" yaml:"host"`
-	Port int    `json:"port" yaml:"port"`
-	Mode string `json:"mode" yaml:"mode"`
+	Host     string `json:"host" yaml:"host"`
+	Port     int    `json:"port" yaml:"port"`
+	Mode     string `json:"mode" yaml:"mode"`
+	BasePath string `json:"base_path" yaml:"base_path"`
 }
 
 type JWTConfig struct {
@@ -162,11 +184,13 @@ func NeedsSetup() bool {
 
 // TestDatabaseConnection tests the database connection and creates database if not exists
 func TestDatabaseConnection(cfg *DatabaseConfig) error {
+	cfg.Schema = strings.TrimSpace(cfg.Schema)
+	if cfg.Schema != "" && !config.IsValidPostgresIdentifier(cfg.Schema) {
+		return fmt.Errorf("invalid database schema %q; use lowercase letters, digits, and underscores", cfg.Schema)
+	}
+
 	// First, connect to the default 'postgres' database to check/create target database
-	defaultDSN := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
-	)
+	defaultDSN := setupPostgresDSN(cfg, false)
 
 	db, err := sql.Open("postgres", defaultDSN)
 	if err != nil {
@@ -214,10 +238,7 @@ func TestDatabaseConnection(cfg *DatabaseConfig) error {
 	}
 	db = nil
 
-	targetDSN := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
-	)
+	targetDSN := setupPostgresDSN(cfg, true)
 
 	targetDB, err := sql.Open("postgres", targetDSN)
 	if err != nil {
@@ -235,6 +256,10 @@ func TestDatabaseConnection(cfg *DatabaseConfig) error {
 
 	if err := targetDB.PingContext(ctx2); err != nil {
 		return fmt.Errorf("ping target database failed: %w", err)
+	}
+
+	if err := repository.EnsureDatabaseSchema(ctx2, targetDB, cfg.Schema); err != nil {
+		return err
 	}
 
 	return nil
@@ -328,11 +353,7 @@ func createInstallLock() error {
 }
 
 func initializeDatabase(cfg *SetupConfig) error {
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host, cfg.Database.Port, cfg.Database.User,
-		cfg.Database.Password, cfg.Database.DBName, cfg.Database.SSLMode,
-	)
+	dsn := setupPostgresDSN(&cfg.Database, true)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -345,17 +366,16 @@ func initializeDatabase(cfg *SetupConfig) error {
 		}
 	}()
 
-	migrationCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	migrationCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
+	if err := repository.EnsureDatabaseSchema(migrationCtx, db, cfg.Database.Schema); err != nil {
+		return err
+	}
 	return repository.ApplyMigrations(migrationCtx, db)
 }
 
 func createAdminUser(cfg *SetupConfig) (bool, string, error) {
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host, cfg.Database.Port, cfg.Database.User,
-		cfg.Database.Password, cfg.Database.DBName, cfg.Database.SSLMode,
-	)
+	dsn := setupPostgresDSN(&cfg.Database, true)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -552,6 +572,7 @@ func AutoSetupFromEnv() error {
 			Password: getEnvOrDefault("DATABASE_PASSWORD", ""),
 			DBName:   getEnvOrDefault("DATABASE_DBNAME", "sub2api"),
 			SSLMode:  getEnvOrDefault("DATABASE_SSLMODE", "disable"),
+			Schema:   getEnvOrDefault("DATABASE_SCHEMA", ""),
 		},
 		Redis: RedisConfig{
 			Host:      getEnvOrDefault("REDIS_HOST", "localhost"),
@@ -565,9 +586,10 @@ func AutoSetupFromEnv() error {
 			Password: getEnvOrDefault("ADMIN_PASSWORD", ""),
 		},
 		Server: ServerConfig{
-			Host: getEnvOrDefault("SERVER_HOST", "0.0.0.0"),
-			Port: getEnvIntOrDefault("SERVER_PORT", 8080),
-			Mode: getEnvOrDefault("SERVER_MODE", "release"),
+			Host:     getEnvOrDefault("SERVER_HOST", "0.0.0.0"),
+			Port:     getEnvIntOrDefault("SERVER_PORT", 8080),
+			Mode:     getEnvOrDefault("SERVER_MODE", "release"),
+			BasePath: config.NormalizeBasePath(getEnvOrDefault("SERVER_BASE_PATH", "")),
 		},
 		JWT: JWTConfig{
 			Secret:     getEnvOrDefault("JWT_SECRET", ""),
@@ -584,6 +606,9 @@ func AutoSetupFromEnv() error {
 		}
 		cfg.JWT.Secret = secret
 		logger.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
+	}
+	if err := config.ValidateBasePath(cfg.Server.BasePath); err != nil {
+		return fmt.Errorf("invalid server base path: %w", err)
 	}
 
 	// Test database connection

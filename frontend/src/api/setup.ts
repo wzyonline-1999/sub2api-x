@@ -2,10 +2,11 @@
  * Setup API endpoints
  */
 import axios from 'axios'
+import { appPath } from '@/utils/basePath'
 
 // Create a separate client for setup endpoints (not under /api/v1)
 const setupClient = axios.create({
-  baseURL: '',
+  baseURL: appPath('/'),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -24,6 +25,7 @@ export interface DatabaseConfig {
   password: string
   dbname: string
   sslmode: string
+  schema: string
 }
 
 export interface RedisConfig {

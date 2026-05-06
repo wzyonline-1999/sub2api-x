@@ -438,6 +438,7 @@ func TestFrontendServer_Middleware(t *testing.T) {
 			"/backend-api/codex/responses/compact",
 			"/antigravity/test",
 			"/setup/init",
+			"/chat/completions",
 			"/health",
 			"/responses",
 			"/responses/compact",
@@ -665,6 +666,78 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestServeEmbeddedFrontendWithBasePath(t *testing.T) {
+	t.Run("serves_static_files_under_base_path", func(t *testing.T) {
+		middleware := ServeEmbeddedFrontendWithBasePath("/sub2api")
+
+		router := gin.New()
+		router.Use(middleware)
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/sub2api/logo.png", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Header().Get("Content-Type"), "image/png")
+	})
+
+	t.Run("does_not_serve_outside_base_path", func(t *testing.T) {
+		middleware := ServeEmbeddedFrontendWithBasePath("/sub2api")
+
+		router := gin.New()
+		router.Use(middleware)
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/logo.png", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("skips_api_routes_under_base_path", func(t *testing.T) {
+		middleware := ServeEmbeddedFrontendWithBasePath("/sub2api")
+
+		nextCalled := false
+		router := gin.New()
+		router.Use(middleware)
+		router.GET("/sub2api/api/users", func(c *gin.Context) {
+			nextCalled = true
+			c.String(http.StatusOK, "ok")
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/sub2api/api/users", nil)
+		router.ServeHTTP(w, req)
+
+		assert.True(t, nextCalled, "next handler should be called for API route")
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestFrontendServerWithBasePath(t *testing.T) {
+	provider := &mockSettingsProvider{
+		settings: map[string]string{"site_name": "Sub2API"},
+	}
+	server, err := NewFrontendServerWithBasePath(provider, "/sub2api/")
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(server.Middleware())
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/sub2api/", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
+
+	outside := httptest.NewRecorder()
+	outsideReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	router.ServeHTTP(outside, outsideReq)
+
+	assert.Equal(t, http.StatusNotFound, outside.Code)
 }
 
 // Tests for HTMLCache

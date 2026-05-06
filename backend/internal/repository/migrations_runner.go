@@ -66,6 +66,7 @@ type migrationChecksumCompatibilityRule struct {
 var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibilityRule{
 	"054_drop_legacy_cache_columns.sql":                       newMigrationChecksumCompatibilityRule("82de761156e03876653e7a6a4eee883cd927847036f779b0b9f34c42a8af7a7d", "182c193f3359946cf094090cd9e57d5c3fd9abaffbc1e8fc378646b8a6fa12b4"),
 	"061_add_usage_log_request_type.sql":                      newMigrationChecksumCompatibilityRule("66207e7aa5dd0429c2e2c0fabdaf79783ff157fa0af2e81adff2ee03790ec65c", "08a248652cbab7cfde147fc6ef8cda464f2477674e20b718312faa252e0481c0", "222b4a09c797c22e5922b6b172327c824f5463aaa8760e4f621bc5c22e2be0f3"),
+	"108a_widen_auth_identity_migration_report_type.sql":      newMigrationChecksumCompatibilityRule("ce0461cef9871b3042eefebc6065c94a21d61c339aa82eb44d95c19e5f4d9062", "87646a866b17a329b01abb241b99e3874ee2c13c7d7bba3f6e37c53722a60e18"),
 	"109_auth_identity_compat_backfill.sql":                   newMigrationChecksumCompatibilityRule("0580b4602d85435edf9aca1633db580bb3932f26517f75134106f80275ec2ace", "551e498aa5616d2d91096e9d72cf9fb36e418ee22eacc557f8811cadbc9e20ee"),
 	"110_pending_auth_and_provider_default_grants.sql":        newMigrationChecksumCompatibilityRule("32cf87ee787b1bb36b5c691367c96eee37518fa3eed6f3322cf68795e3745279", "e3d1f433be2b564cfbdc549adf98fce13c5c7b363ebc20fd05b765d0563b0925"),
 	"112_add_payment_order_provider_key_snapshot.sql":         newMigrationChecksumCompatibilityRule("b75f8f56d39455682787696a3d92ad25b055444ca328fb7fca9a460a15d68d99", "ffd3e8a2c9295fa9cbefefd629a78268877e5b51bc970a82d9b3f46ec4ebd15e"),
@@ -330,7 +331,7 @@ func indexIsInvalid(ctx context.Context, db *sql.DB, indexName string) (bool, er
 			FROM pg_class idx
 			JOIN pg_namespace ns ON ns.oid = idx.relnamespace
 			JOIN pg_index i ON i.indexrelid = idx.oid
-			WHERE ns.nspname = 'public'
+			WHERE ns.nspname = current_schema()
 			  AND idx.relname = $1
 			  AND NOT i.indisvalid
 		)
@@ -385,7 +386,7 @@ func tableExists(ctx context.Context, db *sql.DB, tableName string) (bool, error
 		SELECT EXISTS (
 			SELECT 1
 			FROM information_schema.tables
-			WHERE table_schema = 'public' AND table_name = $1
+			WHERE table_schema = current_schema() AND table_name = $1
 		)
 	`, tableName).Scan(&exists)
 	return exists, err

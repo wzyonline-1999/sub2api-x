@@ -22,6 +22,11 @@ type FrontendServer struct{}
 
 // NewFrontendServer returns an error when frontend is not embedded
 func NewFrontendServer(settingsProvider PublicSettingsProvider) (*FrontendServer, error) {
+	return NewFrontendServerWithBasePath(settingsProvider, "")
+}
+
+// NewFrontendServerWithBasePath returns an error when frontend is not embedded
+func NewFrontendServerWithBasePath(settingsProvider PublicSettingsProvider, basePath string) (*FrontendServer, error) {
 	return nil, errors.New("frontend not embedded")
 }
 
@@ -37,6 +42,10 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 }
 
 func ServeEmbeddedFrontend() gin.HandlerFunc {
+	return ServeEmbeddedFrontendWithBasePath("")
+}
+
+func ServeEmbeddedFrontendWithBasePath(basePath string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.String(http.StatusNotFound, "Frontend not embedded. Build with -tags embed to include frontend.")
 		c.Abort()

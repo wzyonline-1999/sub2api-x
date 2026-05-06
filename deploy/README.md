@@ -156,6 +156,40 @@ SELECT
 - Docker 场景下需把宿主机 Socket 挂载到容器内同路径
 - 详细步骤见：`deploy/DATAMANAGEMENTD_CN.md`
 
+### `/sub2api` Sub-Path Deployment
+
+For deployments where the UI and API must both live under `/sub2api`, use the
+fork-specific compose and Nginx examples:
+
+```bash
+cp sub2api.env.example .env.sub2api
+nano .env.sub2api
+docker compose --env-file .env.sub2api -f docker-compose.sub2api.yml up -d --build
+```
+
+This mode builds the frontend with:
+
+```text
+VITE_APP_BASE_PATH=/sub2api/
+VITE_API_BASE_URL=/sub2api/api/v1
+SERVER_BASE_PATH=/sub2api
+```
+
+Nginx should keep the external `/sub2api` prefix when proxying to the backend.
+The backend is mounted natively under `/sub2api`, so the upstream request URI
+remains `/sub2api/...`. See `nginx-sub2api.conf.example`.
+
+When using a shared Supabase PostgreSQL database, set:
+
+```text
+DATABASE_DBNAME=postgres
+DATABASE_SCHEMA=sub2api
+```
+
+The app will create the schema if needed and run all Sub2API migrations under
+that schema, keeping tables like `users`, `accounts`, and `settings` out of the
+default `public` schema.
+
 ### Commands
 
 For **local directory version** (docker-compose.local.yml):

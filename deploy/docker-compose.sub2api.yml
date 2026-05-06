@@ -1,0 +1,80 @@
+# =============================================================================
+# Sub2API - /sub2api sub-path deployment
+# =============================================================================
+# This compose file is intended for the VPS plan:
+# - PostgreSQL runs in Supabase.
+# - Redis runs directly on the VPS host through systemd.
+# - Nginx exposes the app under https://your-domain/sub2api/.
+#
+# Usage:
+#   cp sub2api.env.example .env.sub2api
+#   nano .env.sub2api
+#   docker compose --env-file .env.sub2api -f docker-compose.sub2api.yml up -d --build
+# =============================================================================
+
+services:
+  sub2api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_BASE_PATH: ${VITE_APP_BASE_PATH:-/sub2api/}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/sub2api/api/v1}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-}
+    image: sub2api-x:sub2api-path
+    container_name: sub2api
+    restart: unless-stopped
+    network_mode: host
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    volumes:
+      - ./data:/app/data
+    environment:
+      - AUTO_SETUP=true
+      - SERVER_HOST=${SERVER_HOST:-127.0.0.1}
+      - SERVER_PORT=${SERVER_PORT:-18080}
+      - SERVER_MODE=${SERVER_MODE:-release}
+      - SERVER_BASE_PATH=${SERVER_BASE_PATH:-/sub2api}
+      - RUN_MODE=${RUN_MODE:-standard}
+
+      - DATABASE_HOST=${DATABASE_HOST:?DATABASE_HOST is required}
+      - DATABASE_PORT=${DATABASE_PORT:-5432}
+      - DATABASE_USER=${DATABASE_USER:?DATABASE_USER is required}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:?DATABASE_PASSWORD is required}
+      - DATABASE_DBNAME=${DATABASE_DBNAME:-postgres}
+      - DATABASE_SSLMODE=${DATABASE_SSLMODE:-require}
+      - DATABASE_SCHEMA=${DATABASE_SCHEMA:-sub2api}
+      - DATABASE_MAX_OPEN_CONNS=${DATABASE_MAX_OPEN_CONNS:-5}
+      - DATABASE_MAX_IDLE_CONNS=${DATABASE_MAX_IDLE_CONNS:-2}
+      - DATABASE_CONN_MAX_LIFETIME_MINUTES=${DATABASE_CONN_MAX_LIFETIME_MINUTES:-30}
+      - DATABASE_CONN_MAX_IDLE_TIME_MINUTES=${DATABASE_CONN_MAX_IDLE_TIME_MINUTES:-5}
+
+      - REDIS_HOST=${REDIS_HOST:-127.0.0.1}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_POOL_SIZE=${REDIS_POOL_SIZE:-32}
+      - REDIS_MIN_IDLE_CONNS=${REDIS_MIN_IDLE_CONNS:-2}
+      - REDIS_ENABLE_TLS=${REDIS_ENABLE_TLS:-false}
+
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@sub2api.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:?TOTP_ENCRYPTION_KEY is required}
+      - TZ=${TZ:-Asia/Shanghai}
+
+      - GEMINI_OAUTH_CLIENT_ID=${GEMINI_OAUTH_CLIENT_ID:-}
+      - GEMINI_OAUTH_CLIENT_SECRET=${GEMINI_OAUTH_CLIENT_SECRET:-}
+      - GEMINI_OAUTH_SCOPES=${GEMINI_OAUTH_SCOPES:-}
+      - GEMINI_QUOTA_POLICY=${GEMINI_QUOTA_POLICY:-}
+      - GEMINI_CLI_OAUTH_CLIENT_SECRET=${GEMINI_CLI_OAUTH_CLIENT_SECRET:-}
+      - ANTIGRAVITY_OAUTH_CLIENT_SECRET=${ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:${SERVER_PORT:-18080}${SERVER_BASE_PATH:-/sub2api}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

@@ -102,12 +102,18 @@ func runSetupServer() {
 	r.Use(middleware.CORS(config.CORSConfig{}))
 	r.Use(middleware.SecurityHeaders(config.CSPConfig{Enabled: true, Policy: config.DefaultCSPPolicy}, nil))
 
+	basePath := config.GetServerBasePath()
+	routeRoot := gin.IRouter(r)
+	if basePath != "" {
+		routeRoot = r.Group(basePath)
+	}
+
 	// Register setup routes
-	setup.RegisterRoutes(r)
+	setup.RegisterRoutes(routeRoot)
 
 	// Serve embedded frontend if available
 	if web.HasEmbeddedFrontend() {
-		r.Use(web.ServeEmbeddedFrontend())
+		r.Use(web.ServeEmbeddedFrontendWithBasePath(basePath))
 	}
 
 	// Get server address from config.yaml or environment variables (SERVER_HOST, SERVER_PORT)

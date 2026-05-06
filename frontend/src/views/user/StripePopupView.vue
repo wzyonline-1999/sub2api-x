@@ -57,6 +57,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
+import { appPath, appUrl } from '@/utils/basePath'
 import { isMobileDevice } from '@/utils/device'
 
 interface StripeWithWechatPay {
@@ -120,7 +121,7 @@ async function initStripe(clientSecret: string, publishableKey: string) {
     const stripe = await loadStripe(publishableKey)
     if (!stripe) { error.value = t('payment.stripeLoadFailed'); return }
 
-    const returnUrl = window.location.origin + '/payment/result?order_id=' + orderId + '&status=success'
+    const returnUrl = appUrl(`/payment/result?order_id=${orderId}&status=success`)
 
     if (method === 'alipay') {
       // Alipay: redirect this popup to Alipay payment page
@@ -152,7 +153,7 @@ function startPolling() {
     try {
       const token = document.cookie.split('; ').find(c => c.startsWith('token='))?.split('=')[1]
         || localStorage.getItem('token') || ''
-      const res = await fetch('/api/v1/payment/orders/' + orderId, {
+      const res = await fetch(appPath('/api/v1/payment/orders/' + orderId), {
         headers: token ? { Authorization: 'Bearer ' + token } : {},
         credentials: 'include',
       })

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"golang.org/x/term"
 )
 
@@ -101,6 +102,14 @@ func RunCLI() error {
 			break
 		}
 		fmt.Println("  Invalid database name. Start with letter, use alphanumeric and underscores.")
+	}
+
+	for {
+		cfg.Database.Schema = strings.TrimSpace(promptString(reader, "Database Schema (optional)", ""))
+		if cfg.Database.Schema == "" || config.IsValidPostgresIdentifier(cfg.Database.Schema) {
+			break
+		}
+		fmt.Println("  Invalid schema name. Use lowercase letters, digits, and underscores.")
 	}
 
 	for {

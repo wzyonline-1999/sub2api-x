@@ -1071,6 +1071,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
+import { appBaseUrl } from '@/utils/basePath'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 
@@ -1701,7 +1702,9 @@ const importToCcswitch = (row: ApiKey) => {
 }
 
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
-  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
+  const baseUrl = publicSettings.value?.api_base_url || appBaseUrl()
+  const baseRoot = baseUrl.replace(/\/(?:v1|v1beta)\/?$/, '').replace(/\/+$/, '')
+  const apiBase = `${baseRoot}/v1`
   const platform = row.group?.platform || 'anthropic'
 
   // Determine app name and endpoint based on platform and client type
@@ -1711,20 +1714,20 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
   if (platform === 'antigravity') {
     // Antigravity always uses /antigravity suffix
     app = clientType === 'gemini' ? 'gemini' : 'claude'
-    endpoint = `${baseUrl}/antigravity`
+    endpoint = `${baseRoot}/antigravity`
   } else {
     switch (platform) {
       case 'openai':
         app = 'codex'
-        endpoint = baseUrl
+        endpoint = apiBase
         break
       case 'gemini':
         app = 'gemini'
-        endpoint = baseUrl
+        endpoint = baseRoot
         break
       default: // anthropic
         app = 'claude'
-        endpoint = baseUrl
+        endpoint = baseRoot
     }
   }
 
@@ -1750,7 +1753,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     resource: 'provider',
     app: app,
     name: providerName,
-    homepage: baseUrl,
+    homepage: baseRoot,
     endpoint: endpoint,
     apiKey: row.key,
     configFormat: 'json',

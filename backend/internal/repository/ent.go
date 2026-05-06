@@ -59,6 +59,10 @@ func InitEnt(cfg *config.Config) (*ent.Client, *sql.DB, error) {
 	// 这种方式比 Ent 的自动迁移更可控，支持复杂的迁移场景。
 	migrationCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
+	if err := EnsureDatabaseSchema(migrationCtx, drv.DB(), cfg.Database.Schema); err != nil {
+		_ = drv.Close()
+		return nil, nil, err
+	}
 	if err := applyMigrationsFS(migrationCtx, drv.DB(), migrations.FS); err != nil {
 		_ = drv.Close() // 迁移失败时关闭驱动，避免资源泄露
 		return nil, nil, err

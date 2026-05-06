@@ -50,6 +50,41 @@ func TestNormalizeRunMode(t *testing.T) {
 	}
 }
 
+func TestNormalizeBasePath(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"/", ""},
+		{"sub2api", "/sub2api"},
+		{"/sub2api/", "/sub2api"},
+		{" /sub2api//admin/ ", "/sub2api/admin"},
+	}
+
+	for _, tt := range tests {
+		if result := NormalizeBasePath(tt.input); result != tt.expected {
+			t.Fatalf("NormalizeBasePath(%q) = %q, want %q", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestValidateBasePath(t *testing.T) {
+	valid := []string{"", "/sub2api", "/sub2api/admin"}
+	for _, input := range valid {
+		if err := ValidateBasePath(input); err != nil {
+			t.Fatalf("ValidateBasePath(%q) unexpected error: %v", input, err)
+		}
+	}
+
+	invalid := []string{"sub2api", "/sub2api/", "/sub2api?x=1", "/sub2 api", "/sub2api//admin", `/sub2api\admin`}
+	for _, input := range invalid {
+		if err := ValidateBasePath(input); err == nil {
+			t.Fatalf("ValidateBasePath(%q) expected error", input)
+		}
+	}
+}
+
 func TestLoadDefaultSchedulingConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
@@ -739,6 +774,13 @@ func TestConfigAddressHelpers(t *testing.T) {
 	if !strings.Contains(dbCfg.DSNWithTimezone("UTC"), "TimeZone=UTC") {
 		t.Fatalf("DatabaseConfig.DSNWithTimezone() should use provided timezone")
 	}
+	dbCfg.Schema = "sub2api"
+	if !strings.Contains(dbCfg.DSN(), "search_path=sub2api,public") {
+		t.Fatalf("DatabaseConfig.DSN() should include search_path when schema is set: %q", dbCfg.DSN())
+	}
+	if !strings.Contains(dbCfg.DSNWithTimezone("UTC"), "search_path=sub2api,public") {
+		t.Fatalf("DatabaseConfig.DSNWithTimezone() should include search_path when schema is set: %q", dbCfg.DSNWithTimezone("UTC"))
+	}
 
 	redis := RedisConfig{Host: "redis", Port: 6379}
 	if redis.Address() != "redis:6379" {
@@ -763,6 +805,15 @@ func TestGetServerAddressFromEnv(t *testing.T) {
 	address := GetServerAddress()
 	if address != "127.0.0.1:9090" {
 		t.Fatalf("GetServerAddress() = %q", address)
+	}
+}
+
+func TestGetServerBasePathFromEnv(t *testing.T) {
+	t.Setenv("SERVER_BASE_PATH", "/sub2api/")
+
+	basePath := GetServerBasePath()
+	if basePath != "/sub2api" {
+		t.Fatalf("GetServerBasePath() = %q", basePath)
 	}
 }
 
@@ -955,6 +1006,30 @@ func TestDatabaseDSNWithTimezone_WithPassword(t *testing.T) {
 	}
 	if !strings.Contains(got, "TimeZone=UTC") {
 		t.Fatalf("DSNWithTimezone should include TimeZone=UTC: %q", got)
+	}
+}
+
+func TestValidateDatabaseSchema(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	cfg.Database.Schema = "sub2api"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() unexpected error for valid schema: %v", err)
+	}
+
+	cfg.Database.Schema = "bad-schema"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "database.schema") {
+		t.Fatalf("Validate() expected database.schema error, got: %v", err)
+	}
+
+	cfg.Database.Schema = "Sub2API"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "database.schema") {
+		t.Fatalf("Validate() expected lowercase database.schema error, got: %v", err)
 	}
 }
 

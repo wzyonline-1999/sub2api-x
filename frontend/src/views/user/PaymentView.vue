@@ -253,6 +253,7 @@ import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
+import { appPath, appUrl } from '@/utils/basePath'
 import { isMobileDevice } from '@/utils/device'
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -420,7 +421,10 @@ function buildWechatOAuthAuthorizeUrl(
   }
 
   try {
-    const targetUrl = new URL(normalizedUrl, window.location.origin)
+    const targetUrl = new URL(
+      normalizedUrl.startsWith('/') ? appPath(normalizedUrl) : normalizedUrl,
+      window.location.origin,
+    )
     const redirectPath = targetUrl.searchParams.get('redirect') || '/purchase'
     const redirectUrl = new URL(redirectPath, window.location.origin)
     const paymentType = normalizeVisibleMethod(context.paymentType) || context.paymentType.trim() || 'wxpay'
@@ -674,7 +678,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       paymentType: requestType,
       orderType,
       planId,
-      origin: typeof window !== 'undefined' ? window.location.origin : '',
+      origin: appUrl('/'),
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
     })
@@ -883,7 +887,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       paymentType: visibleMethod,
       orderType: context.orderType,
       planId: context.planId,
-      origin: typeof window !== 'undefined' ? window.location.origin : '',
+      origin: appUrl('/'),
       isMobile: false,
       isWechatBrowser: false,
     })

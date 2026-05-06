@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -40,10 +41,16 @@ type FrontendServer struct {
 	cache       *HTMLCache
 	settings    PublicSettingsProvider
 	overrideDir string // local file override directory
+	basePath    string
 }
 
 // NewFrontendServer creates a new frontend server with settings injection
 func NewFrontendServer(settingsProvider PublicSettingsProvider) (*FrontendServer, error) {
+	return NewFrontendServerWithBasePath(settingsProvider, "")
+}
+
+// NewFrontendServerWithBasePath creates a frontend server mounted below an optional base path.
+func NewFrontendServerWithBasePath(settingsProvider PublicSettingsProvider, basePath string) (*FrontendServer, error) {
 	distFS, err := fs.Sub(frontendFS, "dist")
 	if err != nil {
 		return nil, err
@@ -71,6 +78,7 @@ func NewFrontendServer(settingsProvider PublicSettingsProvider) (*FrontendServer
 		cache:       cache,
 		settings:    settingsProvider,
 		overrideDir: filepath.Join("data", "public"),
+		basePath:    normalizeBasePath(basePath),
 	}, nil
 }
 
@@ -84,15 +92,19 @@ func (s *FrontendServer) InvalidateCache() {
 // Middleware returns the Gin middleware handler
 func (s *FrontendServer) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-
-		// Skip API routes
-		if shouldBypassEmbeddedFrontend(path) {
+		requestPath, ok := stripBasePath(c.Request.URL.Path, s.basePath)
+		if !ok {
 			c.Next()
 			return
 		}
 
-		cleanPath := strings.TrimPrefix(path, "/")
+		// Skip API routes
+		if shouldBypassEmbeddedFrontend(requestPath) {
+			c.Next()
+			return
+		}
+
+		cleanPath := strings.TrimPrefix(requestPath, "/")
 		if cleanPath == "" {
 			cleanPath = "index.html"
 		}
@@ -109,7 +121,7 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 		}
 
 		// Serve static files normally
-		s.fileServer.ServeHTTP(c.Writer, c.Request)
+		serveFileServer(c, s.fileServer, cleanPath)
 		c.Abort()
 	}
 }
@@ -246,24 +258,38 @@ func replaceNoncePlaceholder(html []byte, nonce string) []byte {
 // ServeEmbeddedFrontend returns a middleware for serving embedded frontend
 // This is the legacy function for backward compatibility when no settings provider is available
 func ServeEmbeddedFrontend() gin.HandlerFunc {
+	return ServeEmbeddedFrontendWithBasePath("")
+}
+
+// ServeEmbeddedFrontendWithBasePath serves embedded frontend assets below an optional base path.
+func ServeEmbeddedFrontendWithBasePath(basePath string) gin.HandlerFunc {
 	distFS, err := fs.Sub(frontendFS, "dist")
 	if err != nil {
 		panic("failed to get dist subdirectory: " + err.Error())
 	}
 	fileServer := http.FileServer(http.FS(distFS))
 	overrideDir := filepath.Join("data", "public")
+	basePath = normalizeBasePath(basePath)
 
 	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-
-		if shouldBypassEmbeddedFrontend(path) {
+		requestPath, ok := stripBasePath(c.Request.URL.Path, basePath)
+		if !ok {
 			c.Next()
 			return
 		}
 
-		cleanPath := strings.TrimPrefix(path, "/")
+		if shouldBypassEmbeddedFrontend(requestPath) {
+			c.Next()
+			return
+		}
+
+		cleanPath := strings.TrimPrefix(requestPath, "/")
 		if cleanPath == "" {
 			cleanPath = "index.html"
+		}
+		if cleanPath == "index.html" {
+			serveIndexHTML(c, distFS)
+			return
 		}
 
 		if file, err := distFS.Open(cleanPath); err == nil {
@@ -272,13 +298,51 @@ func ServeEmbeddedFrontend() gin.HandlerFunc {
 			if tryServeOverrideFile(c, overrideDir, cleanPath) {
 				return
 			}
-			fileServer.ServeHTTP(c.Writer, c.Request)
+			serveFileServer(c, fileServer, cleanPath)
 			c.Abort()
 			return
 		}
 
 		serveIndexHTML(c, distFS)
 	}
+}
+
+func normalizeBasePath(raw string) string {
+	basePath := strings.TrimSpace(raw)
+	if basePath == "" || basePath == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(basePath, "/") {
+		basePath = "/" + basePath
+	}
+	basePath = pathpkg.Clean(basePath)
+	if basePath == "." || basePath == "/" {
+		return ""
+	}
+	return basePath
+}
+
+func stripBasePath(requestPath, basePath string) (string, bool) {
+	if basePath == "" {
+		return requestPath, true
+	}
+	if requestPath == basePath {
+		return "/", true
+	}
+	prefix := basePath + "/"
+	if strings.HasPrefix(requestPath, prefix) {
+		return strings.TrimPrefix(requestPath, basePath), true
+	}
+	return "", false
+}
+
+func serveFileServer(c *gin.Context, fileServer http.Handler, cleanPath string) {
+	request := c.Request.Clone(c.Request.Context())
+	urlCopy := *c.Request.URL
+	urlCopy.Path = "/" + strings.TrimPrefix(cleanPath, "/")
+	urlCopy.RawPath = ""
+	request.URL = &urlCopy
+	fileServer.ServeHTTP(c.Writer, request)
 }
 
 // tryServeOverrideFile is a standalone version of tryServeOverride for legacy usage.
@@ -304,6 +368,7 @@ func shouldBypassEmbeddedFrontend(path string) bool {
 		strings.HasPrefix(trimmed, "/backend-api/") ||
 		strings.HasPrefix(trimmed, "/antigravity/") ||
 		strings.HasPrefix(trimmed, "/setup/") ||
+		strings.HasPrefix(trimmed, "/chat/") ||
 		trimmed == "/health" ||
 		trimmed == "/responses" ||
 		strings.HasPrefix(trimmed, "/responses/") ||

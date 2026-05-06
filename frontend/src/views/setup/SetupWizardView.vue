@@ -135,6 +135,18 @@
               />
             </div>
             <div>
+              <label class="input-label">{{ t('setup.database.schema') }}</label>
+              <input
+                v-model="formData.database.schema"
+                type="text"
+                class="input"
+                placeholder="sub2api"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
               <label class="input-label">{{ t('setup.database.sslMode') }}</label>
               <Select
                 v-model="formData.database.sslmode"
@@ -496,6 +508,7 @@ import { testDatabase, testRedis, install, type InstallRequest } from '@/api/set
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { appPath } from '@/utils/basePath'
 
 const { t } = useI18n()
 
@@ -531,13 +544,14 @@ const getCurrentPort = (): number => {
 
 const formData = reactive<InstallRequest>({
   database: {
-    host: 'localhost',
-    port: 5432,
-    user: 'postgres',
-    password: '',
-    dbname: 'sub2api',
-    sslmode: 'disable'
-  },
+                    host: 'localhost',
+                    port: 5432,
+                    user: 'postgres',
+                    password: '',
+                    dbname: 'sub2api',
+                    sslmode: 'disable',
+                    schema: ''
+                  },
   redis: {
     host: 'localhost',
     port: 6379,
@@ -644,7 +658,7 @@ async function waitForServiceRestart() {
     try {
       // Use setup status endpoint as it tells us the real mode
       // Service might return 404 or connection refused while restarting
-      const response = await fetch('/setup/status', {
+      const response = await fetch(appPath('/setup/status'), {
         method: 'GET',
         cache: 'no-store'
       })
@@ -656,7 +670,7 @@ async function waitForServiceRestart() {
           serviceReady.value = true
           // Redirect to login page after a short delay
           setTimeout(() => {
-            window.location.href = '/login'
+            window.location.href = appPath('/login')
           }, 1500)
           return
         }
