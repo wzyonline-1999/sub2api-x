@@ -162,6 +162,7 @@ func (h *AuthHandler) LinuxDoOAuthCallback(c *gin.Context) {
 	if frontendCallback == "" {
 		frontendCallback = linuxDoOAuthDefaultFrontendCB
 	}
+	frontendCallback = h.frontendCallbackWithServerBasePath(frontendCallback)
 
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))

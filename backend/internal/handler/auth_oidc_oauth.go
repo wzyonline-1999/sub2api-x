@@ -205,6 +205,7 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 	if frontendCallback == "" {
 		frontendCallback = oidcOAuthDefaultFrontendCB
 	}
+	frontendCallback = h.frontendCallbackWithServerBasePath(frontendCallback)
 
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))

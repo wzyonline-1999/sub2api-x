@@ -151,7 +151,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useClipboard } from '@/composables/useClipboard'
 import { useAppStore, useAuthStore } from '@/stores'
-import { apiClient } from '@/api/client'
+import { API_BASE_URL, apiClient } from '@/api/client'
 import {
   exchangePendingOAuthCompletion,
   persistOAuthTokenContext,
@@ -256,8 +256,7 @@ function readPendingEmailOAuthProvider(): 'github' | 'google' | null {
 
 function redirectProviderCallbackToBackend(provider: 'github' | 'google'): void {
   if (typeof window === 'undefined') return
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '/api/v1'
-  const normalized = apiBase.replace(/\/$/, '')
+  const normalized = API_BASE_URL.replace(/\/$/, '')
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(route.query)) {
     if (Array.isArray(value)) {

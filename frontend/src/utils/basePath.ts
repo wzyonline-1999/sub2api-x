@@ -74,11 +74,42 @@ export function appWebSocketUrl(path: string, explicitBaseUrl?: string): string 
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const configuredBase = explicitBaseUrl || (import.meta.env.VITE_WS_BASE_URL as string | undefined)?.trim()
-  const origin = configuredBase
-    ? configuredBase.startsWith('ws://') || configuredBase.startsWith('wss://')
-      ? configuredBase
-      : `${protocol}//${configuredBase}`
-    : `${protocol}//${window.location.host}`
+  if (!configuredBase) {
+    return new URL(appPath(path), `${protocol}//${window.location.host}`).toString()
+  }
 
-  return new URL(appPath(path), origin).toString()
+  const base = normalizeWebSocketBaseUrl(configuredBase, protocol)
+  if (!base) {
+    return new URL(appPath(path), `${protocol}//${window.location.host}`).toString()
+  }
+
+  const basePath = base.pathname.replace(/\/+$/, '')
+  base.pathname = basePath && basePath !== '/' ? `${basePath}${normalizePath(path)}` : appPath(path)
+  base.search = ''
+  base.hash = ''
+  return base.toString()
+}
+
+function normalizeWebSocketBaseUrl(raw: string, protocol: 'ws:' | 'wss:'): URL | null {
+  const value = raw.trim().replace(/\/+$/, '')
+  if (!value) {
+    return null
+  }
+
+  let candidate = value
+  if (candidate.startsWith('https://')) {
+    candidate = `wss://${candidate.slice('https://'.length)}`
+  } else if (candidate.startsWith('http://')) {
+    candidate = `ws://${candidate.slice('http://'.length)}`
+  } else if (candidate.startsWith('//')) {
+    candidate = `${protocol}${candidate}`
+  } else if (!candidate.startsWith('ws://') && !candidate.startsWith('wss://')) {
+    candidate = `${protocol}//${candidate}`
+  }
+
+  try {
+    return new URL(candidate)
+  } catch {
+    return null
+  }
 }

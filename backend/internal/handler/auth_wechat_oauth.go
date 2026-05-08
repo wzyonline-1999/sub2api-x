@@ -382,7 +382,7 @@ func (h *AuthHandler) WeChatPaymentOAuthStart(c *gin.Context) {
 // WeChatPaymentOAuthCallback exchanges a payment OAuth code for an OpenID and
 // forwards the browser back to the frontend callback route.
 func (h *AuthHandler) WeChatPaymentOAuthCallback(c *gin.Context) {
-	frontendCallback := wechatPaymentOAuthFrontendCB
+	frontendCallback := h.frontendCallbackWithServerBasePath(wechatPaymentOAuthFrontendCB)
 
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))
@@ -991,7 +991,7 @@ func (h *AuthHandler) getWeChatOAuthConfig(ctx context.Context, rawMode string, 
 		appID:            strings.TrimSpace(effective.AppIDForMode(mode)),
 		appSecret:        strings.TrimSpace(effective.AppSecretForMode(mode)),
 		redirectURI:      firstNonEmpty(strings.TrimSpace(effective.RedirectURL), resolveWeChatOAuthAbsoluteURL(apiBaseURL, c, "/api/v1/auth/oauth/wechat/callback")),
-		frontendCallback: firstNonEmpty(strings.TrimSpace(effective.FrontendRedirectURL), wechatOAuthDefaultFrontendCB),
+		frontendCallback: h.frontendCallbackWithServerBasePath(firstNonEmpty(strings.TrimSpace(effective.FrontendRedirectURL), wechatOAuthDefaultFrontendCB)),
 		scope:            effective.ScopeForMode(mode),
 		openEnabled:      effective.OpenEnabled,
 		mpEnabled:        effective.MPEnabled,
@@ -1018,10 +1018,10 @@ func (h *AuthHandler) wechatOAuthFrontendCallback(ctx context.Context) string {
 	if h != nil && h.settingSvc != nil {
 		cfg, err := h.settingSvc.GetWeChatConnectOAuthConfig(ctx)
 		if err == nil && strings.TrimSpace(cfg.FrontendRedirectURL) != "" {
-			return strings.TrimSpace(cfg.FrontendRedirectURL)
+			return h.frontendCallbackWithServerBasePath(cfg.FrontendRedirectURL)
 		}
 	}
-	return wechatOAuthDefaultFrontendCB
+	return h.frontendCallbackWithServerBasePath(wechatOAuthDefaultFrontendCB)
 }
 
 func resolveWeChatOAuthMode(rawMode string, c *gin.Context) (string, error) {

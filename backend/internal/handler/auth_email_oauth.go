@@ -102,6 +102,7 @@ func (h *AuthHandler) emailOAuthCallback(c *gin.Context, provider string) {
 	if frontendCallback == "" {
 		frontendCallback = "/auth/oauth/callback"
 	}
+	frontendCallback = h.frontendCallbackWithServerBasePath(frontendCallback)
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))
 		return
