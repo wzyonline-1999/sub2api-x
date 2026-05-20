@@ -29,7 +29,7 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		return
 	}
 
-	setOpsRequestContext(c, "", false, body)
+	setOpsRequestContext(c, "", false)
 	c.JSON(http.StatusOK, gin.H{
 		"input_tokens": estimateAnthropicInputTokens(body),
 	})
