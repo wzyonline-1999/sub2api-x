@@ -218,6 +218,7 @@ func TestOpsErrorLoggerMiddleware_DoesNotBreakOuterMiddlewares(t *testing.T) {
 func TestIsKnownOpsErrorType(t *testing.T) {
 	known := []string{
 		"invalid_request_error",
+		"client_request_body_read_failed",
 		"authentication_error",
 		"rate_limit_error",
 		"billing_error",
@@ -273,6 +274,16 @@ func TestNormalizeOpsErrorType(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestNormalizeOpsErrorTypeForMessage_RequestBodyReadFailure(t *testing.T) {
+	got := normalizeOpsErrorTypeForMessage("invalid_request_error", "", "Failed to read request body")
+	require.Equal(t, "client_request_body_read_failed", got)
+	require.Equal(t, "request", classifyOpsPhase(got, "Failed to read request body", ""))
+	require.Equal(t, "P3", classifyOpsSeverity(got, http.StatusBadRequest))
+	require.False(t, classifyOpsIsRetryable(got, http.StatusBadRequest))
+	require.Equal(t, "client", classifyOpsErrorOwner("request", "Failed to read request body"))
+	require.Equal(t, "client_request", classifyOpsErrorSource("request", "Failed to read request body"))
 }
 
 func TestSetOpsEndpointContext_SetsContextKeys(t *testing.T) {

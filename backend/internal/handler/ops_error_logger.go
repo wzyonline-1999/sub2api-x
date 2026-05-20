@@ -773,7 +773,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			requestID = c.Writer.Header().Get("x-request-id")
 		}
 
-		normalizedType := normalizeOpsErrorType(parsed.ErrorType, parsed.Code)
+		normalizedType := normalizeOpsErrorTypeForMessage(parsed.ErrorType, parsed.Code, parsed.Message)
 
 		phase := classifyOpsPhase(normalizedType, parsed.Message, parsed.Code)
 		isBusinessLimited := classifyOpsIsBusinessLimited(normalizedType, phase, parsed.Code, status, parsed.Message)
@@ -1082,6 +1082,7 @@ func guessPlatformFromPath(path string) string {
 func isKnownOpsErrorType(t string) bool {
 	switch t {
 	case "invalid_request_error",
+		"client_request_body_read_failed",
 		"authentication_error",
 		"rate_limit_error",
 		"billing_error",
@@ -1110,6 +1111,21 @@ func normalizeOpsErrorType(errType string, code string) string {
 	}
 }
 
+func normalizeOpsErrorTypeForMessage(errType string, code string, message string) string {
+	if isOpsRequestBodyReadFailureMessage(message) {
+		return "client_request_body_read_failed"
+	}
+	return normalizeOpsErrorType(errType, code)
+}
+
+func isOpsRequestBodyReadFailureMessage(message string) bool {
+	msg := strings.ToLower(strings.TrimSpace(message))
+	return msg == "failed to read request body" ||
+		msg == "client disconnected while sending request body" ||
+		msg == "unsupported request content-encoding" ||
+		msg == "failed to decode compressed request body"
+}
+
 func classifyOpsPhase(errType, message, code string) string {
 	msg := strings.ToLower(message)
 	// Standardized phases: request|auth|routing|upstream|network|internal
@@ -1122,7 +1138,7 @@ func classifyOpsPhase(errType, message, code string) string {
 	switch errType {
 	case "authentication_error":
 		return "auth"
-	case "billing_error", "subscription_error":
+	case "billing_error", "subscription_error", "client_request_body_read_failed":
 		return "request"
 	case "rate_limit_error":
 		if strings.Contains(msg, "concurrency") || strings.Contains(msg, "pending") || strings.Contains(msg, "queue") {
@@ -1145,7 +1161,7 @@ func classifyOpsPhase(errType, message, code string) string {
 
 func classifyOpsSeverity(errType string, status int) string {
 	switch errType {
-	case "invalid_request_error", "authentication_error", "billing_error", "subscription_error":
+	case "invalid_request_error", "client_request_body_read_failed", "authentication_error", "billing_error", "subscription_error":
 		return "P3"
 	}
 	if status >= 500 {
@@ -1162,7 +1178,7 @@ func classifyOpsSeverity(errType string, status int) string {
 
 func classifyOpsIsRetryable(errType string, statusCode int) bool {
 	switch errType {
-	case "authentication_error", "invalid_request_error":
+	case "authentication_error", "invalid_request_error", "client_request_body_read_failed":
 		return false
 	case "timeout_error":
 		return true

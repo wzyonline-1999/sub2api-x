@@ -174,7 +174,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			googleError(c, http.StatusRequestEntityTooLarge, buildBodyTooLargeMessage(maxErr.Limit))
 			return
 		}
-		googleError(c, http.StatusBadRequest, "Failed to read request body")
+		googleError(c, http.StatusBadRequest, buildRequestBodyReadErrorMessage(err))
 		return
 	}
 	if len(body) == 0 {
