@@ -58,6 +58,10 @@ type OpsMetricsCollector struct {
 	startOnce sync.Once
 	stopOnce  sync.Once
 
+	dbStatsMu          sync.Mutex
+	lastDBWaitCount    int64
+	hasLastDBWaitStats bool
+
 	skipLogMu sync.Mutex
 	skipLogAt time.Time
 }
@@ -267,7 +271,7 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 
 	dbOK := c.checkDB(ctx)
 	redisOK := c.checkRedis(ctx)
-	active, idle := c.dbPoolStats()
+	active, idle, waiting := c.dbPoolStats()
 	redisTotal, redisIdle, redisStatsOK := c.redisPoolStats()
 
 	successCount, tokenConsumed, err := c.queryUsageCounts(ctx, windowStart, windowEnd)
@@ -356,6 +360,7 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 
 		DBConnActive:          intPtr(active),
 		DBConnIdle:            intPtr(idle),
+		DBConnWaiting:         intPtr(waiting),
 		GoroutineCount:        intPtr(goroutines),
 		ConcurrencyQueueDepth: concurrencyQueueDepth,
 	}
@@ -842,12 +847,36 @@ func (c *OpsMetricsCollector) redisPoolStats() (total int, idle int, ok bool) {
 	return int(stats.TotalConns), int(stats.IdleConns), true
 }
 
-func (c *OpsMetricsCollector) dbPoolStats() (active int, idle int) {
+func (c *OpsMetricsCollector) dbPoolStats() (active int, idle int, waiting int) {
 	if c == nil || c.db == nil {
-		return 0, 0
+		return 0, 0, 0
 	}
 	stats := c.db.Stats()
-	return stats.InUse, stats.Idle
+
+	c.dbStatsMu.Lock()
+	defer c.dbStatsMu.Unlock()
+
+	if c.hasLastDBWaitStats {
+		waitDelta := stats.WaitCount - c.lastDBWaitCount
+		if waitDelta > 0 {
+			waiting = int64ToIntSaturating(waitDelta)
+		}
+	}
+	c.lastDBWaitCount = stats.WaitCount
+	c.hasLastDBWaitStats = true
+
+	return stats.InUse, stats.Idle, waiting
+}
+
+func int64ToIntSaturating(v int64) int {
+	if v <= 0 {
+		return 0
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if v > maxInt {
+		return int(maxInt)
+	}
+	return int(v)
 }
 
 var opsMetricsCollectorReleaseScript = redis.NewScript(`
