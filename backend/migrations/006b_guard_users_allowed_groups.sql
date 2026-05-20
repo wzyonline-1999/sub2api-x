@@ -4,13 +4,13 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM information_schema.tables
-        WHERE table_schema = 'public'
+        WHERE table_schema = current_schema()
           AND table_name = 'users'
     ) THEN
         IF NOT EXISTS (
             SELECT 1
             FROM information_schema.columns
-            WHERE table_schema = 'public'
+            WHERE table_schema = current_schema()
               AND table_name = 'users'
               AND column_name = 'allowed_groups'
         ) THEN

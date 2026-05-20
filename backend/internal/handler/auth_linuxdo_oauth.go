@@ -938,7 +938,7 @@ func setCookie(c *gin.Context, name string, value string, maxAgeSec int, secure 
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     linuxDoOAuthCookiePath,
+		Path:     oauthCookiePath(c, linuxDoOAuthCookiePath),
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -950,7 +950,7 @@ func clearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     linuxDoOAuthCookiePath,
+		Path:     oauthCookiePath(c, linuxDoOAuthCookiePath),
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -962,7 +962,7 @@ func clearOAuthBindAccessTokenCookie(c *gin.Context, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthBindAccessTokenCookieName,
 		Value:    "",
-		Path:     oauthBindAccessTokenCookiePath,
+		Path:     oauthCookiePath(c, oauthBindAccessTokenCookiePath),
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -974,7 +974,7 @@ func setOAuthBindAccessTokenCookie(c *gin.Context, token string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthBindAccessTokenCookieName,
 		Value:    url.QueryEscape(strings.TrimSpace(token)),
-		Path:     oauthBindAccessTokenCookiePath,
+		Path:     oauthCookiePath(c, oauthBindAccessTokenCookiePath),
 		MaxAge:   linuxDoOAuthCookieMaxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,

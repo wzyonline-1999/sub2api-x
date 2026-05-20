@@ -601,7 +601,7 @@ func emailOAuthSetCookie(c *gin.Context, name, value string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     emailOAuthCookiePath,
+		Path:     oauthCookiePath(c, emailOAuthCookiePath),
 		MaxAge:   emailOAuthCookieMaxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -613,7 +613,7 @@ func emailOAuthClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     emailOAuthCookiePath,
+		Path:     oauthCookiePath(c, emailOAuthCookiePath),
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,

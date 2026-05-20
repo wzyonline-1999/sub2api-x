@@ -1172,7 +1172,7 @@ func oidcSetCookie(c *gin.Context, name, value string, maxAgeSec int, secure boo
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     oidcOAuthCookiePath,
+		Path:     oauthCookiePath(c, oidcOAuthCookiePath),
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1184,7 +1184,7 @@ func oidcClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     oidcOAuthCookiePath,
+		Path:     oauthCookiePath(c, oidcOAuthCookiePath),
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,

@@ -52,6 +52,34 @@ func TestIsMigrationChecksumCompatible(t *testing.T) {
 		require.False(t, ok)
 	})
 
+	t.Run("006系列历史public schema checksum可兼容", func(t *testing.T) {
+		cases := []struct {
+			name         string
+			dbChecksum   string
+			fileChecksum string
+		}{
+			{
+				name:         "006_add_users_allowed_groups_compat.sql",
+				dbChecksum:   "900f5ba934e8d66bba7d94f1d34463a9022e0e72c3ce911260d7c703449a33ae",
+				fileChecksum: "c1301d7c0d9cb7a25e7a00ddc930992a6b645270d4379fd6dac023f847861169",
+			},
+			{
+				name:         "006b_guard_users_allowed_groups.sql",
+				dbChecksum:   "6953b71b92d0ed2f035137fdc4e4fb6cc056861b22e28c5612950c08cedf564e",
+				fileChecksum: "cb97c4944338921bd9cdbba5eee7071abd775f67456798716637e0e1575b0de6",
+			},
+			{
+				name:         "009_fix_usage_logs_cache_columns.sql",
+				dbChecksum:   "9a3c22b296ea5a628eb8b35b34318f035b9ac177dfc7d1db26b0901dcd98bafb",
+				fileChecksum: "e2127eb45db1fdd6c717aa77227831e542457be95bff8f7f28669197853b060d",
+			},
+		}
+		for _, tc := range cases {
+			ok := isMigrationChecksumCompatible(tc.name, tc.dbChecksum, tc.fileChecksum)
+			require.True(t, ok)
+		}
+	})
+
 	t.Run("108a历史public schema checksum可兼容", func(t *testing.T) {
 		ok := isMigrationChecksumCompatible(
 			"108a_widen_auth_identity_migration_report_type.sql",
@@ -107,21 +135,31 @@ func TestIsMigrationChecksumCompatible(t *testing.T) {
 	})
 
 	t.Run("115历史checksum可兼容修复后的legacy external backfill", func(t *testing.T) {
-		ok := isMigrationChecksumCompatible(
-			"115_auth_identity_legacy_external_backfill.sql",
+		for _, dbChecksum := range []string{
 			"4cf39e508be9fd1a5aa41610cbbebeb80385c9adda45bf78a706de9db4f1385f",
 			"022aadd97bb53e755f0cf7a3a957e0cb1a1353b0c39ec4de3234acd2871fd04f",
-		)
-		require.True(t, ok)
+		} {
+			ok := isMigrationChecksumCompatible(
+				"115_auth_identity_legacy_external_backfill.sql",
+				dbChecksum,
+				"022370762c2dd0ce4f665579b380653478723118886195e9dad481b903195394",
+			)
+			require.True(t, ok)
+		}
 	})
 
 	t.Run("116历史checksum可兼容修复后的legacy external safety reports", func(t *testing.T) {
-		ok := isMigrationChecksumCompatible(
-			"116_auth_identity_legacy_external_safety_reports.sql",
+		for _, dbChecksum := range []string{
 			"f7757bd929ac67ffb08ce69fa4cf20fad39dbff9d5a5085fb2adabb7607e5877",
 			"07edb09fa8d04ffb172b0621e3c22f4d1757d20a24ae267b3b36b087ab72d488",
-		)
-		require.True(t, ok)
+		} {
+			ok := isMigrationChecksumCompatible(
+				"116_auth_identity_legacy_external_safety_reports.sql",
+				dbChecksum,
+				"aee893b8afb6bbbdb37fc4ecc320438ad6f79b2f5a395e27d45fd6d82a9e0df6",
+			)
+			require.True(t, ok)
+		}
 	})
 
 	t.Run("119历史checksum可兼容占位文件", func(t *testing.T) {

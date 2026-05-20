@@ -1233,7 +1233,7 @@ func wechatSetCookie(c *gin.Context, name string, value string, maxAgeSec int, s
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     wechatOAuthCookiePath,
+		Path:     oauthCookiePath(c, wechatOAuthCookiePath),
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1245,7 +1245,7 @@ func wechatClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     wechatOAuthCookiePath,
+		Path:     oauthCookiePath(c, wechatOAuthCookiePath),
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1329,7 +1329,7 @@ func wechatPaymentSetCookie(c *gin.Context, name string, value string, maxAgeSec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     wechatPaymentOAuthCookiePath,
+		Path:     oauthCookiePath(c, wechatPaymentOAuthCookiePath),
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1341,7 +1341,7 @@ func wechatPaymentClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     wechatPaymentOAuthCookiePath,
+		Path:     oauthCookiePath(c, wechatPaymentOAuthCookiePath),
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
