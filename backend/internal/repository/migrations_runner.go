@@ -65,6 +65,7 @@ type migrationChecksumCompatibilityRule struct {
 // 避免放宽全局校验，也允许将误改的历史 migration 回滚为已发布版本而不要求人工修 checksum。
 var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibilityRule{
 	"006_add_users_allowed_groups_compat.sql":                 newMigrationChecksumCompatibilityRule("c1301d7c0d9cb7a25e7a00ddc930992a6b645270d4379fd6dac023f847861169", "900f5ba934e8d66bba7d94f1d34463a9022e0e72c3ce911260d7c703449a33ae"),
+	"006_fix_invalid_subscription_expires_at.sql":             newMigrationChecksumCompatibilityRule("4ca60e82e381d97f19f4a6f1046a77c7d147a727553f0aea9417c3674267c0d3", "ed5d6553a86578d987088331bc8810808b75e554a160b66ff4626815ea838354"),
 	"006b_guard_users_allowed_groups.sql":                     newMigrationChecksumCompatibilityRule("cb97c4944338921bd9cdbba5eee7071abd775f67456798716637e0e1575b0de6", "6953b71b92d0ed2f035137fdc4e4fb6cc056861b22e28c5612950c08cedf564e"),
 	"009_fix_usage_logs_cache_columns.sql":                    newMigrationChecksumCompatibilityRule("e2127eb45db1fdd6c717aa77227831e542457be95bff8f7f28669197853b060d", "9a3c22b296ea5a628eb8b35b34318f035b9ac177dfc7d1db26b0901dcd98bafb"),
 	"054_drop_legacy_cache_columns.sql":                       newMigrationChecksumCompatibilityRule("82de761156e03876653e7a6a4eee883cd927847036f779b0b9f34c42a8af7a7d", "182c193f3359946cf094090cd9e57d5c3fd9abaffbc1e8fc378646b8a6fa12b4"),
