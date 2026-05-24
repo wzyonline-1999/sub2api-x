@@ -21,6 +21,10 @@ vi.mock('@/composables/useClipboard', () => ({
   })
 }))
 
+vi.mock('@/utils/basePath', () => ({
+  defaultApiBaseUrl: () => '/sub2api/api/v1'
+}))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   const messages: Record<string, string> = {
@@ -134,7 +138,8 @@ describe('AccountTestModal', () => {
     await flushPromises()
 
     expect(global.fetch).toHaveBeenCalledTimes(1)
-    const [, request] = (global.fetch as any).mock.calls[0]
+    const [url, request] = (global.fetch as any).mock.calls[0]
+    expect(url).toBe('/sub2api/api/v1/admin/accounts/42/test')
     expect(JSON.parse(request.body)).toEqual({
       model_id: 'gemini-3.1-flash-image',
       prompt: 'draw a tiny orange cat astronaut'
