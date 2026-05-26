@@ -37,6 +37,12 @@ vi.mock('@airwallex/components-sdk', () => ({
   init: airwallexInit,
 }))
 
+vi.mock('@/utils/basePath', () => ({
+  appPath: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
+  appUrl: (path: string) => `https://example.test/sub2api${path.startsWith('/') ? path : `/${path}`}`,
+  defaultApiBaseUrl: () => '/sub2api/api/v1',
+}))
+
 function airwallexSnapshot(overrides: Partial<PaymentRecoverySnapshot> = {}): PaymentRecoverySnapshot {
   return {
     orderId: 101,
@@ -113,6 +119,7 @@ describe('AirwallexPaymentView', () => {
 
     const checkoutOptions = redirectToCheckout.mock.calls[0][0]
     const successUrl = new URL(checkoutOptions.successUrl)
+    expect(successUrl.pathname).toBe('/sub2api/payment/result')
     expect(successUrl.searchParams.get('order_id')).toBe('101')
     expect(successUrl.searchParams.get('out_trade_no')).toBe('sub2_awx_101')
     expect(successUrl.searchParams.get('resume_token')).toBe('resume-awx')

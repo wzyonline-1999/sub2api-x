@@ -255,6 +255,11 @@ func TestApiKeyAuthWithSubscriptionGoogle_QueryApiKeyRejected(t *testing.T) {
 	require.Equal(t, "INVALID_ARGUMENT", resp.Error.Status)
 }
 
+func TestAllowGoogleQueryKeySupportsMountedBasePath(t *testing.T) {
+	require.True(t, allowGoogleQueryKey("/sub2api/v1beta/models"))
+	require.True(t, allowGoogleQueryKey("/sub2api/antigravity/v1beta/models"))
+}
+
 func TestApiKeyAuthWithSubscriptionGoogleSetsGroupContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

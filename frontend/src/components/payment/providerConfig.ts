@@ -2,6 +2,8 @@
  * Shared constants and types for payment provider management.
  */
 
+import { appPath } from '@/utils/basePath'
+
 // --- Types ---
 
 export interface ConfigFieldDef {
@@ -91,14 +93,14 @@ export function getPaymentPopupFeatures(): string {
 
 /** Webhook paths for each provider (relative to origin). */
 export const WEBHOOK_PATHS: Record<string, string> = {
-  easypay: '/api/v1/payment/webhook/easypay',
-  alipay: '/api/v1/payment/webhook/alipay',
-  wxpay: '/api/v1/payment/webhook/wxpay',
-  stripe: '/api/v1/payment/webhook/stripe',
-  airwallex: '/api/v1/payment/webhook/airwallex',
+  easypay: appPath('/api/v1/payment/webhook/easypay'),
+  alipay: appPath('/api/v1/payment/webhook/alipay'),
+  wxpay: appPath('/api/v1/payment/webhook/wxpay'),
+  stripe: appPath('/api/v1/payment/webhook/stripe'),
+  airwallex: appPath('/api/v1/payment/webhook/airwallex'),
 }
 
-export const RETURN_PATH = '/payment/result'
+export const RETURN_PATH = appPath('/payment/result')
 
 /** Fixed callback paths per provider — displayed as read-only after base URL. */
 export const PROVIDER_CALLBACK_PATHS: Record<string, CallbackPaths> = {

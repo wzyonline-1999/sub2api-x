@@ -97,6 +97,10 @@ vi.mock('@/stores', () => ({
   }),
 }))
 
+vi.mock('@/utils/basePath', () => ({
+  appPath: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
+}))
+
 describe('KeyUsageView daily detail', () => {
   beforeEach(() => {
     showInfo.mockReset()
@@ -183,7 +187,7 @@ describe('KeyUsageView daily detail', () => {
 
     const fetchMock = vi.mocked(fetch)
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/v1/usage?'),
+      expect.stringContaining('/sub2api/v1/usage?'),
       expect.objectContaining({
         headers: { Authorization: 'Bearer sk-test-key' },
       })

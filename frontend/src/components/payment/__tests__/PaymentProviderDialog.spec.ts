@@ -29,6 +29,10 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 
+vi.mock('@/utils/basePath', () => ({
+  appPath: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
+}))
+
 function providerFactory(overrides: Partial<ProviderInstance> = {}): ProviderInstance {
   return {
     id: 1,
@@ -116,7 +120,7 @@ describe('PaymentProviderDialog payment guide', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain(messages['admin.settings.payment.airwallexWebhookHint'])
-    expect(wrapper.text()).toContain('/api/v1/payment/webhook/airwallex')
+    expect(wrapper.text()).toContain('/sub2api/api/v1/payment/webhook/airwallex')
   })
 
   it('shows Stripe webhook API version guidance with the integrated SDK version', async () => {
@@ -127,7 +131,7 @@ describe('PaymentProviderDialog payment guide', () => {
 
     expect(wrapper.text()).toContain(messages['admin.settings.payment.stripeWebhookHint'])
     expect(wrapper.text()).toContain(`Use Stripe API version ${STRIPE_SDK_API_VERSION}.`)
-    expect(wrapper.text()).toContain('/api/v1/payment/webhook/stripe')
+    expect(wrapper.text()).toContain('/sub2api/api/v1/payment/webhook/stripe')
   })
 
   it('emits an empty Airwallex accountId when the admin clears it', async () => {
