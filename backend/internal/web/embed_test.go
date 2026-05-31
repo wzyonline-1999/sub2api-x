@@ -434,6 +434,10 @@ func TestFrontendServer_Middleware(t *testing.T) {
 			"/api/v1/users",
 			"/v1/models",
 			"/v1beta/chat",
+			"/openai/v1/responses",
+			"/openai/v1/chat/completions",
+			"/openai/v1/embeddings",
+			"/openai/v1/images/generations",
 			"/backend-api/codex/responses",
 			"/backend-api/codex/responses/compact",
 			"/antigravity/test",
@@ -639,6 +643,10 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 			"/api/users",
 			"/v1/models",
 			"/v1beta/chat",
+			"/openai/v1/responses",
+			"/openai/v1/chat/completions",
+			"/openai/v1/embeddings",
+			"/openai/v1/images/generations",
 			"/backend-api/codex/responses",
 			"/backend-api/codex/responses/compact",
 			"/antigravity/test",
@@ -699,20 +707,32 @@ func TestServeEmbeddedFrontendWithBasePath(t *testing.T) {
 	t.Run("skips_api_routes_under_base_path", func(t *testing.T) {
 		middleware := ServeEmbeddedFrontendWithBasePath("/sub2api")
 
-		nextCalled := false
-		router := gin.New()
-		router.Use(middleware)
-		router.GET("/sub2api/api/users", func(c *gin.Context) {
-			nextCalled = true
-			c.String(http.StatusOK, "ok")
-		})
+		apiPaths := []string{
+			"/sub2api/api/users",
+			"/sub2api/openai/v1/responses",
+			"/sub2api/openai/v1/chat/completions",
+			"/sub2api/openai/v1/embeddings",
+			"/sub2api/openai/v1/images/generations",
+		}
 
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/sub2api/api/users", nil)
-		router.ServeHTTP(w, req)
+		for _, path := range apiPaths {
+			t.Run(path, func(t *testing.T) {
+				nextCalled := false
+				router := gin.New()
+				router.Use(middleware)
+				router.Any(path, func(c *gin.Context) {
+					nextCalled = true
+					c.String(http.StatusOK, "ok")
+				})
 
-		assert.True(t, nextCalled, "next handler should be called for API route")
-		assert.Equal(t, http.StatusOK, w.Code)
+				w := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodPost, path, nil)
+				router.ServeHTTP(w, req)
+
+				assert.True(t, nextCalled, "next handler should be called for API route")
+				assert.Equal(t, http.StatusOK, w.Code)
+			})
+		}
 	})
 }
 
