@@ -91,7 +91,7 @@ type DatabaseConfig struct {
 	Schema   string `json:"schema" yaml:"schema"`
 }
 
-func setupPostgresDSN(cfg *DatabaseConfig, includeSchema bool) string {
+func postgresDSN(cfg *DatabaseConfig, dbName string, includeSchema bool) string {
 	searchPath := ""
 	if includeSchema {
 		schema := strings.TrimSpace(cfg.Schema)
@@ -102,13 +102,17 @@ func setupPostgresDSN(cfg *DatabaseConfig, includeSchema bool) string {
 	if cfg.Password == "" {
 		return fmt.Sprintf(
 			"host=%s port=%d user=%s dbname=%s sslmode=%s%s",
-			cfg.Host, cfg.Port, cfg.User, cfg.DBName, cfg.SSLMode, searchPath,
+			cfg.Host, cfg.Port, cfg.User, dbName, cfg.SSLMode, searchPath,
 		)
 	}
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode, searchPath,
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, dbName, cfg.SSLMode, searchPath,
 	)
+}
+
+func setupPostgresDSN(cfg *DatabaseConfig, includeSchema bool) string {
+	return postgresDSN(cfg, cfg.DBName, includeSchema)
 }
 
 type RedisConfig struct {
@@ -182,6 +186,14 @@ func NeedsSetup() bool {
 	return true
 }
 
+func buildPostgresDSN(cfg *DatabaseConfig, dbName string) string {
+	return postgresDSN(cfg, dbName, false)
+}
+
+func buildDatabaseConnectionDSNs(cfg *DatabaseConfig) (bootstrapDSN, targetDSN string) {
+	return buildPostgresDSN(cfg, "postgres"), postgresDSN(cfg, cfg.DBName, true)
+}
+
 // TestDatabaseConnection tests the database connection and creates database if not exists
 func TestDatabaseConnection(cfg *DatabaseConfig) error {
 	cfg.Schema = strings.TrimSpace(cfg.Schema)
@@ -189,8 +201,10 @@ func TestDatabaseConnection(cfg *DatabaseConfig) error {
 		return fmt.Errorf("invalid database schema %q; use lowercase letters, digits, and underscores", cfg.Schema)
 	}
 
-	// First, connect to the default 'postgres' database to check/create target database
-	defaultDSN := setupPostgresDSN(cfg, false)
+	// First, connect to the default 'postgres' database to check/create target database.
+	// Connecting to cfg.DBName here fails when the target database has not been
+	// created yet, so the bootstrap connection must use PostgreSQL's maintenance DB.
+	defaultDSN, targetDSN := buildDatabaseConnectionDSNs(cfg)
 
 	db, err := sql.Open("postgres", defaultDSN)
 	if err != nil {
@@ -237,8 +251,6 @@ func TestDatabaseConnection(cfg *DatabaseConfig) error {
 		logger.LegacyPrintf("setup", "failed to close postgres connection: %v", err)
 	}
 	db = nil
-
-	targetDSN := setupPostgresDSN(cfg, true)
 
 	targetDB, err := sql.Open("postgres", targetDSN)
 	if err != nil {
