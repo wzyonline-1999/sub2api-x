@@ -80,3 +80,20 @@ func TestAdminComplianceGuardBypassesComplianceEndpoint(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "ok", w.Body.String())
 }
+
+func TestAdminComplianceGuardBypassesComplianceEndpointWithBasePath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := service.NewSettingService(&complianceGuardRepoStub{}, &config.Config{})
+	router := gin.New()
+	router.Use(AdminComplianceGuard(svc))
+	router.POST("/sub2api/api/v1/admin/compliance/accept", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/sub2api/api/v1/admin/compliance/accept", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "ok", w.Body.String())
+}
