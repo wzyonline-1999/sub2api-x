@@ -209,6 +209,7 @@ import MonitorKeyPickerDialog from '@/components/admin/monitor/MonitorKeyPickerD
 import MonitorAdvancedRequestConfig from '@/components/admin/monitor/MonitorAdvancedRequestConfig.vue'
 import ProviderIcon from '@/components/user/monitor/ProviderIcon.vue'
 import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
+import { appBaseUrl } from '@/utils/basePath'
 import {
   PROVIDER_OPENAI,
   PROVIDER_ANTHROPIC,
@@ -473,7 +474,7 @@ watch(
 )
 
 function useCurrentDomain() {
-  form.endpoint = window.location.origin
+  form.endpoint = appBaseUrl()
 }
 
 async function openMyKeyPicker() {

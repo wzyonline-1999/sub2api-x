@@ -1,12 +1,17 @@
-.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan
+.PHONY: build build-backend build-frontend build-datamanagementd test check-subpath-docker test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan
 
 FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
 	src/views/auth/__tests__/WechatCallbackView.spec.ts \
 	src/views/user/__tests__/PaymentView.spec.ts \
 	src/views/user/__tests__/PaymentResultView.spec.ts \
+	src/components/payment/__tests__/paymentFlow.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
-	src/views/admin/__tests__/SettingsView.spec.ts
+	src/views/admin/__tests__/SettingsView.spec.ts \
+	src/views/admin/ops/components/__tests__/OpsAlertEventsCard.spec.ts \
+	src/views/auth/__tests__/WechatPaymentCallbackView.spec.ts \
+	src/utils/__tests__/basePath.spec.ts \
+	src/utils/__tests__/viteConfig.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend
@@ -23,13 +28,16 @@ build-frontend:
 build-datamanagementd:
 	@cd datamanagement && go build -o datamanagementd ./cmd/datamanagementd
 
-# 运行测试（后端 + 前端）
-test: test-backend test-frontend
+# 运行测试（配置检查 + 后端 + 前端）
+test: check-subpath-docker test-backend test-frontend
+
+check-subpath-docker:
+	@python3 tools/check_subpath_docker_config.py
 
 test-backend:
 	@$(MAKE) -C backend test
 
-test-frontend:
+test-frontend: check-subpath-docker
 	@pnpm --dir frontend run lint:check
 	@pnpm --dir frontend run typecheck
 	@$(MAKE) test-frontend-critical

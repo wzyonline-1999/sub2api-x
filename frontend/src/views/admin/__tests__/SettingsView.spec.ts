@@ -194,6 +194,7 @@ vi.mock("vue-i18n", async () => {
 });
 
 const AppLayoutStub = { template: "<div><slot /></div>" };
+const RouterLinkStub = { template: "<a><slot /></a>" };
 const ToggleStub = defineComponent({
   props: {
     modelValue: {
@@ -450,6 +451,7 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
+        RouterLink: RouterLinkStub,
       },
     },
   });
@@ -760,6 +762,7 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          RouterLink: RouterLinkStub,
         },
       },
     });

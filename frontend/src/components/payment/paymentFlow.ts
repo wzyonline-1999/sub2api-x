@@ -6,7 +6,6 @@ import type {
   WechatJSAPIPayload,
   WechatOAuthInfo,
 } from '@/types/payment'
-import { appPath } from '@/utils/basePath'
 
 export const PAYMENT_RECOVERY_STORAGE_KEY = 'payment.recovery.current'
 
@@ -78,6 +77,7 @@ export interface BuildCreateOrderPayloadInput {
   paymentType: string
   orderType: OrderType
   planId?: number
+  /** Absolute app base URL, including any deployment sub-path. */
   origin?: string
   isMobile: boolean
   isWechatBrowser: boolean
@@ -135,7 +135,7 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
     payload.plan_id = input.planId
   }
   if (normalizedOrigin) {
-    payload.return_url = `${normalizedOrigin}${appPath('/payment/result')}`
+    payload.return_url = `${normalizedOrigin}/payment/result`
   }
 
   return payload

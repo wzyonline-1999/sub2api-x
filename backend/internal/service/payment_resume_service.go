@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	pathpkg "path"
 	"strconv"
 	"strings"
 	"time"
@@ -248,13 +249,58 @@ func CanonicalizeReturnURL(raw string, srcHost string, srcURL string) (string, e
 	if parsed.Path == "" {
 		parsed.Path = "/"
 	}
-	if parsed.Path != paymentResultReturnPath {
+	returnPrefix, ok := paymentResultReturnPrefix(parsed.Path)
+	if !ok || !returnPrefixAllowedForSource(returnPrefix, parsed.Host, srcURL) {
 		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "return_url must target the canonical internal payment result page")
 	}
 	if !allowedReturnURLHost(parsed.Host, srcHost, srcURL) {
 		return "", infraerrors.BadRequest("INVALID_RETURN_URL", "return_url must use the same host as the current site or browser origin")
 	}
 	return parsed.String(), nil
+}
+
+func paymentResultReturnPrefix(returnPath string) (string, bool) {
+	returnPath = strings.TrimSpace(returnPath)
+	if returnPath == paymentResultReturnPath {
+		return "", true
+	}
+	if !strings.HasSuffix(returnPath, paymentResultReturnPath) {
+		return "", false
+	}
+	prefix := strings.TrimSuffix(returnPath, paymentResultReturnPath)
+	if prefix == "" || prefix == "/" || !strings.HasPrefix(prefix, "/") {
+		return "", false
+	}
+	if strings.ContainsAny(prefix, " \t\r\n?#\\") || strings.Contains(prefix, "//") || pathpkg.Clean(prefix) != prefix {
+		return "", false
+	}
+	return prefix, true
+}
+
+func returnPrefixAllowedForSource(returnPrefix string, returnURLHost string, sourceURL string) bool {
+	if returnPrefix == "" {
+		return true
+	}
+	sourceURL = strings.TrimSpace(sourceURL)
+	if sourceURL == "" {
+		return true
+	}
+
+	parsedSource, err := url.Parse(sourceURL)
+	if err != nil {
+		return true
+	}
+	if parsedSource.Host != "" && !sameOriginHost(returnURLHost, parsedSource.Host) {
+		return true
+	}
+	sourcePath := parsedSource.Path
+	if sourcePath == "" {
+		return true
+	}
+	if sourcePath == returnPrefix {
+		return true
+	}
+	return strings.HasPrefix(sourcePath, returnPrefix+"/")
 }
 
 func allowedReturnURLHost(returnURLHost string, requestHost string, refererURL string) bool {

@@ -45,6 +45,10 @@ vi.mock('@/stores', () => ({
   }),
 }))
 
+vi.mock('@/utils/basePath', () => ({
+  stripAppBasePath: (pathname: string) => pathname.replace(/^\/sub2api(?=\/|$)/, '') || '/',
+}))
+
 describe('WechatPaymentCallbackView', () => {
   beforeEach(() => {
     replaceMock.mockReset()
@@ -98,6 +102,22 @@ describe('WechatPaymentCallbackView', () => {
         amount: '128',
         order_type: 'subscription',
         plan_id: '7',
+      },
+    })
+  })
+
+  it('normalizes a mounted redirect path before passing it to vue-router', async () => {
+    locationState.current.hash = '#wechat_resume_token=resume-token-123&redirect=%2Fsub2api%2Fpurchase%3Ffrom%3Dwechat'
+
+    mount(WechatPaymentCallbackView)
+    await flushPromises()
+
+    expect(replaceMock).toHaveBeenCalledWith({
+      path: '/purchase',
+      query: {
+        from: 'wechat',
+        wechat_resume: '1',
+        wechat_resume_token: 'resume-token-123',
       },
     })
   })

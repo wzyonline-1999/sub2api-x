@@ -291,6 +291,19 @@ describe('buildCreateOrderPayload', () => {
     })
   })
 
+  it('keeps sub-path deployment prefixes singular in the canonical result URL', () => {
+    expect(buildCreateOrderPayload({
+      amount: 88,
+      paymentType: 'alipay',
+      orderType: 'balance',
+      origin: 'https://app.example.com/sub2api/',
+      isMobile: true,
+      isWechatBrowser: false,
+    })).toMatchObject({
+      return_url: 'https://app.example.com/sub2api/payment/result',
+    })
+  })
+
   it('passes is_mobile: false when forceQRCode is enabled for alipay', () => {
     expect(buildCreateOrderPayload({
       amount: 50,

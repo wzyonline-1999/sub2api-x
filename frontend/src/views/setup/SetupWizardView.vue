@@ -544,14 +544,14 @@ const getCurrentPort = (): number => {
 
 const formData = reactive<InstallRequest>({
   database: {
-                    host: 'localhost',
-                    port: 5432,
-                    user: 'postgres',
-                    password: '',
-                    dbname: 'sub2api',
-                    sslmode: 'disable',
-                    schema: ''
-                  },
+    host: 'localhost',
+    port: 5432,
+    user: 'postgres',
+    password: '',
+    dbname: 'sub2api',
+    sslmode: 'disable',
+    schema: ''
+  },
   redis: {
     host: 'localhost',
     port: 6379,

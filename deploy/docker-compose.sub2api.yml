@@ -73,7 +73,7 @@ services:
       - GEMINI_CLI_OAUTH_CLIENT_SECRET=${GEMINI_CLI_OAUTH_CLIENT_SECRET:-}
       - ANTIGRAVITY_OAUTH_CLIENT_SECRET=${ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
     healthcheck:
-      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:${SERVER_PORT:-18080}${SERVER_BASE_PATH:-/sub2api}/health"]
+      test: ["CMD-SHELL", "base_path=\"$${SERVER_BASE_PATH:-/sub2api}\"; base_path=\"$${base_path%/}\"; if [ -n \"$$base_path\" ] && [ \"$${base_path#/}\" = \"$$base_path\" ]; then base_path=\"/$$base_path\"; fi; wget -q -T 5 -O /dev/null \"http://127.0.0.1:$${SERVER_PORT:-18080}$${base_path}/health\""]
       interval: 30s
       timeout: 10s
       retries: 3

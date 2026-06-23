@@ -2,6 +2,7 @@ import { defineConfig, loadEnv, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
+import { buildDevProxy, normalizeBasePath, resolveDevBackendBaseUrl } from './vite.config.helpers'
 
 /**
  * Vite 插件：开发模式下注入公开配置到 index.html
@@ -34,21 +35,13 @@ function injectPublicSettings(backendUrl: string): Plugin {
   }
 }
 
-function normalizeBasePath(raw: string | undefined): string {
-  const value = (raw || '/').trim()
-  if (!value || value === '/') {
-    return '/'
-  }
-  const withLeadingSlash = value.startsWith('/') ? value : `/${value}`
-  return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`
-}
-
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
   const devPort = Number(env.VITE_DEV_PORT || 3000)
   const appBasePath = normalizeBasePath(env.VITE_APP_BASE_PATH)
+  const devBackendBaseUrl = resolveDevBackendBaseUrl(backendUrl, appBasePath)
 
   return {
     base: appBasePath,
@@ -57,7 +50,7 @@ export default defineConfig(({ mode }) => {
       checker({
         vueTsc: true
       }),
-      injectPublicSettings(backendUrl)
+      injectPublicSettings(devBackendBaseUrl)
     ],
   resolve: {
     alias: {
@@ -120,20 +113,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: devPort,
-      proxy: {
-        '/api': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/v1': {
-          target: backendUrl,
-          changeOrigin: true
-        },
-        '/setup': {
-          target: backendUrl,
-          changeOrigin: true
-        }
-      }
+      proxy: buildDevProxy(backendUrl, appBasePath)
     }
   }
 })

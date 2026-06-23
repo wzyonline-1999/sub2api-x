@@ -34,7 +34,7 @@ vi.mock('vue-i18n', async (importOriginal) => {
 })
 
 const SelectStub = defineComponent({
-  name: 'Select',
+  name: 'SelectStub',
   template: '<div class="select-stub" />',
 })
 

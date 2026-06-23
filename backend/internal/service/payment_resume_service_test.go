@@ -106,6 +106,34 @@ func TestCanonicalizeReturnURLAllowsConfiguredFrontendHost(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeReturnURLAllowsSubPathDeploymentResultPage(t *testing.T) {
+	t.Parallel()
+
+	got, err := CanonicalizeReturnURL(
+		"https://app.example.com/sub2api/payment/result?from=checkout",
+		"app.example.com",
+		"https://app.example.com/sub2api/purchase",
+	)
+	if err != nil {
+		t.Fatalf("CanonicalizeReturnURL returned error: %v", err)
+	}
+	if got != "https://app.example.com/sub2api/payment/result?from=checkout" {
+		t.Fatalf("CanonicalizeReturnURL = %q, want %q", got, "https://app.example.com/sub2api/payment/result?from=checkout")
+	}
+}
+
+func TestCanonicalizeReturnURLRejectsMismatchedSubPathDeploymentResultPage(t *testing.T) {
+	t.Parallel()
+
+	if _, err := CanonicalizeReturnURL(
+		"https://app.example.com/wrong/payment/result?from=checkout",
+		"app.example.com",
+		"https://app.example.com/sub2api/purchase",
+	); err == nil {
+		t.Fatal("CanonicalizeReturnURL should reject result paths outside the frontend base path")
+	}
+}
+
 func TestCanonicalizeReturnURLRejectsNonCanonicalPath(t *testing.T) {
 	t.Parallel()
 
