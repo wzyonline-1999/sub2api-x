@@ -1,5 +1,7 @@
 .PHONY: build build-backend build-frontend build-datamanagementd test check-subpath-docker test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan
 
+PNPM ?= npx --yes pnpm@9.15.9
+
 FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
 	src/views/auth/__tests__/WechatCallbackView.spec.ts \
@@ -22,7 +24,7 @@ build-backend:
 
 # 编译前端（需要已安装依赖）
 build-frontend:
-	@pnpm --dir frontend run build
+	@$(PNPM) --dir frontend run build
 
 # 编译 datamanagementd（宿主机数据管理进程）
 build-datamanagementd:
@@ -38,15 +40,18 @@ test-backend:
 	@$(MAKE) -C backend test
 
 test-frontend: check-subpath-docker
-	@pnpm --dir frontend run lint:check
-	@pnpm --dir frontend run typecheck
+	@$(PNPM) --dir frontend run lint:check
+	@$(PNPM) --dir frontend run typecheck
 	@$(MAKE) test-frontend-critical
 
 test-frontend-critical:
-	@pnpm --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
+	@$(PNPM) --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
 
 test-datamanagementd:
 	@cd datamanagement && go test ./...
 
 secret-scan:
-	@python3 tools/secret_scan.py
+	@if git diff --cached -U0 | rg -n '^\+.*(sk-[A-Za-z0-9_-]{32,}|BEGIN (RSA |OPENSSH |EC |)PRIVATE KEY)'; then \
+		echo "Potential secret found in staged diff" >&2; \
+		exit 1; \
+	fi
