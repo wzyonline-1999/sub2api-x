@@ -137,6 +137,7 @@ import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
+import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 
@@ -144,6 +145,7 @@ const props = defineProps<{
   modelValue: string[]
   platform?: string
   platforms?: string[]
+  accountType?: string
   accountId?: number
   syncCredentials?: {
     platform: string
@@ -182,12 +184,23 @@ const normalizedPlatforms = computed(() => {
 })
 
 const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity'])
+const openAIOAuthTypesWithoutLiveModelSync = new Set(['oauth', 'setup-token'])
+const isOpenAIOAuthWithoutLiveModelSync = (platform: string, accountType?: string) => {
+  return platform.toLowerCase() === 'openai' && openAIOAuthTypesWithoutLiveModelSync.has((accountType || '').toLowerCase())
+}
+
 const canSyncUpstream = computed(() => {
   if (props.accountId) {
     if (normalizedPlatforms.value.length === 0) return true
+    if (normalizedPlatforms.value.some(platform => isOpenAIOAuthWithoutLiveModelSync(platform, props.accountType))) {
+      return false
+    }
     return normalizedPlatforms.value.some(platform => upstreamSyncPlatforms.has(platform.toLowerCase()))
   }
   if (props.syncCredentials) {
+    if (isOpenAIOAuthWithoutLiveModelSync(props.syncCredentials.platform, props.syncCredentials.type)) {
+      return false
+    }
     return upstreamSyncPlatforms.has(props.syncCredentials.platform.toLowerCase())
   }
   return false
@@ -260,6 +273,12 @@ const fillRelated = () => {
   emit('update:modelValue', newModels)
 }
 
+const formatSyncUpstreamError = (error: unknown): string => {
+  const fallback = t('admin.accounts.syncUpstreamModelsFailed')
+  const message = extractApiErrorMessage(error, fallback).trim() || fallback
+  return message === fallback ? fallback : t('admin.accounts.syncUpstreamModelsError', { message })
+}
+
 const syncUpstreamModels = async () => {
   if (isSyncingUpstream.value) return
   if (!props.accountId && !props.syncCredentials) return
@@ -297,8 +316,7 @@ const syncUpstreamModels = async () => {
       appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.length }))
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : t('admin.accounts.syncUpstreamModelsFailed')
-    appStore.showError(t('admin.accounts.syncUpstreamModelsError', { message }))
+    appStore.showError(formatSyncUpstreamError(error))
   } finally {
     isSyncingUpstream.value = false
   }

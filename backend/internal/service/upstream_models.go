@@ -14,7 +14,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 )
 
-const upstreamModelsBodyLimit int64 = 8 << 20
+const (
+	upstreamModelsBodyLimit int64 = 8 << 20
+
+	openAIOAuthUpstreamModelSyncUnsupportedMessage = "OpenAI 认证登录账号暂不支持同步上游模型"
+)
 
 // UpstreamModelSyncErrorKind classifies model sync failures for safe HTTP mapping.
 type UpstreamModelSyncErrorKind string
@@ -248,6 +252,9 @@ func (s *AccountTestService) buildAntigravityAPIKeyModelsRequest(ctx context.Con
 }
 
 func (s *AccountTestService) buildOpenAIUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
+	if account.IsOAuth() {
+		return nil, newUpstreamModelSyncUnsupportedError(openAIOAuthUpstreamModelSyncUnsupportedMessage, nil)
+	}
 	if account.Type != AccountTypeAPIKey {
 		return nil, newUpstreamModelSyncUnsupportedError(
 			fmt.Sprintf("Unsupported OpenAI account type for upstream model sync: %s", account.Type), nil,
