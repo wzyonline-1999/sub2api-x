@@ -361,6 +361,7 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
+    rankings: '排行榜',
     redeem: '兑换',
     affiliate: '邀请返利',
     affiliateManagement: '邀请返利',
@@ -399,6 +400,11 @@ export default {
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
+  },
+
+  rankings: {
+    title: '排行榜',
+    description: '查看 Token 使用量和实际花费排行榜',
   },
 
   // Auth

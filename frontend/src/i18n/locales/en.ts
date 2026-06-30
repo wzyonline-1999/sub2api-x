@@ -361,6 +361,7 @@ export default {
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
+    rankings: 'Rankings',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
     affiliateManagement: 'Affiliate Rebates',
@@ -399,6 +400,11 @@ export default {
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
+  },
+
+  rankings: {
+    title: 'Rankings',
+    description: 'View token usage and actual spend rankings',
   },
 
   // Auth

@@ -91,6 +91,41 @@ export interface ApiKeyDailyUsageResponse {
   end_date: string
 }
 
+export type UsageRankingMetric = 'tokens' | 'cost'
+export type UsageRankingPeriod = 'day' | 'week' | 'month'
+
+export interface UsageRankingQuery {
+  metric: UsageRankingMetric
+  period: UsageRankingPeriod
+  limit?: number
+}
+
+export interface UsageRankingSummary {
+  total_tokens: number
+  total_actual_cost: number
+  total_requests: number
+  ranked_users: number
+}
+
+export interface UsageRankingItem {
+  rank: number
+  user_id: number
+  display_name: string
+  requests: number
+  total_tokens: number
+  actual_cost: number
+}
+
+export interface UsageRankingResponse {
+  metric: UsageRankingMetric
+  period: UsageRankingPeriod
+  start_date: string
+  end_date: string
+  summary: UsageRankingSummary
+  ranking: UsageRankingItem[]
+  current_user?: UsageRankingItem | null
+}
+
 /**
  * List usage logs with optional filters
  * @param page - Page number (default: 1)
@@ -178,6 +213,13 @@ export async function getStatsByDateRange(
   }
 
   const { data } = await apiClient.get<UsageStatsResponse>('/usage/stats', {
+    params
+  })
+  return data
+}
+
+export async function getRankings(params: UsageRankingQuery): Promise<UsageRankingResponse> {
+  const { data } = await apiClient.get<UsageRankingResponse>('/usage/rankings', {
     params
   })
   return data
@@ -328,6 +370,7 @@ export const usageAPI = {
   query,
   getStats,
   getStatsByDateRange,
+  getRankings,
   getByDateRange,
   getById,
   // Dashboard

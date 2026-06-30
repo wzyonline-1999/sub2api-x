@@ -386,6 +386,78 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	response.Success(c, stats)
 }
 
+const maxUsageRankingLimit = 10
+
+func usageRankingTimeRange(period usagestats.UsageRankingPeriod, userTZ string) (time.Time, time.Time) {
+	now := timezone.NowInUserLocation(userTZ)
+	loc := now.Location()
+	switch period {
+	case usagestats.UsageRankingPeriodDay:
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+		return start, start.AddDate(0, 0, 1)
+	case usagestats.UsageRankingPeriodWeek:
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		start := time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, loc)
+		return start, start.AddDate(0, 0, 7)
+	default:
+		start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+		return start, start.AddDate(0, 1, 0)
+	}
+}
+
+// Rankings handles the shared usage leaderboard for admins and regular users.
+// GET /api/v1/usage/rankings?metric=tokens|cost&period=day|week|month
+func (h *UsageHandler) Rankings(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	metric := usagestats.UsageRankingMetric(c.DefaultQuery("metric", string(usagestats.UsageRankingMetricTokens)))
+	if !usagestats.IsValidUsageRankingMetric(metric) {
+		response.BadRequest(c, "Invalid metric, use tokens or cost")
+		return
+	}
+
+	period := usagestats.UsageRankingPeriod(c.DefaultQuery("period", string(usagestats.UsageRankingPeriodMonth)))
+	if !usagestats.IsValidUsageRankingPeriod(period) {
+		response.BadRequest(c, "Invalid period, use day, week, or month")
+		return
+	}
+
+	limit := maxUsageRankingLimit
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed <= 0 {
+			response.BadRequest(c, "Invalid limit")
+			return
+		}
+		if parsed < maxUsageRankingLimit {
+			limit = parsed
+		}
+	}
+
+	startTime, endTime := usageRankingTimeRange(period, c.Query("timezone"))
+	ranking, err := h.usageService.GetUsageRanking(c.Request.Context(), usagestats.UsageRankingQuery{
+		StartTime:     startTime,
+		EndTime:       endTime,
+		Metric:        metric,
+		Period:        period,
+		Limit:         limit,
+		CurrentUserID: subject.UserID,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, ranking)
+}
+
 // parseUserTimeRange parses start_date, end_date query parameters for user dashboard
 // Uses user's timezone if provided, otherwise falls back to server timezone
 func parseUserTimeRange(c *gin.Context) (time.Time, time.Time) {

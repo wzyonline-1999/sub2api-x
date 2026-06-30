@@ -162,6 +162,74 @@ type UserSpendingRankingResponse struct {
 	TotalTokens     int64                     `json:"total_tokens"`
 }
 
+type UsageRankingMetric string
+
+const (
+	UsageRankingMetricTokens UsageRankingMetric = "tokens"
+	UsageRankingMetricCost   UsageRankingMetric = "cost"
+)
+
+func IsValidUsageRankingMetric(metric UsageRankingMetric) bool {
+	switch metric {
+	case UsageRankingMetricTokens, UsageRankingMetricCost:
+		return true
+	default:
+		return false
+	}
+}
+
+type UsageRankingPeriod string
+
+const (
+	UsageRankingPeriodDay   UsageRankingPeriod = "day"
+	UsageRankingPeriodWeek  UsageRankingPeriod = "week"
+	UsageRankingPeriodMonth UsageRankingPeriod = "month"
+)
+
+func IsValidUsageRankingPeriod(period UsageRankingPeriod) bool {
+	switch period {
+	case UsageRankingPeriodDay, UsageRankingPeriodWeek, UsageRankingPeriodMonth:
+		return true
+	default:
+		return false
+	}
+}
+
+type UsageRankingQuery struct {
+	StartTime     time.Time
+	EndTime       time.Time
+	Metric        UsageRankingMetric
+	Period        UsageRankingPeriod
+	Limit         int
+	CurrentUserID int64
+}
+
+type UsageRankingSummary struct {
+	TotalTokens     int64   `json:"total_tokens"`
+	TotalActualCost float64 `json:"total_actual_cost"`
+	TotalRequests   int64   `json:"total_requests"`
+	RankedUsers     int64   `json:"ranked_users"`
+}
+
+type UsageRankingItem struct {
+	Rank        int64   `json:"rank"`
+	UserID      int64   `json:"user_id"`
+	DisplayName string  `json:"display_name"`
+	Requests    int64   `json:"requests"`
+	TotalTokens int64   `json:"total_tokens"`
+	ActualCost  float64 `json:"actual_cost"`
+}
+
+type UsageRankingResponse struct {
+	Metric      UsageRankingMetric  `json:"metric"`
+	Period      UsageRankingPeriod  `json:"period"`
+	StartDate   string              `json:"start_date"`
+	EndDate     string              `json:"end_date"`
+	Summary     UsageRankingSummary `json:"summary"`
+	Ranking     []UsageRankingItem  `json:"ranking"`
+	CurrentUser *UsageRankingItem   `json:"current_user,omitempty"`
+}
+
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
 type UserBreakdownItem struct {
 	UserID      int64   `json:"user_id"`
