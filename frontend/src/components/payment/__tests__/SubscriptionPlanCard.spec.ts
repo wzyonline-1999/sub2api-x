@@ -1,28 +1,21 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
-import { createI18n } from "vue-i18n";
+import { describe, expect, it, vi } from "vitest";
 import SubscriptionPlanCard from "../SubscriptionPlanCard.vue";
 
-const i18n = createI18n({
-  legacy: false,
-  locale: "en",
-  fallbackWarn: false,
-  missingWarn: false,
-  messages: {
-    en: {
-      payment: {
-        days: "days",
-        models: "Models",
-        planCard: {
-          quota: "Quota",
-          rate: "Rate",
-          unlimited: "Unlimited",
-        },
-        subscribeNow: "Subscribe now",
-      },
-    },
-  },
-});
+const translations: Record<string, string> = {
+  "payment.days": "days",
+  "payment.planCard.models": "Models",
+  "payment.planCard.quota": "Quota",
+  "payment.planCard.rate": "Rate",
+  "payment.planCard.unlimited": "Unlimited",
+  "payment.subscribeNow": "Subscribe now",
+};
+
+vi.mock("vue-i18n", () => ({
+  useI18n: () => ({
+    t: (key: string) => translations[key] ?? key,
+  }),
+}));
 
 const mountPlanCard = (groupPlatform: string) =>
   mount(SubscriptionPlanCard, {
@@ -42,7 +35,6 @@ const mountPlanCard = (groupPlatform: string) =>
         is_active: true,
       },
     },
-    global: { plugins: [i18n] },
   });
 
 describe("SubscriptionPlanCard", () => {

@@ -45,7 +45,7 @@ test-frontend: check-subpath-docker
 	@$(MAKE) test-frontend-critical
 
 test-frontend-critical:
-	@$(PNPM) --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
+	@$(PNPM) --dir frontend run test:run -- $(FRONTEND_CRITICAL_VITEST)
 
 test-datamanagementd:
 	@cd datamanagement && go test ./...

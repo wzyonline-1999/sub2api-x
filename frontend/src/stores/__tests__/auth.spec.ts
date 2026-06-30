@@ -186,15 +186,18 @@ describe('useAuthStore', () => {
     })
 
     it('localStorage 中用户数据损坏时清除状态', () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', 'invalid-json{{{')
 
       const store = useAuthStore()
       store.checkAuth()
 
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to parse saved user data:', expect.any(SyntaxError))
       expect(store.token).toBeNull()
       expect(store.user).toBeNull()
       expect(localStorage.getItem('auth_token')).toBeNull()
+      consoleErrorSpy.mockRestore()
     })
 
     it('恢复 refresh token 和过期时间', () => {

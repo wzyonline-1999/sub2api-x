@@ -856,6 +856,7 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          RouterLink: RouterLinkStub,
         },
       },
     });

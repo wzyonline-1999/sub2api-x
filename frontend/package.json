@@ -10,9 +10,9 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "lint:check": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "typecheck": "vue-tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test": "node tools/run-vitest.mjs",
+    "test:run": "node tools/run-vitest.mjs run",
+    "test:coverage": "node tools/run-vitest.mjs run --coverage"
   },
   "dependencies": {
     "@airwallex/components-sdk": "^1.30.2",

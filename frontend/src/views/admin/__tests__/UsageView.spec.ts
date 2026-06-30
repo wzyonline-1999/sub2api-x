@@ -163,7 +163,7 @@ describe('admin UsageView distribution metric toggles', () => {
         UserBalanceHistoryModal: true, AuditLogModal: true, Pagination: true, Select: true,
         DateRangePicker: true, Icon: true, TokenUsageTrend: true,
         ModelDistributionChart: ModelDistributionChartStub, GroupDistributionChart: GroupDistributionChartStub,
-        EndpointDistributionChart: true,
+        EndpointDistributionChart: true, OpsErrorLogTable: true, OpsErrorDetailModal: true,
       } },
     })
     vi.advanceTimersByTime(120)
@@ -201,6 +201,8 @@ describe('admin UsageView distribution metric toggles', () => {
           TokenUsageTrend: true,
           ModelDistributionChart: ModelDistributionChartStub,
           GroupDistributionChart: GroupDistributionChartStub,
+          OpsErrorLogTable: true,
+          OpsErrorDetailModal: true,
         },
       },
     })
@@ -281,6 +283,8 @@ describe('admin UsageView handleUserClick', () => {
           ModelDistributionChart: true,
           GroupDistributionChart: true,
           EndpointDistributionChart: true,
+          OpsErrorLogTable: true,
+          OpsErrorDetailModal: true,
         },
       },
     })
