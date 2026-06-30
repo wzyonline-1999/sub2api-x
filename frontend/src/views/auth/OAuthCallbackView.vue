@@ -151,7 +151,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useClipboard } from '@/composables/useClipboard'
 import { useAppStore, useAuthStore } from '@/stores'
-import { API_BASE_URL, apiClient } from '@/api/client'
+import { apiClient } from '@/api/client'
+import { buildApiUrl } from '@/api/url'
 import {
   exchangePendingOAuthCompletion,
   persistOAuthTokenContext,
@@ -256,7 +257,6 @@ function readPendingEmailOAuthProvider(): 'github' | 'google' | null {
 
 function redirectProviderCallbackToBackend(provider: 'github' | 'google'): void {
   if (typeof window === 'undefined') return
-  const normalized = API_BASE_URL.replace(/\/$/, '')
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(route.query)) {
     if (Array.isArray(value)) {
@@ -268,7 +268,7 @@ function redirectProviderCallbackToBackend(provider: 'github' | 'google'): void 
     }
   }
   const suffix = params.toString() ? `?${params.toString()}` : ''
-  window.location.href = `${normalized}/auth/oauth/${provider}/callback${suffix}`
+  window.location.href = buildApiUrl(`/auth/oauth/${provider}/callback${suffix}`)
 }
 
 async function finalizeTokenResponse(tokenResponse: OAuthTokenResponse, redirect: string) {

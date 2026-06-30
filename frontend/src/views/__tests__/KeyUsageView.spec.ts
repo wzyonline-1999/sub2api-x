@@ -101,6 +101,10 @@ vi.mock('@/utils/basePath', () => ({
   appPath: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
 }))
 
+vi.mock('@/api/client', () => ({
+  buildGatewayUrl: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
+}))
+
 describe('KeyUsageView daily detail', () => {
   beforeEach(() => {
     showInfo.mockReset()

@@ -21,8 +21,8 @@ vi.mock('@/composables/useClipboard', () => ({
   })
 }))
 
-vi.mock('@/utils/basePath', () => ({
-  defaultApiBaseUrl: () => '/sub2api/api/v1'
+vi.mock('@/api/client', () => ({
+  buildApiUrl: (path: string) => `/sub2api/api/v1${path.startsWith('/') ? path : `/${path}`}`
 }))
 
 vi.mock('vue-i18n', async () => {
