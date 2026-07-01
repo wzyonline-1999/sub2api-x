@@ -13,7 +13,9 @@ import (
 func TestOpsMetricsCollectorDBPoolStatsReportsWaitDelta(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 	db.SetMaxOpenConns(1)
 
 	collector := &OpsMetricsCollector{db: db}
@@ -57,8 +59,14 @@ func runDBPoolStatsTestQuery(db *sql.DB, query string) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 	for rows.Next() {
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			return closeErr
+		}
+		return err
+	}
+	return rows.Close()
 }
