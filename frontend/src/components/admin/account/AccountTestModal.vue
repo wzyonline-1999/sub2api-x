@@ -255,6 +255,12 @@ interface PreviewImage {
   mimeType?: string
 }
 
+type AccountTestModel = Partial<ClaudeModel> & {
+  id?: string
+  name?: string
+  displayName?: string
+}
+
 const props = defineProps<{
   show: boolean
   account: Account | null
@@ -303,6 +309,19 @@ const sortTestModels = (models: ClaudeModel[]) => {
   })
 }
 
+const normalizeTestModel = (model: AccountTestModel): ClaudeModel | null => {
+  const rawID = String(model.id || model.name || '').trim()
+  const id = rawID.replace(/^models\//, '')
+  if (!id) return null
+
+  return {
+    id,
+    type: model.type || 'model',
+    display_name: model.display_name || model.displayName || id,
+    created_at: model.created_at || ''
+  }
+}
+
 // Load available models when modal opens
 watch(
   () => props.show,
@@ -314,7 +333,8 @@ watch(
     } else {
       abortStream()
     }
-  }
+  },
+  { immediate: true }
 )
 
 watch(selectedModelId, () => {
@@ -323,16 +343,19 @@ watch(selectedModelId, () => {
   }
 })
 
-const loadAvailableModels = async () => {
+async function loadAvailableModels() {
   if (!props.account) return
 
   loadingModels.value = true
   selectedModelId.value = '' // Reset selection before loading
   try {
     const models = await adminAPI.accounts.getAvailableModels(props.account.id)
+    const normalizedModels = (models as AccountTestModel[])
+      .map(normalizeTestModel)
+      .filter((model): model is ClaudeModel => model !== null)
     availableModels.value = props.account.platform === 'gemini' || props.account.platform === 'antigravity'
-      ? sortTestModels(models)
-      : models
+      ? sortTestModels(normalizedModels)
+      : normalizedModels
     // Default selection by platform
     if (availableModels.value.length > 0) {
       if (props.account.platform === 'gemini') {
@@ -353,7 +376,7 @@ const loadAvailableModels = async () => {
   }
 }
 
-const resetState = () => {
+function resetState() {
   status.value = 'idle'
   outputLines.value = []
   streamingContent.value = ''
@@ -367,7 +390,7 @@ const handleClose = () => {
   emit('close')
 }
 
-const abortStream = () => {
+function abortStream() {
   if (abortController) {
     abortController.abort()
     abortController = null

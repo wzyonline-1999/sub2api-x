@@ -73,6 +73,18 @@ const ModelWhitelistSelectorStub = defineComponent({
     modelValue: {
       type: Array,
       default: () => []
+    },
+    platform: {
+      type: String,
+      default: ''
+    },
+    accountType: {
+      type: String,
+      default: ''
+    },
+    accountId: {
+      type: Number,
+      default: null
     }
   },
   emits: ['update:modelValue'],
@@ -85,6 +97,16 @@ const ModelWhitelistSelectorStub = defineComponent({
       >
         rewrite
       </button>
+      <button
+        type="button"
+        data-testid="rewrite-to-gemini"
+        @click="$emit('update:modelValue', ['gemini-3.5-flash'])"
+      >
+        rewrite-gemini
+      </button>
+      <span data-testid="model-whitelist-platform">{{ platform }}</span>
+      <span data-testid="model-whitelist-account-type">{{ accountType }}</span>
+      <span data-testid="model-whitelist-account-id">{{ accountId }}</span>
       <span data-testid="model-whitelist-value">
         {{ Array.isArray(modelValue) ? modelValue.join(',') : '' }}
       </span>
@@ -203,6 +225,33 @@ function buildVertexAccount() {
       client_email: 'sa@example.iam.gserviceaccount.com',
       location: 'us-central1',
       tier_id: 'vertex'
+    },
+    extra: {},
+    proxy_id: null,
+    concurrency: 1,
+    priority: 1,
+    rate_multiplier: 1,
+    status: 'active',
+    group_ids: [],
+    expires_at: null,
+    auto_pause_on_expired: false
+  } as any
+}
+
+function buildGeminiOAuthAccount() {
+  return {
+    id: 5,
+    name: 'Google OAuth',
+    notes: '',
+    platform: 'gemini',
+    type: 'oauth',
+    credentials: {
+      access_token: 'google-access-token',
+      refresh_token: 'google-refresh-token',
+      oauth_type: 'google_one',
+      model_mapping: {
+        'gemini-2.5-flash': 'gemini-2.5-flash'
+      }
     },
     extra: {},
     proxy_id: null,
@@ -402,6 +451,31 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_mode).toBe('force_responses')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_supported).toBe(false)
+  })
+
+  it('renders and saves model mapping for Gemini OAuth accounts', async () => {
+    const account = buildGeminiOAuthAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    expect(wrapper.get('[data-testid="model-whitelist-platform"]').text()).toBe('gemini')
+    expect(wrapper.get('[data-testid="model-whitelist-account-type"]').text()).toBe('oauth')
+    expect(wrapper.get('[data-testid="model-whitelist-account-id"]').text()).toBe('5')
+    expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe('gemini-2.5-flash')
+
+    await wrapper.get('[data-testid="rewrite-to-gemini"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    const credentials = updateAccountMock.mock.calls[0]?.[1]?.credentials
+    expect(credentials?.oauth_type).toBe('google_one')
+    expect(credentials?.refresh_token).toBe('google-refresh-token')
+    expect(credentials?.model_mapping).toEqual({
+      'gemini-3.5-flash': 'gemini-3.5-flash'
+    })
   })
 
   it('clears OpenAI APIKey Responses override when set back to auto', async () => {

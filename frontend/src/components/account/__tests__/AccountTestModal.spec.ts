@@ -194,4 +194,45 @@ describe('AccountTestModal', () => {
 
     expect(wrapper.text()).toContain('已通过 /v1/chat/completions 验证')
   })
+
+  it('normalizes Google-style Gemini model objects for test selection', async () => {
+    getAvailableModelsMock.mockResolvedValue([
+      { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' }
+    ])
+
+    const account = {
+      ...buildAccount(),
+      id: 2,
+      name: 'Google OAuth',
+      platform: 'gemini',
+      type: 'oauth',
+      credentials: { oauth_type: 'google_one' }
+    }
+
+    const wrapper = mount(AccountTestModal, {
+      props: {
+        show: true,
+        account
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          TextArea: TextAreaStub,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect((wrapper.vm as any).availableModels).toEqual([
+      expect.objectContaining({
+        id: 'gemini-2.5-flash',
+        display_name: 'Gemini 2.5 Flash'
+      })
+    ])
+    expect((wrapper.vm as any).selectedModelId).toBe('gemini-2.5-flash')
+    expect(wrapper.text()).toContain('Gemini 2.5 Flash')
+  })
 })

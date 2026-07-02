@@ -72,6 +72,19 @@ describe('ModelWhitelistSelector upstream sync', () => {
     expect(findSyncButton(wrapper)).toBeTruthy()
   })
 
+  it('keeps live upstream sync for existing Gemini OAuth accounts', () => {
+    const wrapper = mount(ModelWhitelistSelector, {
+      props: {
+        modelValue: [],
+        platform: 'gemini',
+        accountType: 'oauth',
+        accountId: 1
+      }
+    })
+
+    expect(findSyncButton(wrapper)).toBeTruthy()
+  })
+
   it('hides live upstream sync for Grok accounts until backend model listing is supported', () => {
     const wrapper = mount(ModelWhitelistSelector, {
       props: {

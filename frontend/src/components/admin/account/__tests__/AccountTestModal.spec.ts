@@ -69,10 +69,10 @@ function mountModal(account: Record<string, unknown> = {
   platform: 'gemini',
   type: 'apikey',
   status: 'active'
-}) {
+}, show = false) {
   return mount(AccountTestModal, {
     props: {
-      show: false,
+      show,
       account
     } as any,
     global: {
@@ -186,5 +186,31 @@ describe('AccountTestModal', () => {
       model_id: 'grok-4.3',
       prompt: ''
     })
+  })
+
+  it('首次打开 Google OAuth 测试弹窗时会加载并规范化 Gemini 模型', async () => {
+    getAvailableModels.mockResolvedValue([
+      { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' }
+    ])
+
+    const wrapper = mountModal({
+      id: 77,
+      name: 'Google OAuth',
+      platform: 'gemini',
+      type: 'oauth',
+      status: 'active',
+      credentials: { oauth_type: 'google_one' }
+    }, true)
+
+    await flushPromises()
+
+    expect(getAvailableModels).toHaveBeenCalledWith(77)
+    expect((wrapper.vm as any).availableModels).toEqual([
+      expect.objectContaining({
+        id: 'gemini-2.5-flash',
+        display_name: 'Gemini 2.5 Flash'
+      })
+    ])
+    expect((wrapper.vm as any).selectedModelId).toBe('gemini-2.5-flash')
   })
 })
