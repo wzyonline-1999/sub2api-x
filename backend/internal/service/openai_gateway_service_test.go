@@ -385,6 +385,39 @@ func TestOpenAIGatewayService_GenerateExplicitSessionHash_SkipsContentFallback(t
 	})
 }
 
+func TestOpenAIGatewayService_ResolveExplicitOpenAISessionMetadata_ForImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{}
+
+	t.Run("prompt_cache_key records explicit session metadata", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+		got := svc.ResolveExplicitOpenAISessionMetadata(c, []byte(`{"model":"gpt-image-2","prompt":"draw","prompt_cache_key":"image-session"}`))
+
+		require.Equal(t, "image-session", got.SessionID)
+		require.Equal(t, "prompt_cache_key", got.SessionIDSource)
+		require.True(t, got.SessionExplicit)
+		require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String("image-session")), got.SessionHash)
+		require.NotEmpty(t, openAILegacySessionHashFromContext(c.Request.Context()))
+	})
+
+	t.Run("image prompt alone stays stateless", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+		got := svc.ResolveExplicitOpenAISessionMetadata(c, []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`))
+
+		require.Empty(t, got.SessionID)
+		require.Empty(t, got.SessionIDSource)
+		require.Empty(t, got.SessionHash)
+		require.False(t, got.SessionExplicit)
+		require.Empty(t, openAILegacySessionHashFromContext(c.Request.Context()))
+	})
+}
+
 func TestOpenAIGatewayService_GenerateSessionHashWithFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

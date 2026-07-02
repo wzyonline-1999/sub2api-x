@@ -1345,6 +1345,12 @@ func (s *OpenAIGatewayService) GenerateExplicitSessionHash(c *gin.Context, body 
 	return resolveOpenAISessionMetadata(c, body, false, "", "").SessionHash
 }
 
+// ResolveExplicitOpenAISessionMetadata resolves only client-provided session
+// signals. It intentionally skips content fallback for stateless endpoints.
+func (s *OpenAIGatewayService) ResolveExplicitOpenAISessionMetadata(c *gin.Context, body []byte) OpenAISessionMetadata {
+	return resolveOpenAISessionMetadata(c, body, false, "", "")
+}
+
 // GenerateSessionHash generates a sticky-session hash for OpenAI requests.
 //
 // Priority:
