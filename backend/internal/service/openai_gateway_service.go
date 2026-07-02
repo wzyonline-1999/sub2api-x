@@ -1245,46 +1245,104 @@ func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.
 // Used by ForwardAsAnthropic to pass as prompt_cache_key for upstream cache.
 func (s *OpenAIGatewayService) ExtractSessionID(c *gin.Context, body []byte) string {
-	if c == nil {
-		return ""
-	}
-	sessionID := strings.TrimSpace(c.GetHeader("session_id"))
-	if sessionID == "" {
-		sessionID = strings.TrimSpace(c.GetHeader("conversation_id"))
-	}
-	if sessionID == "" && len(body) > 0 {
-		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
-	}
+	sessionID, _ := explicitOpenAISessionIDWithSource(c, body)
 	return sessionID
 }
 
 func explicitOpenAISessionID(c *gin.Context, body []byte) string {
+	sessionID, _ := explicitOpenAISessionIDWithSource(c, body)
+	return sessionID
+}
+
+func explicitOpenAISessionIDWithSource(c *gin.Context, body []byte) (string, string) {
 	if c == nil {
-		return ""
+		return "", ""
 	}
 
 	sessionID := strings.TrimSpace(c.GetHeader("session_id"))
-	if sessionID == "" {
-		sessionID = strings.TrimSpace(c.GetHeader("conversation_id"))
+	if sessionID != "" {
+		return sessionID, "header_session_id"
 	}
-	if sessionID == "" && len(body) > 0 {
+
+	sessionID = strings.TrimSpace(c.GetHeader("conversation_id"))
+	if sessionID != "" {
+		return sessionID, "header_conversation_id"
+	}
+
+	if len(body) > 0 {
 		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
+		if sessionID != "" {
+			return sessionID, "prompt_cache_key"
+		}
 	}
-	return sessionID
+
+	return "", ""
+}
+
+// OpenAISessionMetadata captures the client-visible session signal and the
+// sticky-session hash used by OpenAI account routing.
+type OpenAISessionMetadata struct {
+	SessionID       string
+	SessionIDSource string
+	SessionHash     string
+	SessionExplicit bool
+}
+
+// ResolveOpenAISessionMetadata resolves OpenAI session metadata using the same
+// priority as GenerateSessionHash: explicit client signal first, then a
+// content-derived fallback. Content-derived fallbacks intentionally omit the raw
+// session ID because the seed may include prompt or user content.
+func (s *OpenAIGatewayService) ResolveOpenAISessionMetadata(c *gin.Context, body []byte) OpenAISessionMetadata {
+	return resolveOpenAISessionMetadata(c, body, true, "", "")
+}
+
+func (s *OpenAIGatewayService) ResolveOpenAISessionMetadataWithFallback(c *gin.Context, body []byte, fallbackSeed string) OpenAISessionMetadata {
+	return resolveOpenAISessionMetadata(c, body, true, fallbackSeed, "ws_fallback")
+}
+
+func resolveOpenAISessionMetadata(c *gin.Context, body []byte, includeContentFallback bool, fallbackSeed string, fallbackSource string) OpenAISessionMetadata {
+	if c == nil {
+		return OpenAISessionMetadata{}
+	}
+
+	if sessionID, source := explicitOpenAISessionIDWithSource(c, body); sessionID != "" {
+		return openAISessionMetadataFromSeed(c, sessionID, source, sessionID, true)
+	}
+
+	if includeContentFallback && len(body) > 0 {
+		if seed := deriveOpenAIContentSessionSeed(body); seed != "" {
+			return openAISessionMetadataFromSeed(c, seed, "content_fallback", "", false)
+		}
+	}
+
+	seed := strings.TrimSpace(fallbackSeed)
+	if seed != "" {
+		source := strings.TrimSpace(fallbackSource)
+		if source == "" {
+			source = "fallback"
+		}
+		return openAISessionMetadataFromSeed(c, seed, source, "", false)
+	}
+
+	return OpenAISessionMetadata{}
+}
+
+func openAISessionMetadataFromSeed(c *gin.Context, seed string, source string, rawSessionID string, explicit bool) OpenAISessionMetadata {
+	currentHash, legacyHash := deriveOpenAISessionHashes(seed)
+	attachOpenAILegacySessionHashToGin(c, legacyHash)
+	return OpenAISessionMetadata{
+		SessionID:       rawSessionID,
+		SessionIDSource: source,
+		SessionHash:     currentHash,
+		SessionExplicit: explicit,
+	}
 }
 
 // GenerateExplicitSessionHash generates a sticky-session hash only from explicit
 // client session signals. It intentionally skips content-derived fallback and is
 // used by stateless endpoints such as /v1/images.
 func (s *OpenAIGatewayService) GenerateExplicitSessionHash(c *gin.Context, body []byte) string {
-	sessionID := explicitOpenAISessionID(c, body)
-	if sessionID == "" {
-		return ""
-	}
-
-	currentHash, legacyHash := deriveOpenAISessionHashes(sessionID)
-	attachOpenAILegacySessionHashToGin(c, legacyHash)
-	return currentHash
+	return resolveOpenAISessionMetadata(c, body, false, "", "").SessionHash
 }
 
 // GenerateSessionHash generates a sticky-session hash for OpenAI requests.
@@ -1295,40 +1353,14 @@ func (s *OpenAIGatewayService) GenerateExplicitSessionHash(c *gin.Context, body 
 //  3. Body:   prompt_cache_key (opencode)
 //  4. Body:   content-based fallback (model + system + tools + first user message)
 func (s *OpenAIGatewayService) GenerateSessionHash(c *gin.Context, body []byte) string {
-	if c == nil {
-		return ""
-	}
-
-	sessionID := explicitOpenAISessionID(c, body)
-	if sessionID == "" && len(body) > 0 {
-		sessionID = deriveOpenAIContentSessionSeed(body)
-	}
-	if sessionID == "" {
-		return ""
-	}
-
-	currentHash, legacyHash := deriveOpenAISessionHashes(sessionID)
-	attachOpenAILegacySessionHashToGin(c, legacyHash)
-	return currentHash
+	return s.ResolveOpenAISessionMetadata(c, body).SessionHash
 }
 
 // GenerateSessionHashWithFallback 先按常规信号生成会话哈希；
 // 当未携带 session_id/conversation_id/prompt_cache_key 时，使用 fallbackSeed 生成稳定哈希。
 // 该方法用于 WS ingress，避免会话信号缺失时发生跨账号漂移。
 func (s *OpenAIGatewayService) GenerateSessionHashWithFallback(c *gin.Context, body []byte, fallbackSeed string) string {
-	sessionHash := s.GenerateSessionHash(c, body)
-	if sessionHash != "" {
-		return sessionHash
-	}
-
-	seed := strings.TrimSpace(fallbackSeed)
-	if seed == "" {
-		return ""
-	}
-
-	currentHash, legacyHash := deriveOpenAISessionHashes(seed)
-	attachOpenAILegacySessionHashToGin(c, legacyHash)
-	return currentHash
+	return s.ResolveOpenAISessionMetadataWithFallback(c, body, fallbackSeed).SessionHash
 }
 
 func resolveOpenAIUpstreamOriginator(c *gin.Context, isOfficialClient bool) string {
@@ -6235,6 +6267,7 @@ type OpenAIRecordUsageInput struct {
 	UpstreamEndpoint   string
 	UserAgent          string // 请求的 User-Agent
 	IPAddress          string // 请求的客户端 IP 地址
+	SessionMetadata    OpenAISessionMetadata
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
 	QuotaPlatform      string // user×platform quota platform resolved by the handler before async billing.
@@ -6261,6 +6294,7 @@ type CyberPolicyUsageInput struct {
 	UpstreamEndpoint   string
 	UserAgent          string
 	IPAddress          string
+	SessionMetadata    OpenAISessionMetadata
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
 	ChannelUsageFields
@@ -6295,6 +6329,7 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 		UpstreamEndpoint:   in.UpstreamEndpoint,
 		UserAgent:          in.UserAgent,
 		IPAddress:          in.IPAddress,
+		SessionMetadata:    in.SessionMetadata,
 		RequestPayloadHash: in.RequestPayloadHash,
 		APIKeyService:      in.APIKeyService,
 		ChannelUsageFields: in.ChannelUsageFields,
@@ -6468,6 +6503,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	usageLog.DurationMs = &durationMs
 	usageLog.FirstTokenMs = result.FirstTokenMs
 	usageLog.CreatedAt = time.Now()
+	applyOpenAISessionMetadataToUsageLog(usageLog, input.SessionMetadata)
 	// 设置渠道信息
 	usageLog.ChannelID = optionalInt64Ptr(input.ChannelID)
 	usageLog.ModelMappingChain = optionalTrimmedStringPtr(input.ModelMappingChain)
@@ -6543,6 +6579,26 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+func applyOpenAISessionMetadataToUsageLog(log *UsageLog, metadata OpenAISessionMetadata) {
+	if log == nil {
+		return
+	}
+	if sessionID := strings.TrimSpace(metadata.SessionID); sessionID != "" {
+		truncated := TruncateUsageLogSessionID(sessionID)
+		log.SessionID = &truncated
+	}
+	if source := strings.TrimSpace(metadata.SessionIDSource); source != "" {
+		log.SessionIDSource = &source
+	}
+	if hash := strings.TrimSpace(metadata.SessionHash); hash != "" {
+		log.SessionHash = &hash
+	}
+	if metadata.SessionID != "" || metadata.SessionIDSource != "" || metadata.SessionHash != "" {
+		explicit := metadata.SessionExplicit
+		log.SessionExplicit = &explicit
+	}
 }
 
 func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(

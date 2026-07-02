@@ -28,6 +28,14 @@ const (
 	FieldRequestedModel = "requested_model"
 	// FieldUpstreamModel holds the string denoting the upstream_model field in the database.
 	FieldUpstreamModel = "upstream_model"
+	// FieldSessionID holds the string denoting the session_id field in the database.
+	FieldSessionID = "session_id"
+	// FieldSessionIDSource holds the string denoting the session_id_source field in the database.
+	FieldSessionIDSource = "session_id_source"
+	// FieldSessionHash holds the string denoting the session_hash field in the database.
+	FieldSessionHash = "session_hash"
+	// FieldSessionExplicit holds the string denoting the session_explicit field in the database.
+	FieldSessionExplicit = "session_explicit"
 	// FieldChannelID holds the string denoting the channel_id field in the database.
 	FieldChannelID = "channel_id"
 	// FieldModelMappingChain holds the string denoting the model_mapping_chain field in the database.
@@ -155,6 +163,10 @@ var Columns = []string{
 	FieldModel,
 	FieldRequestedModel,
 	FieldUpstreamModel,
+	FieldSessionID,
+	FieldSessionIDSource,
+	FieldSessionHash,
+	FieldSessionExplicit,
 	FieldChannelID,
 	FieldModelMappingChain,
 	FieldBillingTier,
@@ -210,6 +222,10 @@ var (
 	RequestedModelValidator func(string) error
 	// UpstreamModelValidator is a validator for the "upstream_model" field. It is called by the builders before save.
 	UpstreamModelValidator func(string) error
+	// SessionIDSourceValidator is a validator for the "session_id_source" field. It is called by the builders before save.
+	SessionIDSourceValidator func(string) error
+	// SessionHashValidator is a validator for the "session_hash" field. It is called by the builders before save.
+	SessionHashValidator func(string) error
 	// ModelMappingChainValidator is a validator for the "model_mapping_chain" field. It is called by the builders before save.
 	ModelMappingChainValidator func(string) error
 	// BillingTierValidator is a validator for the "billing_tier" field. It is called by the builders before save.
@@ -307,6 +323,26 @@ func ByRequestedModel(opts ...sql.OrderTermOption) OrderOption {
 // ByUpstreamModel orders the results by the upstream_model field.
 func ByUpstreamModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpstreamModel, opts...).ToFunc()
+}
+
+// BySessionID orders the results by the session_id field.
+func BySessionID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSessionID, opts...).ToFunc()
+}
+
+// BySessionIDSource orders the results by the session_id_source field.
+func BySessionIDSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSessionIDSource, opts...).ToFunc()
+}
+
+// BySessionHash orders the results by the session_hash field.
+func BySessionHash(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSessionHash, opts...).ToFunc()
+}
+
+// BySessionExplicit orders the results by the session_explicit field.
+func BySessionExplicit(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSessionExplicit, opts...).ToFunc()
 }
 
 // ByChannelID orders the results by the channel_id field.

@@ -85,6 +85,62 @@ func (_c *UsageLogCreate) SetNillableUpstreamModel(v *string) *UsageLogCreate {
 	return _c
 }
 
+// SetSessionID sets the "session_id" field.
+func (_c *UsageLogCreate) SetSessionID(v string) *UsageLogCreate {
+	_c.mutation.SetSessionID(v)
+	return _c
+}
+
+// SetNillableSessionID sets the "session_id" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableSessionID(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetSessionID(*v)
+	}
+	return _c
+}
+
+// SetSessionIDSource sets the "session_id_source" field.
+func (_c *UsageLogCreate) SetSessionIDSource(v string) *UsageLogCreate {
+	_c.mutation.SetSessionIDSource(v)
+	return _c
+}
+
+// SetNillableSessionIDSource sets the "session_id_source" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableSessionIDSource(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetSessionIDSource(*v)
+	}
+	return _c
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (_c *UsageLogCreate) SetSessionHash(v string) *UsageLogCreate {
+	_c.mutation.SetSessionHash(v)
+	return _c
+}
+
+// SetNillableSessionHash sets the "session_hash" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableSessionHash(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetSessionHash(*v)
+	}
+	return _c
+}
+
+// SetSessionExplicit sets the "session_explicit" field.
+func (_c *UsageLogCreate) SetSessionExplicit(v bool) *UsageLogCreate {
+	_c.mutation.SetSessionExplicit(v)
+	return _c
+}
+
+// SetNillableSessionExplicit sets the "session_explicit" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableSessionExplicit(v *bool) *UsageLogCreate {
+	if v != nil {
+		_c.SetSessionExplicit(*v)
+	}
+	return _c
+}
+
 // SetChannelID sets the "channel_id" field.
 func (_c *UsageLogCreate) SetChannelID(v int64) *UsageLogCreate {
 	_c.mutation.SetChannelID(v)
@@ -724,6 +780,16 @@ func (_c *UsageLogCreate) check() error {
 			return &ValidationError{Name: "upstream_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_model": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.SessionIDSource(); ok {
+		if err := usagelog.SessionIDSourceValidator(v); err != nil {
+			return &ValidationError{Name: "session_id_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_id_source": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.SessionHash(); ok {
+		if err := usagelog.SessionHashValidator(v); err != nil {
+			return &ValidationError{Name: "session_hash", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_hash": %w`, err)}
+		}
+	}
 	if v, ok := _c.mutation.ModelMappingChain(); ok {
 		if err := usagelog.ModelMappingChainValidator(v); err != nil {
 			return &ValidationError{Name: "model_mapping_chain", err: fmt.Errorf(`ent: validator failed for field "UsageLog.model_mapping_chain": %w`, err)}
@@ -874,6 +940,22 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UpstreamModel(); ok {
 		_spec.SetField(usagelog.FieldUpstreamModel, field.TypeString, value)
 		_node.UpstreamModel = &value
+	}
+	if value, ok := _c.mutation.SessionID(); ok {
+		_spec.SetField(usagelog.FieldSessionID, field.TypeString, value)
+		_node.SessionID = &value
+	}
+	if value, ok := _c.mutation.SessionIDSource(); ok {
+		_spec.SetField(usagelog.FieldSessionIDSource, field.TypeString, value)
+		_node.SessionIDSource = &value
+	}
+	if value, ok := _c.mutation.SessionHash(); ok {
+		_spec.SetField(usagelog.FieldSessionHash, field.TypeString, value)
+		_node.SessionHash = &value
+	}
+	if value, ok := _c.mutation.SessionExplicit(); ok {
+		_spec.SetField(usagelog.FieldSessionExplicit, field.TypeBool, value)
+		_node.SessionExplicit = &value
 	}
 	if value, ok := _c.mutation.ChannelID(); ok {
 		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)
@@ -1233,6 +1315,78 @@ func (u *UsageLogUpsert) UpdateUpstreamModel() *UsageLogUpsert {
 // ClearUpstreamModel clears the value of the "upstream_model" field.
 func (u *UsageLogUpsert) ClearUpstreamModel() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldUpstreamModel)
+	return u
+}
+
+// SetSessionID sets the "session_id" field.
+func (u *UsageLogUpsert) SetSessionID(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldSessionID, v)
+	return u
+}
+
+// UpdateSessionID sets the "session_id" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateSessionID() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldSessionID)
+	return u
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (u *UsageLogUpsert) ClearSessionID() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldSessionID)
+	return u
+}
+
+// SetSessionIDSource sets the "session_id_source" field.
+func (u *UsageLogUpsert) SetSessionIDSource(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldSessionIDSource, v)
+	return u
+}
+
+// UpdateSessionIDSource sets the "session_id_source" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateSessionIDSource() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldSessionIDSource)
+	return u
+}
+
+// ClearSessionIDSource clears the value of the "session_id_source" field.
+func (u *UsageLogUpsert) ClearSessionIDSource() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldSessionIDSource)
+	return u
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (u *UsageLogUpsert) SetSessionHash(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldSessionHash, v)
+	return u
+}
+
+// UpdateSessionHash sets the "session_hash" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateSessionHash() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldSessionHash)
+	return u
+}
+
+// ClearSessionHash clears the value of the "session_hash" field.
+func (u *UsageLogUpsert) ClearSessionHash() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldSessionHash)
+	return u
+}
+
+// SetSessionExplicit sets the "session_explicit" field.
+func (u *UsageLogUpsert) SetSessionExplicit(v bool) *UsageLogUpsert {
+	u.Set(usagelog.FieldSessionExplicit, v)
+	return u
+}
+
+// UpdateSessionExplicit sets the "session_explicit" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateSessionExplicit() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldSessionExplicit)
+	return u
+}
+
+// ClearSessionExplicit clears the value of the "session_explicit" field.
+func (u *UsageLogUpsert) ClearSessionExplicit() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldSessionExplicit)
 	return u
 }
 
@@ -1996,6 +2150,90 @@ func (u *UsageLogUpsertOne) UpdateUpstreamModel() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearUpstreamModel() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearUpstreamModel()
+	})
+}
+
+// SetSessionID sets the "session_id" field.
+func (u *UsageLogUpsertOne) SetSessionID(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionID(v)
+	})
+}
+
+// UpdateSessionID sets the "session_id" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateSessionID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionID()
+	})
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (u *UsageLogUpsertOne) ClearSessionID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionID()
+	})
+}
+
+// SetSessionIDSource sets the "session_id_source" field.
+func (u *UsageLogUpsertOne) SetSessionIDSource(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionIDSource(v)
+	})
+}
+
+// UpdateSessionIDSource sets the "session_id_source" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateSessionIDSource() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionIDSource()
+	})
+}
+
+// ClearSessionIDSource clears the value of the "session_id_source" field.
+func (u *UsageLogUpsertOne) ClearSessionIDSource() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionIDSource()
+	})
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (u *UsageLogUpsertOne) SetSessionHash(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionHash(v)
+	})
+}
+
+// UpdateSessionHash sets the "session_hash" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateSessionHash() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionHash()
+	})
+}
+
+// ClearSessionHash clears the value of the "session_hash" field.
+func (u *UsageLogUpsertOne) ClearSessionHash() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionHash()
+	})
+}
+
+// SetSessionExplicit sets the "session_explicit" field.
+func (u *UsageLogUpsertOne) SetSessionExplicit(v bool) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionExplicit(v)
+	})
+}
+
+// UpdateSessionExplicit sets the "session_explicit" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateSessionExplicit() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionExplicit()
+	})
+}
+
+// ClearSessionExplicit clears the value of the "session_explicit" field.
+func (u *UsageLogUpsertOne) ClearSessionExplicit() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionExplicit()
 	})
 }
 
@@ -3026,6 +3264,90 @@ func (u *UsageLogUpsertBulk) UpdateUpstreamModel() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearUpstreamModel() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearUpstreamModel()
+	})
+}
+
+// SetSessionID sets the "session_id" field.
+func (u *UsageLogUpsertBulk) SetSessionID(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionID(v)
+	})
+}
+
+// UpdateSessionID sets the "session_id" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateSessionID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionID()
+	})
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (u *UsageLogUpsertBulk) ClearSessionID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionID()
+	})
+}
+
+// SetSessionIDSource sets the "session_id_source" field.
+func (u *UsageLogUpsertBulk) SetSessionIDSource(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionIDSource(v)
+	})
+}
+
+// UpdateSessionIDSource sets the "session_id_source" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateSessionIDSource() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionIDSource()
+	})
+}
+
+// ClearSessionIDSource clears the value of the "session_id_source" field.
+func (u *UsageLogUpsertBulk) ClearSessionIDSource() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionIDSource()
+	})
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (u *UsageLogUpsertBulk) SetSessionHash(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionHash(v)
+	})
+}
+
+// UpdateSessionHash sets the "session_hash" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateSessionHash() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionHash()
+	})
+}
+
+// ClearSessionHash clears the value of the "session_hash" field.
+func (u *UsageLogUpsertBulk) ClearSessionHash() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionHash()
+	})
+}
+
+// SetSessionExplicit sets the "session_explicit" field.
+func (u *UsageLogUpsertBulk) SetSessionExplicit(v bool) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSessionExplicit(v)
+	})
+}
+
+// UpdateSessionExplicit sets the "session_explicit" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateSessionExplicit() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSessionExplicit()
+	})
+}
+
+// ClearSessionExplicit clears the value of the "session_explicit" field.
+func (u *UsageLogUpsertBulk) ClearSessionExplicit() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSessionExplicit()
 	})
 }
 

@@ -142,6 +142,86 @@ func (_u *UsageLogUpdate) ClearUpstreamModel() *UsageLogUpdate {
 	return _u
 }
 
+// SetSessionID sets the "session_id" field.
+func (_u *UsageLogUpdate) SetSessionID(v string) *UsageLogUpdate {
+	_u.mutation.SetSessionID(v)
+	return _u
+}
+
+// SetNillableSessionID sets the "session_id" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableSessionID(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetSessionID(*v)
+	}
+	return _u
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (_u *UsageLogUpdate) ClearSessionID() *UsageLogUpdate {
+	_u.mutation.ClearSessionID()
+	return _u
+}
+
+// SetSessionIDSource sets the "session_id_source" field.
+func (_u *UsageLogUpdate) SetSessionIDSource(v string) *UsageLogUpdate {
+	_u.mutation.SetSessionIDSource(v)
+	return _u
+}
+
+// SetNillableSessionIDSource sets the "session_id_source" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableSessionIDSource(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetSessionIDSource(*v)
+	}
+	return _u
+}
+
+// ClearSessionIDSource clears the value of the "session_id_source" field.
+func (_u *UsageLogUpdate) ClearSessionIDSource() *UsageLogUpdate {
+	_u.mutation.ClearSessionIDSource()
+	return _u
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (_u *UsageLogUpdate) SetSessionHash(v string) *UsageLogUpdate {
+	_u.mutation.SetSessionHash(v)
+	return _u
+}
+
+// SetNillableSessionHash sets the "session_hash" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableSessionHash(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetSessionHash(*v)
+	}
+	return _u
+}
+
+// ClearSessionHash clears the value of the "session_hash" field.
+func (_u *UsageLogUpdate) ClearSessionHash() *UsageLogUpdate {
+	_u.mutation.ClearSessionHash()
+	return _u
+}
+
+// SetSessionExplicit sets the "session_explicit" field.
+func (_u *UsageLogUpdate) SetSessionExplicit(v bool) *UsageLogUpdate {
+	_u.mutation.SetSessionExplicit(v)
+	return _u
+}
+
+// SetNillableSessionExplicit sets the "session_explicit" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableSessionExplicit(v *bool) *UsageLogUpdate {
+	if v != nil {
+		_u.SetSessionExplicit(*v)
+	}
+	return _u
+}
+
+// ClearSessionExplicit clears the value of the "session_explicit" field.
+func (_u *UsageLogUpdate) ClearSessionExplicit() *UsageLogUpdate {
+	_u.mutation.ClearSessionExplicit()
+	return _u
+}
+
 // SetChannelID sets the "channel_id" field.
 func (_u *UsageLogUpdate) SetChannelID(v int64) *UsageLogUpdate {
 	_u.mutation.ResetChannelID()
@@ -934,6 +1014,16 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "upstream_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SessionIDSource(); ok {
+		if err := usagelog.SessionIDSourceValidator(v); err != nil {
+			return &ValidationError{Name: "session_id_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_id_source": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.SessionHash(); ok {
+		if err := usagelog.SessionHashValidator(v); err != nil {
+			return &ValidationError{Name: "session_hash", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_hash": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ModelMappingChain(); ok {
 		if err := usagelog.ModelMappingChainValidator(v); err != nil {
 			return &ValidationError{Name: "model_mapping_chain", err: fmt.Errorf(`ent: validator failed for field "UsageLog.model_mapping_chain": %w`, err)}
@@ -1020,6 +1110,30 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.UpstreamModelCleared() {
 		_spec.ClearField(usagelog.FieldUpstreamModel, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionID(); ok {
+		_spec.SetField(usagelog.FieldSessionID, field.TypeString, value)
+	}
+	if _u.mutation.SessionIDCleared() {
+		_spec.ClearField(usagelog.FieldSessionID, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionIDSource(); ok {
+		_spec.SetField(usagelog.FieldSessionIDSource, field.TypeString, value)
+	}
+	if _u.mutation.SessionIDSourceCleared() {
+		_spec.ClearField(usagelog.FieldSessionIDSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionHash(); ok {
+		_spec.SetField(usagelog.FieldSessionHash, field.TypeString, value)
+	}
+	if _u.mutation.SessionHashCleared() {
+		_spec.ClearField(usagelog.FieldSessionHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionExplicit(); ok {
+		_spec.SetField(usagelog.FieldSessionExplicit, field.TypeBool, value)
+	}
+	if _u.mutation.SessionExplicitCleared() {
+		_spec.ClearField(usagelog.FieldSessionExplicit, field.TypeBool)
 	}
 	if value, ok := _u.mutation.ChannelID(); ok {
 		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)
@@ -1485,6 +1599,86 @@ func (_u *UsageLogUpdateOne) SetNillableUpstreamModel(v *string) *UsageLogUpdate
 // ClearUpstreamModel clears the value of the "upstream_model" field.
 func (_u *UsageLogUpdateOne) ClearUpstreamModel() *UsageLogUpdateOne {
 	_u.mutation.ClearUpstreamModel()
+	return _u
+}
+
+// SetSessionID sets the "session_id" field.
+func (_u *UsageLogUpdateOne) SetSessionID(v string) *UsageLogUpdateOne {
+	_u.mutation.SetSessionID(v)
+	return _u
+}
+
+// SetNillableSessionID sets the "session_id" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableSessionID(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetSessionID(*v)
+	}
+	return _u
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (_u *UsageLogUpdateOne) ClearSessionID() *UsageLogUpdateOne {
+	_u.mutation.ClearSessionID()
+	return _u
+}
+
+// SetSessionIDSource sets the "session_id_source" field.
+func (_u *UsageLogUpdateOne) SetSessionIDSource(v string) *UsageLogUpdateOne {
+	_u.mutation.SetSessionIDSource(v)
+	return _u
+}
+
+// SetNillableSessionIDSource sets the "session_id_source" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableSessionIDSource(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetSessionIDSource(*v)
+	}
+	return _u
+}
+
+// ClearSessionIDSource clears the value of the "session_id_source" field.
+func (_u *UsageLogUpdateOne) ClearSessionIDSource() *UsageLogUpdateOne {
+	_u.mutation.ClearSessionIDSource()
+	return _u
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (_u *UsageLogUpdateOne) SetSessionHash(v string) *UsageLogUpdateOne {
+	_u.mutation.SetSessionHash(v)
+	return _u
+}
+
+// SetNillableSessionHash sets the "session_hash" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableSessionHash(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetSessionHash(*v)
+	}
+	return _u
+}
+
+// ClearSessionHash clears the value of the "session_hash" field.
+func (_u *UsageLogUpdateOne) ClearSessionHash() *UsageLogUpdateOne {
+	_u.mutation.ClearSessionHash()
+	return _u
+}
+
+// SetSessionExplicit sets the "session_explicit" field.
+func (_u *UsageLogUpdateOne) SetSessionExplicit(v bool) *UsageLogUpdateOne {
+	_u.mutation.SetSessionExplicit(v)
+	return _u
+}
+
+// SetNillableSessionExplicit sets the "session_explicit" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableSessionExplicit(v *bool) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetSessionExplicit(*v)
+	}
+	return _u
+}
+
+// ClearSessionExplicit clears the value of the "session_explicit" field.
+func (_u *UsageLogUpdateOne) ClearSessionExplicit() *UsageLogUpdateOne {
+	_u.mutation.ClearSessionExplicit()
 	return _u
 }
 
@@ -2293,6 +2487,16 @@ func (_u *UsageLogUpdateOne) check() error {
 			return &ValidationError{Name: "upstream_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SessionIDSource(); ok {
+		if err := usagelog.SessionIDSourceValidator(v); err != nil {
+			return &ValidationError{Name: "session_id_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_id_source": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.SessionHash(); ok {
+		if err := usagelog.SessionHashValidator(v); err != nil {
+			return &ValidationError{Name: "session_hash", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_hash": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ModelMappingChain(); ok {
 		if err := usagelog.ModelMappingChainValidator(v); err != nil {
 			return &ValidationError{Name: "model_mapping_chain", err: fmt.Errorf(`ent: validator failed for field "UsageLog.model_mapping_chain": %w`, err)}
@@ -2396,6 +2600,30 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.UpstreamModelCleared() {
 		_spec.ClearField(usagelog.FieldUpstreamModel, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionID(); ok {
+		_spec.SetField(usagelog.FieldSessionID, field.TypeString, value)
+	}
+	if _u.mutation.SessionIDCleared() {
+		_spec.ClearField(usagelog.FieldSessionID, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionIDSource(); ok {
+		_spec.SetField(usagelog.FieldSessionIDSource, field.TypeString, value)
+	}
+	if _u.mutation.SessionIDSourceCleared() {
+		_spec.ClearField(usagelog.FieldSessionIDSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionHash(); ok {
+		_spec.SetField(usagelog.FieldSessionHash, field.TypeString, value)
+	}
+	if _u.mutation.SessionHashCleared() {
+		_spec.ClearField(usagelog.FieldSessionHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.SessionExplicit(); ok {
+		_spec.SetField(usagelog.FieldSessionExplicit, field.TypeBool, value)
+	}
+	if _u.mutation.SessionExplicitCleared() {
+		_spec.ClearField(usagelog.FieldSessionExplicit, field.TypeBool)
 	}
 	if value, ok := _u.mutation.ChannelID(); ok {
 		_spec.SetField(usagelog.FieldChannelID, field.TypeInt64, value)

@@ -221,6 +221,81 @@ func TestOpenAIGatewayService_GenerateSessionHash_Priority(t *testing.T) {
 	}
 }
 
+func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_ExplicitSources(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{}
+	bodyWithKey := []byte(`{"prompt_cache_key":"body-cache-key"}`)
+
+	tests := []struct {
+		name        string
+		headers     map[string]string
+		wantID      string
+		wantSource  string
+		wantHashFor string
+	}{
+		{
+			name:        "session_id header wins",
+			headers:     map[string]string{"session_id": "header-session", "conversation_id": "header-conversation"},
+			wantID:      "header-session",
+			wantSource:  "header_session_id",
+			wantHashFor: "header-session",
+		},
+		{
+			name:        "conversation_id header used when session_id absent",
+			headers:     map[string]string{"conversation_id": "header-conversation"},
+			wantID:      "header-conversation",
+			wantSource:  "header_conversation_id",
+			wantHashFor: "header-conversation",
+		},
+		{
+			name:        "prompt_cache_key used when headers absent",
+			headers:     map[string]string{},
+			wantID:      "body-cache-key",
+			wantSource:  "prompt_cache_key",
+			wantHashFor: "body-cache-key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+			for key, value := range tt.headers {
+				c.Request.Header.Set(key, value)
+			}
+
+			got := svc.ResolveOpenAISessionMetadata(c, bodyWithKey)
+
+			require.Equal(t, tt.wantID, got.SessionID)
+			require.Equal(t, tt.wantSource, got.SessionIDSource)
+			require.True(t, got.SessionExplicit)
+			require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String(tt.wantHashFor)), got.SessionHash)
+			require.NotEmpty(t, openAILegacySessionHashFromContext(c.Request.Context()))
+		})
+	}
+}
+
+func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_ContentFallbackDoesNotExposeRawSeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+
+	body := []byte(`{"model":"gpt-5","instructions":"be concise","input":[{"role":"user","content":"hello from the first user message"}]}`)
+	seed := deriveOpenAIContentSessionSeed(body)
+	require.NotEmpty(t, seed)
+
+	svc := &OpenAIGatewayService{}
+	got := svc.ResolveOpenAISessionMetadata(c, body)
+
+	require.Empty(t, got.SessionID)
+	require.Equal(t, "content_fallback", got.SessionIDSource)
+	require.False(t, got.SessionExplicit)
+	require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String(seed)), got.SessionHash)
+	require.NotEmpty(t, openAILegacySessionHashFromContext(c.Request.Context()))
+}
+
 func TestOpenAIGatewayService_GenerateSessionHash_UsesXXHash64(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
@@ -326,6 +401,23 @@ func TestOpenAIGatewayService_GenerateSessionHashWithFallback(t *testing.T) {
 
 	empty := svc.GenerateSessionHashWithFallback(c, []byte(`{}`), "   ")
 	require.Equal(t, "", empty)
+}
+
+func TestOpenAIGatewayService_ResolveOpenAISessionMetadataWithFallback_UsesWSFallbackSource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+
+	svc := &OpenAIGatewayService{}
+	seed := "openai_ws_ingress:9:100:200"
+
+	got := svc.ResolveOpenAISessionMetadataWithFallback(c, []byte(`{}`), seed)
+
+	require.Empty(t, got.SessionID)
+	require.Equal(t, "ws_fallback", got.SessionIDSource)
+	require.False(t, got.SessionExplicit)
+	require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String(seed)), got.SessionHash)
 }
 
 func TestOpenAIGatewayService_GenerateSessionHash_ContentFallback(t *testing.T) {

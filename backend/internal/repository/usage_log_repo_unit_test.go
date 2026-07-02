@@ -3,6 +3,7 @@
 package repository
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -64,4 +65,46 @@ func TestBuildUsageLogBatchInsertQuery_UsesConflictDoNothing(t *testing.T) {
 
 	require.Contains(t, query, "ON CONFLICT (request_id, api_key_id) DO NOTHING")
 	require.NotContains(t, strings.ToUpper(query), "DO UPDATE")
+}
+
+func TestPrepareUsageLogInsert_IncludesTruncatedSessionMetadata(t *testing.T) {
+	source := "header_session_id"
+	hash := "0123456789abcdef"
+	explicit := true
+	rawSessionID := strings.Repeat("s", 1100)
+
+	log := &service.UsageLog{
+		UserID:          1,
+		APIKeyID:        2,
+		AccountID:       3,
+		RequestID:       "req-session-metadata",
+		Model:           "gpt-5",
+		SessionID:       &rawSessionID,
+		SessionIDSource: &source,
+		SessionHash:     &hash,
+		SessionExplicit: &explicit,
+		CreatedAt:       time.Now().UTC(),
+	}
+
+	prepared := prepareUsageLogInsert(log)
+	require.Len(t, prepared.args, 54)
+	sessionID, ok := prepared.args[len(prepared.args)-5].(sql.NullString)
+	require.True(t, ok)
+	require.True(t, sessionID.Valid)
+	require.Equal(t, strings.Repeat("s", 1024), sessionID.String)
+
+	sessionSource, ok := prepared.args[len(prepared.args)-4].(sql.NullString)
+	require.True(t, ok)
+	require.True(t, sessionSource.Valid)
+	require.Equal(t, source, sessionSource.String)
+
+	sessionHash, ok := prepared.args[len(prepared.args)-3].(sql.NullString)
+	require.True(t, ok)
+	require.True(t, sessionHash.Valid)
+	require.Equal(t, hash, sessionHash.String)
+
+	sessionExplicit, ok := prepared.args[len(prepared.args)-2].(sql.NullBool)
+	require.True(t, ok)
+	require.True(t, sessionExplicit.Valid)
+	require.Equal(t, explicit, sessionExplicit.Bool)
 }

@@ -35497,6 +35497,10 @@ type UsageLogMutation struct {
 	model                       *string
 	requested_model             *string
 	upstream_model              *string
+	session_id                  *string
+	session_id_source           *string
+	session_hash                *string
+	session_explicit            *bool
 	channel_id                  *int64
 	addchannel_id               *int64
 	model_mapping_chain         *string
@@ -35938,6 +35942,202 @@ func (m *UsageLogMutation) UpstreamModelCleared() bool {
 func (m *UsageLogMutation) ResetUpstreamModel() {
 	m.upstream_model = nil
 	delete(m.clearedFields, usagelog.FieldUpstreamModel)
+}
+
+// SetSessionID sets the "session_id" field.
+func (m *UsageLogMutation) SetSessionID(s string) {
+	m.session_id = &s
+}
+
+// SessionID returns the value of the "session_id" field in the mutation.
+func (m *UsageLogMutation) SessionID() (r string, exists bool) {
+	v := m.session_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionID returns the old "session_id" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldSessionID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionID: %w", err)
+	}
+	return oldValue.SessionID, nil
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (m *UsageLogMutation) ClearSessionID() {
+	m.session_id = nil
+	m.clearedFields[usagelog.FieldSessionID] = struct{}{}
+}
+
+// SessionIDCleared returns if the "session_id" field was cleared in this mutation.
+func (m *UsageLogMutation) SessionIDCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldSessionID]
+	return ok
+}
+
+// ResetSessionID resets all changes to the "session_id" field.
+func (m *UsageLogMutation) ResetSessionID() {
+	m.session_id = nil
+	delete(m.clearedFields, usagelog.FieldSessionID)
+}
+
+// SetSessionIDSource sets the "session_id_source" field.
+func (m *UsageLogMutation) SetSessionIDSource(s string) {
+	m.session_id_source = &s
+}
+
+// SessionIDSource returns the value of the "session_id_source" field in the mutation.
+func (m *UsageLogMutation) SessionIDSource() (r string, exists bool) {
+	v := m.session_id_source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionIDSource returns the old "session_id_source" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldSessionIDSource(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionIDSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionIDSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionIDSource: %w", err)
+	}
+	return oldValue.SessionIDSource, nil
+}
+
+// ClearSessionIDSource clears the value of the "session_id_source" field.
+func (m *UsageLogMutation) ClearSessionIDSource() {
+	m.session_id_source = nil
+	m.clearedFields[usagelog.FieldSessionIDSource] = struct{}{}
+}
+
+// SessionIDSourceCleared returns if the "session_id_source" field was cleared in this mutation.
+func (m *UsageLogMutation) SessionIDSourceCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldSessionIDSource]
+	return ok
+}
+
+// ResetSessionIDSource resets all changes to the "session_id_source" field.
+func (m *UsageLogMutation) ResetSessionIDSource() {
+	m.session_id_source = nil
+	delete(m.clearedFields, usagelog.FieldSessionIDSource)
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (m *UsageLogMutation) SetSessionHash(s string) {
+	m.session_hash = &s
+}
+
+// SessionHash returns the value of the "session_hash" field in the mutation.
+func (m *UsageLogMutation) SessionHash() (r string, exists bool) {
+	v := m.session_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionHash returns the old "session_hash" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldSessionHash(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionHash: %w", err)
+	}
+	return oldValue.SessionHash, nil
+}
+
+// ClearSessionHash clears the value of the "session_hash" field.
+func (m *UsageLogMutation) ClearSessionHash() {
+	m.session_hash = nil
+	m.clearedFields[usagelog.FieldSessionHash] = struct{}{}
+}
+
+// SessionHashCleared returns if the "session_hash" field was cleared in this mutation.
+func (m *UsageLogMutation) SessionHashCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldSessionHash]
+	return ok
+}
+
+// ResetSessionHash resets all changes to the "session_hash" field.
+func (m *UsageLogMutation) ResetSessionHash() {
+	m.session_hash = nil
+	delete(m.clearedFields, usagelog.FieldSessionHash)
+}
+
+// SetSessionExplicit sets the "session_explicit" field.
+func (m *UsageLogMutation) SetSessionExplicit(b bool) {
+	m.session_explicit = &b
+}
+
+// SessionExplicit returns the value of the "session_explicit" field in the mutation.
+func (m *UsageLogMutation) SessionExplicit() (r bool, exists bool) {
+	v := m.session_explicit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionExplicit returns the old "session_explicit" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldSessionExplicit(ctx context.Context) (v *bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionExplicit is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionExplicit requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionExplicit: %w", err)
+	}
+	return oldValue.SessionExplicit, nil
+}
+
+// ClearSessionExplicit clears the value of the "session_explicit" field.
+func (m *UsageLogMutation) ClearSessionExplicit() {
+	m.session_explicit = nil
+	m.clearedFields[usagelog.FieldSessionExplicit] = struct{}{}
+}
+
+// SessionExplicitCleared returns if the "session_explicit" field was cleared in this mutation.
+func (m *UsageLogMutation) SessionExplicitCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldSessionExplicit]
+	return ok
+}
+
+// ResetSessionExplicit resets all changes to the "session_explicit" field.
+func (m *UsageLogMutation) ResetSessionExplicit() {
+	m.session_explicit = nil
+	delete(m.clearedFields, usagelog.FieldSessionExplicit)
 }
 
 // SetChannelID sets the "channel_id" field.
@@ -37925,7 +38125,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 41)
+	fields := make([]string, 0, 45)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -37946,6 +38146,18 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.upstream_model != nil {
 		fields = append(fields, usagelog.FieldUpstreamModel)
+	}
+	if m.session_id != nil {
+		fields = append(fields, usagelog.FieldSessionID)
+	}
+	if m.session_id_source != nil {
+		fields = append(fields, usagelog.FieldSessionIDSource)
+	}
+	if m.session_hash != nil {
+		fields = append(fields, usagelog.FieldSessionHash)
+	}
+	if m.session_explicit != nil {
+		fields = append(fields, usagelog.FieldSessionExplicit)
 	}
 	if m.channel_id != nil {
 		fields = append(fields, usagelog.FieldChannelID)
@@ -38071,6 +38283,14 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestedModel()
 	case usagelog.FieldUpstreamModel:
 		return m.UpstreamModel()
+	case usagelog.FieldSessionID:
+		return m.SessionID()
+	case usagelog.FieldSessionIDSource:
+		return m.SessionIDSource()
+	case usagelog.FieldSessionHash:
+		return m.SessionHash()
+	case usagelog.FieldSessionExplicit:
+		return m.SessionExplicit()
 	case usagelog.FieldChannelID:
 		return m.ChannelID()
 	case usagelog.FieldModelMappingChain:
@@ -38162,6 +38382,14 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldRequestedModel(ctx)
 	case usagelog.FieldUpstreamModel:
 		return m.OldUpstreamModel(ctx)
+	case usagelog.FieldSessionID:
+		return m.OldSessionID(ctx)
+	case usagelog.FieldSessionIDSource:
+		return m.OldSessionIDSource(ctx)
+	case usagelog.FieldSessionHash:
+		return m.OldSessionHash(ctx)
+	case usagelog.FieldSessionExplicit:
+		return m.OldSessionExplicit(ctx)
 	case usagelog.FieldChannelID:
 		return m.OldChannelID(ctx)
 	case usagelog.FieldModelMappingChain:
@@ -38287,6 +38515,34 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUpstreamModel(v)
+		return nil
+	case usagelog.FieldSessionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionID(v)
+		return nil
+	case usagelog.FieldSessionIDSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionIDSource(v)
+		return nil
+	case usagelog.FieldSessionHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionHash(v)
+		return nil
+	case usagelog.FieldSessionExplicit:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionExplicit(v)
 		return nil
 	case usagelog.FieldChannelID:
 		v, ok := value.(int64)
@@ -38793,6 +39049,18 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldUpstreamModel) {
 		fields = append(fields, usagelog.FieldUpstreamModel)
 	}
+	if m.FieldCleared(usagelog.FieldSessionID) {
+		fields = append(fields, usagelog.FieldSessionID)
+	}
+	if m.FieldCleared(usagelog.FieldSessionIDSource) {
+		fields = append(fields, usagelog.FieldSessionIDSource)
+	}
+	if m.FieldCleared(usagelog.FieldSessionHash) {
+		fields = append(fields, usagelog.FieldSessionHash)
+	}
+	if m.FieldCleared(usagelog.FieldSessionExplicit) {
+		fields = append(fields, usagelog.FieldSessionExplicit)
+	}
 	if m.FieldCleared(usagelog.FieldChannelID) {
 		fields = append(fields, usagelog.FieldChannelID)
 	}
@@ -38860,6 +39128,18 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamModel:
 		m.ClearUpstreamModel()
+		return nil
+	case usagelog.FieldSessionID:
+		m.ClearSessionID()
+		return nil
+	case usagelog.FieldSessionIDSource:
+		m.ClearSessionIDSource()
+		return nil
+	case usagelog.FieldSessionHash:
+		m.ClearSessionHash()
+		return nil
+	case usagelog.FieldSessionExplicit:
+		m.ClearSessionExplicit()
 		return nil
 	case usagelog.FieldChannelID:
 		m.ClearChannelID()
@@ -38937,6 +39217,18 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamModel:
 		m.ResetUpstreamModel()
+		return nil
+	case usagelog.FieldSessionID:
+		m.ResetSessionID()
+		return nil
+	case usagelog.FieldSessionIDSource:
+		m.ResetSessionIDSource()
+		return nil
+	case usagelog.FieldSessionHash:
+		m.ResetSessionHash()
+		return nil
+	case usagelog.FieldSessionExplicit:
+		m.ResetSessionExplicit()
 		return nil
 	case usagelog.FieldChannelID:
 		m.ResetChannelID()

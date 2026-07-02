@@ -103,6 +103,18 @@ type UsageLog struct {
 	AccountID int64
 	RequestID string
 	Model     string
+	// SessionID records the explicit client-provided OpenAI session signal
+	// (session_id, conversation_id, or prompt_cache_key). Content-derived
+	// fallback seeds are intentionally not stored here.
+	SessionID *string
+	// SessionIDSource describes where SessionID/SessionHash came from, e.g.
+	// header_session_id, header_conversation_id, prompt_cache_key,
+	// content_fallback, or ws_fallback.
+	SessionIDSource *string
+	// SessionHash is the sticky-session hash used for OpenAI account routing.
+	SessionHash *string
+	// SessionExplicit is true when the client supplied a session signal.
+	SessionExplicit *bool
 	// RequestedModel is the client-requested model name recorded for stable user/admin display.
 	// Empty should be treated as Model for backward compatibility with historical rows.
 	RequestedModel string
@@ -182,6 +194,19 @@ type UsageLog struct {
 	Account      *Account
 	Group        *Group
 	Subscription *UserSubscription
+}
+
+const UsageLogSessionIDMaxLength = 1024
+
+func TruncateUsageLogSessionID(sessionID string) string {
+	if len(sessionID) <= UsageLogSessionIDMaxLength {
+		return sessionID
+	}
+	runes := []rune(sessionID)
+	if len(runes) <= UsageLogSessionIDMaxLength {
+		return sessionID
+	}
+	return string(runes[:UsageLogSessionIDMaxLength])
 }
 
 func (u *UsageLog) TotalTokens() int {

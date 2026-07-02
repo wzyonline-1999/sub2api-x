@@ -75,6 +75,12 @@ func TestRecordCyberPolicyUsageLog_BillsRealUpstreamTokens(t *testing.T) {
 		Stream:       true,
 		InputTokens:  1200,
 		OutputTokens: 300,
+		SessionMetadata: OpenAISessionMetadata{
+			SessionID:       "sess-cyber",
+			SessionIDSource: "header_session_id",
+			SessionHash:     "hash-cyber",
+			SessionExplicit: true,
+		},
 	})
 
 	require.Equal(t, 1, usageRepo.calls)
@@ -84,6 +90,12 @@ func TestRecordCyberPolicyUsageLog_BillsRealUpstreamTokens(t *testing.T) {
 	require.Equal(t, 300, usageRepo.lastLog.OutputTokens)
 	require.Equal(t, RequestTypeCyberBlocked, usageRepo.lastLog.RequestType, "cyber 行须标 request_type=cyber")
 	require.True(t, usageRepo.lastLog.Stream, "cyber 不覆盖真实 stream 字段")
+	require.NotNil(t, usageRepo.lastLog.SessionID)
+	require.Equal(t, "sess-cyber", *usageRepo.lastLog.SessionID)
+	require.NotNil(t, usageRepo.lastLog.SessionHash)
+	require.Equal(t, "hash-cyber", *usageRepo.lastLog.SessionHash)
+	require.NotNil(t, usageRepo.lastLog.SessionExplicit)
+	require.True(t, *usageRepo.lastLog.SessionExplicit)
 
 	expected := expectedOpenAICost(t, svc, "gpt-5.1", usage, 1.1)
 	require.Greater(t, usageRepo.lastLog.ActualCost, 0.0, "流式 cyber 有真实 token，须计费")
@@ -311,6 +323,46 @@ func TestOpenAIGatewayServiceRecordUsage_ZeroUsageStillWritesUsageLog(t *testing
 	require.Zero(t, billingRepo.lastCmd.APIKeyQuotaCost)
 	require.Zero(t, billingRepo.lastCmd.APIKeyRateLimitCost)
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_PersistsSessionMetadata(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	quotaSvc := &openAIRecordUsageAPIKeyQuotaStub{}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_session_metadata",
+			Usage:     OpenAIUsage{},
+			Model:     "gpt-5.1",
+			Duration:  time.Second,
+		},
+		APIKey:        &APIKey{ID: 1001, Quota: 100, Group: &Group{RateMultiplier: 1}},
+		User:          &User{ID: 2001},
+		Account:       &Account{ID: 3001, Type: AccountTypeAPIKey},
+		APIKeyService: quotaSvc,
+		SessionMetadata: OpenAISessionMetadata{
+			SessionID:       strings.Repeat("s", 1100),
+			SessionIDSource: "header_session_id",
+			SessionHash:     "0123456789abcdef",
+			SessionExplicit: true,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.SessionID)
+	require.Equal(t, strings.Repeat("s", UsageLogSessionIDMaxLength), *usageRepo.lastLog.SessionID)
+	require.NotNil(t, usageRepo.lastLog.SessionIDSource)
+	require.Equal(t, "header_session_id", *usageRepo.lastLog.SessionIDSource)
+	require.NotNil(t, usageRepo.lastLog.SessionHash)
+	require.Equal(t, "0123456789abcdef", *usageRepo.lastLog.SessionHash)
+	require.NotNil(t, usageRepo.lastLog.SessionExplicit)
+	require.True(t, *usageRepo.lastLog.SessionExplicit)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_MissingPricingRecordsZeroCostUsageLog(t *testing.T) {

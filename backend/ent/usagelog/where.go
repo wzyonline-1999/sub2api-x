@@ -90,6 +90,26 @@ func UpstreamModel(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamModel, v))
 }
 
+// SessionID applies equality check predicate on the "session_id" field. It's identical to SessionIDEQ.
+func SessionID(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionID, v))
+}
+
+// SessionIDSource applies equality check predicate on the "session_id_source" field. It's identical to SessionIDSourceEQ.
+func SessionIDSource(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionIDSource, v))
+}
+
+// SessionHash applies equality check predicate on the "session_hash" field. It's identical to SessionHashEQ.
+func SessionHash(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionHash, v))
+}
+
+// SessionExplicit applies equality check predicate on the "session_explicit" field. It's identical to SessionExplicitEQ.
+func SessionExplicit(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionExplicit, v))
+}
+
 // ChannelID applies equality check predicate on the "channel_id" field. It's identical to ChannelIDEQ.
 func ChannelID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldChannelID, v))
@@ -593,6 +613,251 @@ func UpstreamModelEqualFold(v string) predicate.UsageLog {
 // UpstreamModelContainsFold applies the ContainsFold predicate on the "upstream_model" field.
 func UpstreamModelContainsFold(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldContainsFold(FieldUpstreamModel, v))
+}
+
+// SessionIDEQ applies the EQ predicate on the "session_id" field.
+func SessionIDEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionID, v))
+}
+
+// SessionIDNEQ applies the NEQ predicate on the "session_id" field.
+func SessionIDNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldSessionID, v))
+}
+
+// SessionIDIn applies the In predicate on the "session_id" field.
+func SessionIDIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldSessionID, vs...))
+}
+
+// SessionIDNotIn applies the NotIn predicate on the "session_id" field.
+func SessionIDNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldSessionID, vs...))
+}
+
+// SessionIDGT applies the GT predicate on the "session_id" field.
+func SessionIDGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldSessionID, v))
+}
+
+// SessionIDGTE applies the GTE predicate on the "session_id" field.
+func SessionIDGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldSessionID, v))
+}
+
+// SessionIDLT applies the LT predicate on the "session_id" field.
+func SessionIDLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldSessionID, v))
+}
+
+// SessionIDLTE applies the LTE predicate on the "session_id" field.
+func SessionIDLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldSessionID, v))
+}
+
+// SessionIDContains applies the Contains predicate on the "session_id" field.
+func SessionIDContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldSessionID, v))
+}
+
+// SessionIDHasPrefix applies the HasPrefix predicate on the "session_id" field.
+func SessionIDHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldSessionID, v))
+}
+
+// SessionIDHasSuffix applies the HasSuffix predicate on the "session_id" field.
+func SessionIDHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldSessionID, v))
+}
+
+// SessionIDIsNil applies the IsNil predicate on the "session_id" field.
+func SessionIDIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldSessionID))
+}
+
+// SessionIDNotNil applies the NotNil predicate on the "session_id" field.
+func SessionIDNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldSessionID))
+}
+
+// SessionIDEqualFold applies the EqualFold predicate on the "session_id" field.
+func SessionIDEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldSessionID, v))
+}
+
+// SessionIDContainsFold applies the ContainsFold predicate on the "session_id" field.
+func SessionIDContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldSessionID, v))
+}
+
+// SessionIDSourceEQ applies the EQ predicate on the "session_id_source" field.
+func SessionIDSourceEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceNEQ applies the NEQ predicate on the "session_id_source" field.
+func SessionIDSourceNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceIn applies the In predicate on the "session_id_source" field.
+func SessionIDSourceIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldSessionIDSource, vs...))
+}
+
+// SessionIDSourceNotIn applies the NotIn predicate on the "session_id_source" field.
+func SessionIDSourceNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldSessionIDSource, vs...))
+}
+
+// SessionIDSourceGT applies the GT predicate on the "session_id_source" field.
+func SessionIDSourceGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceGTE applies the GTE predicate on the "session_id_source" field.
+func SessionIDSourceGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceLT applies the LT predicate on the "session_id_source" field.
+func SessionIDSourceLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceLTE applies the LTE predicate on the "session_id_source" field.
+func SessionIDSourceLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceContains applies the Contains predicate on the "session_id_source" field.
+func SessionIDSourceContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceHasPrefix applies the HasPrefix predicate on the "session_id_source" field.
+func SessionIDSourceHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceHasSuffix applies the HasSuffix predicate on the "session_id_source" field.
+func SessionIDSourceHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceIsNil applies the IsNil predicate on the "session_id_source" field.
+func SessionIDSourceIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldSessionIDSource))
+}
+
+// SessionIDSourceNotNil applies the NotNil predicate on the "session_id_source" field.
+func SessionIDSourceNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldSessionIDSource))
+}
+
+// SessionIDSourceEqualFold applies the EqualFold predicate on the "session_id_source" field.
+func SessionIDSourceEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldSessionIDSource, v))
+}
+
+// SessionIDSourceContainsFold applies the ContainsFold predicate on the "session_id_source" field.
+func SessionIDSourceContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldSessionIDSource, v))
+}
+
+// SessionHashEQ applies the EQ predicate on the "session_hash" field.
+func SessionHashEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionHash, v))
+}
+
+// SessionHashNEQ applies the NEQ predicate on the "session_hash" field.
+func SessionHashNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldSessionHash, v))
+}
+
+// SessionHashIn applies the In predicate on the "session_hash" field.
+func SessionHashIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldSessionHash, vs...))
+}
+
+// SessionHashNotIn applies the NotIn predicate on the "session_hash" field.
+func SessionHashNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldSessionHash, vs...))
+}
+
+// SessionHashGT applies the GT predicate on the "session_hash" field.
+func SessionHashGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldSessionHash, v))
+}
+
+// SessionHashGTE applies the GTE predicate on the "session_hash" field.
+func SessionHashGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldSessionHash, v))
+}
+
+// SessionHashLT applies the LT predicate on the "session_hash" field.
+func SessionHashLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldSessionHash, v))
+}
+
+// SessionHashLTE applies the LTE predicate on the "session_hash" field.
+func SessionHashLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldSessionHash, v))
+}
+
+// SessionHashContains applies the Contains predicate on the "session_hash" field.
+func SessionHashContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldSessionHash, v))
+}
+
+// SessionHashHasPrefix applies the HasPrefix predicate on the "session_hash" field.
+func SessionHashHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldSessionHash, v))
+}
+
+// SessionHashHasSuffix applies the HasSuffix predicate on the "session_hash" field.
+func SessionHashHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldSessionHash, v))
+}
+
+// SessionHashIsNil applies the IsNil predicate on the "session_hash" field.
+func SessionHashIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldSessionHash))
+}
+
+// SessionHashNotNil applies the NotNil predicate on the "session_hash" field.
+func SessionHashNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldSessionHash))
+}
+
+// SessionHashEqualFold applies the EqualFold predicate on the "session_hash" field.
+func SessionHashEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldSessionHash, v))
+}
+
+// SessionHashContainsFold applies the ContainsFold predicate on the "session_hash" field.
+func SessionHashContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldSessionHash, v))
+}
+
+// SessionExplicitEQ applies the EQ predicate on the "session_explicit" field.
+func SessionExplicitEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSessionExplicit, v))
+}
+
+// SessionExplicitNEQ applies the NEQ predicate on the "session_explicit" field.
+func SessionExplicitNEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldSessionExplicit, v))
+}
+
+// SessionExplicitIsNil applies the IsNil predicate on the "session_explicit" field.
+func SessionExplicitIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldSessionExplicit))
+}
+
+// SessionExplicitNotNil applies the NotNil predicate on the "session_explicit" field.
+func SessionExplicitNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldSessionExplicit))
 }
 
 // ChannelIDEQ applies the EQ predicate on the "channel_id" field.
