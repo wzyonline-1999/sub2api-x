@@ -1,21 +1,33 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
+import { createPinia } from "pinia";
 import SubscriptionPlanCard from "../SubscriptionPlanCard.vue";
 
-const translations: Record<string, string> = {
+const translations = vi.hoisted<Record<string, string>>(() => ({
   "payment.days": "days",
+  "payment.perMonth": "month",
+  "payment.perYear": "year",
+  "payment.renewNow": "Renew now",
+  "payment.subscribeNow": "Subscribe now",
+  "payment.planCard.dailyLimit": "Daily limit",
   "payment.planCard.models": "Models",
+  "payment.planCard.peakRate": "Peak rate",
   "payment.planCard.quota": "Quota",
   "payment.planCard.rate": "Rate",
   "payment.planCard.unlimited": "Unlimited",
-  "payment.subscribeNow": "Subscribe now",
-};
-
-vi.mock("vue-i18n", () => ({
-  useI18n: () => ({
-    t: (key: string) => translations[key] ?? key,
-  }),
+  "payment.planCard.weeklyLimit": "Weekly limit",
+  "payment.planCard.monthlyLimit": "Monthly limit",
 }));
+
+vi.mock("vue-i18n", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("vue-i18n")>();
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string) => translations[key] ?? key,
+    }),
+  };
+});
 
 const mountPlanCard = (groupPlatform: string) =>
   mount(SubscriptionPlanCard, {
@@ -35,6 +47,7 @@ const mountPlanCard = (groupPlatform: string) =>
         is_active: true,
       },
     },
+    global: { plugins: [createPinia()] },
   });
 
 describe("SubscriptionPlanCard", () => {
