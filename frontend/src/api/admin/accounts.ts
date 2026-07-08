@@ -41,6 +41,7 @@ export async function list(
     search?: string
     privacy_mode?: string
     lite?: string
+    include_scheduler_score?: string
     sort_by?: string
     sort_order?: 'asc' | 'desc'
   },
@@ -76,6 +77,7 @@ export async function listWithEtag(
     search?: string
     privacy_mode?: string
     lite?: string
+    include_scheduler_score?: string
     sort_by?: string
     sort_order?: 'asc' | 'desc'
   },
@@ -609,7 +611,9 @@ export async function importData(payload: {
 }
 
 export async function importCodexSession(payload: CodexSessionImportRequest): Promise<CodexSessionImportResult> {
-  const { data } = await apiClient.post<CodexSessionImportResult>('/admin/accounts/import/codex-session', payload)
+  const { data } = await apiClient.post<CodexSessionImportResult>('/admin/accounts/import/codex-session', payload, {
+    timeout: 120000 // 120s timeout for large session imports
+  })
   return data
 }
 
