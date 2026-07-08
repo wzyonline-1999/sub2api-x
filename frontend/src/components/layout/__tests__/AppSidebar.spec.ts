@@ -53,3 +53,11 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar ranking navigation icon', () => {
+  it('uses a distinct trophy icon for rankings', () => {
+    expect(componentSource).toContain('const TrophyIcon = {')
+    expect(componentSource).toContain("{ path: '/usage', label: t('nav.usage'), icon: ChartIcon")
+    expect(componentSource).toContain("{ path: '/rankings', label: t('nav.rankings'), icon: TrophyIcon")
+  })
+})

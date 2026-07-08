@@ -328,6 +328,21 @@ const ChartIcon = {
     )
 }
 
+const TrophyIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.504-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.871m5.008 0H9.496m5.008 0a8.971 8.971 0 001.356-3.841M9.496 14.25A8.971 8.971 0 018.14 10.409m7.72 0c.279.017.56.026.841.026a4.5 4.5 0 004.5-4.5V5.25a1.5 1.5 0 00-1.5-1.5h-1.27m-12.862 0H4.3a1.5 1.5 0 00-1.5 1.5v.685a4.5 4.5 0 004.5 4.5c.282 0 .562-.009.841-.026m7.72 0A8.968 8.968 0 0112 12a8.968 8.968 0 01-3.86-.841m0 0A8.966 8.966 0 016.75 6.375v-1.5c0-.621.504-1.125 1.125-1.125h8.25c.621 0 1.125.504 1.125 1.125v1.5a8.966 8.966 0 01-1.39 4.784z'
+        })
+      ]
+    )
+}
+
 const GiftIcon = {
   render: () =>
     h(
@@ -704,7 +719,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/rankings', label: t('nav.rankings'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/rankings', label: t('nav.rankings'), icon: TrophyIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },

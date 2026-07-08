@@ -922,195 +922,195 @@ onMounted(() => {
   min-height: 4rem;
 }
 
-:global(.dark) .rankings-page {
+.dark .rankings-page {
   color: #e5e7eb;
 }
 
-:global(.dark) .panel,
-:global(.dark) .podium-card {
+.dark .panel,
+.dark .podium-card {
   border-color: #273244;
   background: #111827;
   box-shadow: 0 12px 28px rgb(0 0 0 / 0.24);
 }
 
-:global(.dark) .ranking-controls,
-:global(.dark) .stat-card,
-:global(.dark) .list-panel,
-:global(.dark) .mine-card,
-:global(.dark) .status-card,
-:global(.dark) .podium-panel {
+.dark .ranking-controls,
+.dark .stat-card,
+.dark .list-panel,
+.dark .mine-card,
+.dark .status-card,
+.dark .podium-panel {
   background: #111827;
 }
 
-:global(.dark) .control-label,
-:global(.dark) .status-card strong {
+.dark .control-label,
+.dark .status-card strong {
   color: #cbd5e1;
 }
 
-:global(.dark) .selection-summary strong,
-:global(.dark) .panel-heading h2,
-:global(.dark) .mine-card h2,
-:global(.dark) .status-card h2,
-:global(.dark) .stat-card strong,
-:global(.dark) .rank-row-main strong {
+.dark .selection-summary strong,
+.dark .panel-heading h2,
+.dark .mine-card h2,
+.dark .status-card h2,
+.dark .stat-card strong,
+.dark .rank-row-main strong {
   color: #f8fafc;
 }
 
-:global(.dark) .stat-card p,
-:global(.dark) .panel-heading span,
-:global(.dark) .podium-card small,
-:global(.dark) .mine-status-body span,
-:global(.dark) .mine-progress-caption,
-:global(.dark) .status-card p {
+.dark .stat-card p,
+.dark .panel-heading span,
+.dark .podium-card small,
+.dark .mine-status-body span,
+.dark .mine-progress-caption,
+.dark .status-card p {
   color: #94a3b8;
 }
 
-:global(.dark) .loading-panel,
-:global(.dark) .empty-state,
-:global(.dark) .empty-state.compact {
+.dark .loading-panel,
+.dark .empty-state,
+.dark .empty-state.compact {
   color: #a7b3c5;
 }
 
-:global(.dark) .segmented,
-:global(.dark) .rank-row {
+.dark .segmented,
+.dark .rank-row {
   background: #1f2937;
 }
 
-:global(.dark) .selection-summary span {
+.dark .selection-summary span {
   color: #7c8aa0;
 }
 
-:global(.dark) .segment-button {
+.dark .segment-button {
   border-color: #374151;
   background: #111827;
   color: #d1d5db;
 }
 
-:global(.dark) .segment-button.active {
+.dark .segment-button.active {
   border-color: #14b8a6;
   background: #0f766e;
   color: #fff;
 }
 
-:global(.dark) .stat-icon.token {
+.dark .stat-icon.token {
   background: rgb(20 184 166 / 0.16);
   color: #5eead4;
 }
 
-:global(.dark) .stat-icon.cost {
+.dark .stat-icon.cost {
   background: rgb(34 197 94 / 0.16);
   color: #86efac;
 }
 
-:global(.dark) .stat-icon.users {
+.dark .stat-icon.users {
   background: rgb(59 130 246 / 0.16);
   color: #93c5fd;
 }
 
-:global(.dark) .stat-icon.mine {
+.dark .stat-icon.mine {
   background: rgb(245 158 11 / 0.18);
   color: #fbbf24;
 }
 
-:global(.dark) .podium-card.first {
+.dark .podium-card.first {
   border-color: #f59e0b;
   background: #2a1f0b;
 }
 
-:global(.dark) .podium-card.second {
+.dark .podium-card.second {
   border-color: #64748b;
   background: #151c28;
 }
 
-:global(.dark) .podium-card.third {
+.dark .podium-card.third {
   border-color: #c2410c;
   background: #25140b;
 }
 
-:global(.dark) .crown {
+.dark .crown {
   border-color: #f59e0b;
   background: rgb(245 158 11 / 0.18);
   color: #facc15;
 }
 
-:global(.dark) .rank-avatar.gold,
-:global(.dark) .medal.gold {
+.dark .rank-avatar.gold,
+.dark .medal.gold {
   background: rgb(245 158 11 / 0.18);
   color: #facc15;
 }
 
-:global(.dark) .rank-avatar.silver,
-:global(.dark) .medal.silver {
+.dark .rank-avatar.silver,
+.dark .medal.silver {
   background: rgb(148 163 184 / 0.16);
   color: #cbd5e1;
 }
 
-:global(.dark) .rank-avatar.bronze,
-:global(.dark) .medal.bronze {
+.dark .rank-avatar.bronze,
+.dark .medal.bronze {
   background: rgb(194 65 12 / 0.18);
   color: #fdba74;
 }
 
-:global(.dark) .podium-card strong,
-:global(.dark) .podium-card b,
-:global(.dark) .rank-row > b {
+.dark .podium-card strong,
+.dark .podium-card b,
+.dark .rank-row > b {
   color: #e5e7eb;
 }
 
-:global(.dark) .podium-card.first b {
+.dark .podium-card.first b {
   color: #facc15;
 }
 
-:global(.dark) .podium-card.third b {
+.dark .podium-card.third b {
   color: #fdba74;
 }
 
-:global(.dark) .mine-card.ranked {
+.dark .mine-card.ranked {
   border-color: rgb(45 212 191 / 0.55);
   background: linear-gradient(180deg, rgb(20 184 166 / 0.10), #111827 62%);
 }
 
-:global(.dark) .mine-card.unranked {
+.dark .mine-card.unranked {
   border-color: rgb(245 158 11 / 0.55);
   background: linear-gradient(180deg, rgb(245 158 11 / 0.10), #111827 62%);
 }
 
-:global(.dark) .mine-card.ranked .mine-status-body strong {
+.dark .mine-card.ranked .mine-status-body strong {
   color: #5eead4;
 }
 
-:global(.dark) .mine-status-body strong {
+.dark .mine-status-body strong {
   color: #fbbf24;
 }
 
-:global(.dark) .mine-status-badge {
+.dark .mine-status-badge {
   background: rgb(245 158 11 / 0.18);
   color: #fbbf24;
 }
 
-:global(.dark) .mine-card.ranked .mine-status-badge {
+.dark .mine-card.ranked .mine-status-badge {
   background: rgb(20 184 166 / 0.18);
   color: #5eead4;
 }
 
-:global(.dark) .progress-track,
-:global(.dark) .metric-track {
+.dark .progress-track,
+.dark .metric-track {
   background: #253044;
 }
 
-:global(.dark) .progress-track span {
+.dark .progress-track span {
   background: #14b8a6;
 }
 
-:global(.dark) .mine-card.unranked .progress-track span {
+.dark .mine-card.unranked .progress-track span {
   background: #f59e0b;
 }
 
-:global(.dark) .metric-track i {
+.dark .metric-track i {
   background: #94a3b8;
 }
 
-:global(.dark) .rank-number {
+.dark .rank-number {
   background: #273244;
   color: #cbd5e1;
 }

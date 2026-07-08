@@ -1,5 +1,12 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+
+const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../RankingsView.vue')
+const componentSource = readFileSync(componentPath, 'utf8')
 
 const { getRankings, showError } = vi.hoisted(() => ({
   getRankings: vi.fn(),
@@ -132,6 +139,13 @@ describe('RankingsView', () => {
     expect(text).not.toContain('CSV')
     expect(text).not.toContain('截图')
     expect(text).not.toContain('全站匿名账号')
+  })
+
+  it('keeps dark-mode selectors scoped to ranking elements', () => {
+    expect(componentSource).not.toContain(':global(.dark)')
+    expect(componentSource).toContain('.dark .panel')
+    expect(componentSource).toContain('.dark .podium-card.first')
+    expect(componentSource).toContain('.dark .segment-button.active')
   })
 
   it('loads the day ranking by default', async () => {
