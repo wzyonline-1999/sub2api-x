@@ -627,6 +627,9 @@ func (s *PricingService) buildModelLookupCandidates(modelLower string) []string 
 		lastSegment(modelLower),
 		lastSegment(strings.TrimPrefix(modelLower, "models/")),
 	)
+	for _, candidate := range append([]string(nil), candidates...) {
+		candidates = append(candidates, pricingModelAliasCandidates(candidate)...)
+	}
 
 	seen := make(map[string]struct{}, len(candidates))
 	out := make([]string, 0, len(candidates))
@@ -645,6 +648,15 @@ func (s *PricingService) buildModelLookupCandidates(modelLower string) []string 
 		return []string{modelLower}
 	}
 	return out
+}
+
+func pricingModelAliasCandidates(model string) []string {
+	switch strings.TrimSpace(model) {
+	case "gemini-2.5-flash-thinking":
+		return []string{"gemini-2.5-flash"}
+	default:
+		return nil
+	}
 }
 
 func normalizeModelNameForPricing(model string) string {

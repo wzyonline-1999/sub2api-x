@@ -203,6 +203,24 @@ func TestGetModelPricing_OpenAICompactAliasUsesStaticFallback(t *testing.T) {
 	require.InDelta(t, 1.5e-5, got.OutputCostPerToken, 1e-12)
 }
 
+func TestGetModelPricing_AntigravityGeminiThinkingUsesFlashPricing(t *testing.T) {
+	flashPricing := &LiteLLMModelPricing{
+		InputCostPerToken:  3e-7,
+		OutputCostPerToken: 2.5e-6,
+	}
+	svc := &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{
+			"gemini-2.5-flash": flashPricing,
+		},
+	}
+
+	got := svc.GetModelPricing("gemini-2.5-flash-thinking")
+	require.Same(t, flashPricing, got)
+
+	prefixed := svc.GetModelPricing("publishers/google/models/gemini-2.5-flash-thinking")
+	require.Same(t, flashPricing, prefixed)
+}
+
 func TestDefaultPricingIncludesCodexAutoReview(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "resources", "model-pricing", "model_prices_and_context_window.json"))
 	require.NoError(t, err)
