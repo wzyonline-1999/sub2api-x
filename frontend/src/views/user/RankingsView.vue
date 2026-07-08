@@ -144,7 +144,7 @@
               <h2>榜单状态</h2>
               <p><strong>统计周期</strong>{{ dateRangeLabel }}</p>
               <p><strong>更新时间</strong>{{ updatedAtLabel }}</p>
-              <p><strong>数据范围</strong>全站匿名账号</p>
+              <p><strong>数据范围</strong>全站实名账号</p>
             </section>
           </aside>
         </section>
@@ -177,7 +177,14 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, ref } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { getRankings, type UsageRankingItem, type UsageRankingMetric, type UsageRankingPeriod, type UsageRankingSummary } from '@/api/usage'
+import {
+  getRankings,
+  type UsageRankingItem,
+  type UsageRankingMetric,
+  type UsageRankingPeriod,
+  type UsageRankingSummary,
+  type UsageRankingTarget,
+} from '@/api/usage'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
@@ -188,6 +195,7 @@ const loading = ref(false)
 const updatedAt = ref<Date | null>(null)
 const ranking = ref<UsageRankingItem[]>([])
 const currentUser = ref<UsageRankingItem | null>(null)
+const currentUserTarget = ref<UsageRankingTarget | null>(null)
 const summary = ref<UsageRankingSummary>({
   total_tokens: 0,
   total_actual_cost: 0,
@@ -223,30 +231,53 @@ const currentMetricValue = computed(() => currentUser.value ? metricValue(curren
 const thresholdMetricValue = computed(() => rankingThreshold.value ? metricValue(rankingThreshold.value) : 0)
 const minimumGap = computed(() => metric.value === 'tokens' ? 1 : 0.01)
 const isCurrentUserRanked = computed(() => Boolean(currentUser.value && currentUser.value.rank <= 10))
+const isCurrentUserFirst = computed(() => Boolean(isCurrentUserRanked.value && currentUser.value?.rank === 1))
 const mineStatusTone = computed(() => isCurrentUserRanked.value ? 'ranked' : 'unranked')
 const mineStatusLabel = computed(() => isCurrentUserRanked.value ? '已上榜' : '未上榜')
+const hasSummitTarget = computed(() => isCurrentUserFirst.value && (!currentUserTarget.value || currentUserTarget.value.target_type === 'none'))
 const mineGapValue = computed(() => {
   if (isCurrentUserRanked.value) return 0
   if (!rankingThreshold.value) return minimumGap.value
   return Math.max(minimumGap.value, thresholdMetricValue.value - currentMetricValue.value + minimumGap.value)
 })
 const mineGapLabel = computed(() => formatMetricValue(mineGapValue.value))
+const targetGapValue = computed(() => {
+  if (!currentUserTarget.value) return mineGapValue.value
+  return metric.value === 'tokens' ? currentUserTarget.value.gap_tokens : currentUserTarget.value.gap_actual_cost
+})
+const targetGapLabel = computed(() => formatMetricValue(targetGapValue.value))
 const mineHeadline = computed(() => {
+  if (hasSummitTarget.value) return '已登顶'
   if (isCurrentUserRanked.value && currentUser.value) return `第 ${currentUser.value.rank} 名`
+  if (currentUserTarget.value?.target_type === 'threshold') return `距离上榜还差 ${targetGapLabel.value}`
   return `距离上榜还差 ${mineGapLabel.value}`
 })
 const mineDetail = computed(() => {
+  if (hasSummitTarget.value && currentUser.value) {
+    return `${primaryMetricLabel(currentUser.value)} · 继续保持当前榜首`
+  }
   if (isCurrentUserRanked.value && currentUser.value) {
+    if (currentUserTarget.value?.target_type === 'previous') {
+      return `${primaryMetricLabel(currentUser.value)} · 距离超过上一名还差 ${targetGapLabel.value}`
+    }
     return `${primaryMetricLabel(currentUser.value)} · ${secondaryMetricLabel(currentUser.value)}`
   }
   if (currentUser.value) return `当前 ${formatMetricValue(currentMetricValue.value)}`
   return '当前周期暂无调用'
 })
 const mineStatSubtitle = computed(() => {
-  if (isCurrentUserRanked.value && currentUser.value) return `第 ${currentUser.value.rank} 名 · ${primaryMetricLabel(currentUser.value)}`
+  if (hasSummitTarget.value && currentUser.value) return `已登顶 · ${primaryMetricLabel(currentUser.value)}`
+  if (isCurrentUserRanked.value && currentUser.value) {
+    if (currentUserTarget.value?.target_type === 'previous') return `距离超过上一名还差 ${targetGapLabel.value}`
+    return `第 ${currentUser.value.rank} 名 · ${primaryMetricLabel(currentUser.value)}`
+  }
+  if (currentUserTarget.value?.target_type === 'threshold') return `距离上榜还差 ${targetGapLabel.value}`
   return `距离上榜还差 ${mineGapLabel.value}`
 })
 const mineProgress = computed(() => {
+  if (currentUserTarget.value) {
+    return Math.min(100, Math.max(0, currentUserTarget.value.progress_percent))
+  }
   if (isCurrentUserRanked.value) return 100
   const threshold = thresholdMetricValue.value
   if (threshold <= 0) return currentMetricValue.value > 0 ? 50 : 0
@@ -254,6 +285,17 @@ const mineProgress = computed(() => {
   return Math.min(98, Math.max(currentMetricValue.value > 0 ? 8 : 0, percent))
 })
 const mineProgressCaption = computed(() => {
+  if (hasSummitTarget.value) return '继续保持当前榜首'
+  if (currentUserTarget.value?.target_type === 'previous') {
+    return currentUserTarget.value.target_rank
+      ? `以第 ${currentUserTarget.value.target_rank} 名作为追赶目标`
+      : '距离超过上一名还差一步'
+  }
+  if (currentUserTarget.value?.target_type === 'threshold') {
+    return currentUserTarget.value.target_rank
+      ? `以第 ${currentUserTarget.value.target_rank} 名作为上榜门槛`
+      : '以当前 Top10 末位作为上榜门槛'
+  }
   if (isCurrentUserRanked.value) return '已进入当前 Top10'
   if (rankingThreshold.value) return '以第 10 名作为上榜门槛'
   return '当前榜单未满，产生用量即可上榜'
@@ -270,6 +312,7 @@ async function loadRankings() {
     ranking.value = response.ranking ?? []
     summary.value = response.summary ?? summary.value
     currentUser.value = response.current_user ?? null
+    currentUserTarget.value = response.current_user_target ?? null
     startDate.value = response.start_date
     endDate.value = response.end_date
     updatedAt.value = new Date()
@@ -887,6 +930,7 @@ onMounted(() => {
 :global(.dark) .podium-card {
   border-color: #273244;
   background: #111827;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.24);
 }
 
 :global(.dark) .ranking-controls,
@@ -898,6 +942,20 @@ onMounted(() => {
   background: #111827;
 }
 
+:global(.dark) .control-label,
+:global(.dark) .status-card strong {
+  color: #cbd5e1;
+}
+
+:global(.dark) .selection-summary strong,
+:global(.dark) .panel-heading h2,
+:global(.dark) .mine-card h2,
+:global(.dark) .status-card h2,
+:global(.dark) .stat-card strong,
+:global(.dark) .rank-row-main strong {
+  color: #f8fafc;
+}
+
 :global(.dark) .stat-card p,
 :global(.dark) .panel-heading span,
 :global(.dark) .podium-card small,
@@ -907,9 +965,19 @@ onMounted(() => {
   color: #94a3b8;
 }
 
+:global(.dark) .loading-panel,
+:global(.dark) .empty-state,
+:global(.dark) .empty-state.compact {
+  color: #a7b3c5;
+}
+
 :global(.dark) .segmented,
 :global(.dark) .rank-row {
   background: #1f2937;
+}
+
+:global(.dark) .selection-summary span {
+  color: #7c8aa0;
 }
 
 :global(.dark) .segment-button {
@@ -922,6 +990,129 @@ onMounted(() => {
   border-color: #14b8a6;
   background: #0f766e;
   color: #fff;
+}
+
+:global(.dark) .stat-icon.token {
+  background: rgb(20 184 166 / 0.16);
+  color: #5eead4;
+}
+
+:global(.dark) .stat-icon.cost {
+  background: rgb(34 197 94 / 0.16);
+  color: #86efac;
+}
+
+:global(.dark) .stat-icon.users {
+  background: rgb(59 130 246 / 0.16);
+  color: #93c5fd;
+}
+
+:global(.dark) .stat-icon.mine {
+  background: rgb(245 158 11 / 0.18);
+  color: #fbbf24;
+}
+
+:global(.dark) .podium-card.first {
+  border-color: #f59e0b;
+  background: #2a1f0b;
+}
+
+:global(.dark) .podium-card.second {
+  border-color: #64748b;
+  background: #151c28;
+}
+
+:global(.dark) .podium-card.third {
+  border-color: #c2410c;
+  background: #25140b;
+}
+
+:global(.dark) .crown {
+  border-color: #f59e0b;
+  background: rgb(245 158 11 / 0.18);
+  color: #facc15;
+}
+
+:global(.dark) .rank-avatar.gold,
+:global(.dark) .medal.gold {
+  background: rgb(245 158 11 / 0.18);
+  color: #facc15;
+}
+
+:global(.dark) .rank-avatar.silver,
+:global(.dark) .medal.silver {
+  background: rgb(148 163 184 / 0.16);
+  color: #cbd5e1;
+}
+
+:global(.dark) .rank-avatar.bronze,
+:global(.dark) .medal.bronze {
+  background: rgb(194 65 12 / 0.18);
+  color: #fdba74;
+}
+
+:global(.dark) .podium-card strong,
+:global(.dark) .podium-card b,
+:global(.dark) .rank-row > b {
+  color: #e5e7eb;
+}
+
+:global(.dark) .podium-card.first b {
+  color: #facc15;
+}
+
+:global(.dark) .podium-card.third b {
+  color: #fdba74;
+}
+
+:global(.dark) .mine-card.ranked {
+  border-color: rgb(45 212 191 / 0.55);
+  background: linear-gradient(180deg, rgb(20 184 166 / 0.10), #111827 62%);
+}
+
+:global(.dark) .mine-card.unranked {
+  border-color: rgb(245 158 11 / 0.55);
+  background: linear-gradient(180deg, rgb(245 158 11 / 0.10), #111827 62%);
+}
+
+:global(.dark) .mine-card.ranked .mine-status-body strong {
+  color: #5eead4;
+}
+
+:global(.dark) .mine-status-body strong {
+  color: #fbbf24;
+}
+
+:global(.dark) .mine-status-badge {
+  background: rgb(245 158 11 / 0.18);
+  color: #fbbf24;
+}
+
+:global(.dark) .mine-card.ranked .mine-status-badge {
+  background: rgb(20 184 166 / 0.18);
+  color: #5eead4;
+}
+
+:global(.dark) .progress-track,
+:global(.dark) .metric-track {
+  background: #253044;
+}
+
+:global(.dark) .progress-track span {
+  background: #14b8a6;
+}
+
+:global(.dark) .mine-card.unranked .progress-track span {
+  background: #f59e0b;
+}
+
+:global(.dark) .metric-track i {
+  background: #94a3b8;
+}
+
+:global(.dark) .rank-number {
+  background: #273244;
+  color: #cbd5e1;
 }
 
 @media (max-width: 1180px) {

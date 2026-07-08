@@ -126,6 +126,18 @@ export interface UsageRankingItem {
   actual_cost: number
 }
 
+export type UsageRankingTargetType = 'previous' | 'threshold' | 'none'
+
+export interface UsageRankingTarget {
+  target_type: UsageRankingTargetType
+  target_rank?: number
+  target_user_id?: number
+  target_display_name?: string
+  gap_tokens: number
+  gap_actual_cost: number
+  progress_percent: number
+}
+
 export interface UsageRankingResponse {
   metric: UsageRankingMetric
   period: UsageRankingPeriod
@@ -134,6 +146,7 @@ export interface UsageRankingResponse {
   summary: UsageRankingSummary
   ranking: UsageRankingItem[]
   current_user?: UsageRankingItem | null
+  current_user_target?: UsageRankingTarget | null
 }
 
 export interface UsageDashboardSnapshotV2Params extends TrendParams {

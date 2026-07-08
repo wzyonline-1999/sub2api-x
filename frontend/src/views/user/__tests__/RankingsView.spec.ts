@@ -82,6 +82,15 @@ const rankingResponse = {
     actual_cost: 128.6,
     requests: 1800,
   },
+  current_user_target: {
+    target_type: 'threshold',
+    target_rank: 10,
+    target_user_id: 10,
+    target_display_name: 'user-10',
+    gap_tokens: 1,
+    gap_actual_cost: 0.01,
+    progress_percent: 0,
+  },
 }
 
 describe('RankingsView', () => {
@@ -114,6 +123,7 @@ describe('RankingsView', () => {
     expect(text).toContain('银牌')
     expect(text).toContain('铜牌')
     expect(text).toContain('我的排名')
+    expect(text).toContain('全站实名账号')
 
     expect(text).not.toContain('榜单维度')
     expect(text).not.toContain('请求类型')
@@ -121,6 +131,7 @@ describe('RankingsView', () => {
     expect(text).not.toContain('导出')
     expect(text).not.toContain('CSV')
     expect(text).not.toContain('截图')
+    expect(text).not.toContain('全站匿名账号')
   })
 
   it('loads the day ranking by default', async () => {
@@ -151,6 +162,15 @@ describe('RankingsView', () => {
         rankingItem(3, 800),
       ],
       current_user: rankingItem(2, 900),
+      current_user_target: {
+        target_type: 'previous',
+        target_rank: 1,
+        target_user_id: 1,
+        target_display_name: 'user-1',
+        gap_tokens: 101,
+        gap_actual_cost: 1.01,
+        progress_percent: 90,
+      },
     })
     const RankingsView = (await import('../RankingsView.vue')).default
     const wrapper = mount(RankingsView, {
@@ -167,6 +187,38 @@ describe('RankingsView', () => {
     expect(text).toContain('已上榜')
     expect(text).toContain('第 2 名')
     expect(text).toContain('900 tokens')
+    expect(text).toContain('距离超过上一名还差 101 tokens')
+  })
+
+  it('shows summit state when the current user is first', async () => {
+    getRankings.mockResolvedValueOnce({
+      ...rankingResponse,
+      ranking: [
+        rankingItem(1, 1000),
+        rankingItem(2, 900),
+      ],
+      current_user: rankingItem(1, 1000),
+      current_user_target: {
+        target_type: 'none',
+        gap_tokens: 0,
+        gap_actual_cost: 0,
+        progress_percent: 100,
+      },
+    })
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('已登顶')
+    expect(text).toContain('继续保持当前榜首')
   })
 
   it('shows the gap to enter the top 10 when the current user is unranked', async () => {
@@ -185,6 +237,15 @@ describe('RankingsView', () => {
         rankingItem(10, 250),
       ],
       current_user: rankingItem(18, 100),
+      current_user_target: {
+        target_type: 'threshold',
+        target_rank: 10,
+        target_user_id: 10,
+        target_display_name: 'user-10',
+        gap_tokens: 151,
+        gap_actual_cost: 1.51,
+        progress_percent: 40,
+      },
     })
     const RankingsView = (await import('../RankingsView.vue')).default
     const wrapper = mount(RankingsView, {

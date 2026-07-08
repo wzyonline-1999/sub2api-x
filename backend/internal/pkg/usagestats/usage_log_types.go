@@ -220,14 +220,33 @@ type UsageRankingItem struct {
 	ActualCost  float64 `json:"actual_cost"`
 }
 
+type UsageRankingTargetType string
+
+const (
+	UsageRankingTargetPrevious  UsageRankingTargetType = "previous"
+	UsageRankingTargetThreshold UsageRankingTargetType = "threshold"
+	UsageRankingTargetNone      UsageRankingTargetType = "none"
+)
+
+type UsageRankingTarget struct {
+	TargetType        UsageRankingTargetType `json:"target_type"`
+	TargetRank        *int64                 `json:"target_rank,omitempty"`
+	TargetUserID      *int64                 `json:"target_user_id,omitempty"`
+	TargetDisplayName *string                `json:"target_display_name,omitempty"`
+	GapTokens         int64                  `json:"gap_tokens"`
+	GapActualCost     float64                `json:"gap_actual_cost"`
+	ProgressPercent   int                    `json:"progress_percent"`
+}
+
 type UsageRankingResponse struct {
-	Metric      UsageRankingMetric  `json:"metric"`
-	Period      UsageRankingPeriod  `json:"period"`
-	StartDate   string              `json:"start_date"`
-	EndDate     string              `json:"end_date"`
-	Summary     UsageRankingSummary `json:"summary"`
-	Ranking     []UsageRankingItem  `json:"ranking"`
-	CurrentUser *UsageRankingItem   `json:"current_user,omitempty"`
+	Metric            UsageRankingMetric  `json:"metric"`
+	Period            UsageRankingPeriod  `json:"period"`
+	StartDate         string              `json:"start_date"`
+	EndDate           string              `json:"end_date"`
+	Summary           UsageRankingSummary `json:"summary"`
+	Ranking           []UsageRankingItem  `json:"ranking"`
+	CurrentUser       *UsageRankingItem   `json:"current_user,omitempty"`
+	CurrentUserTarget *UsageRankingTarget `json:"current_user_target,omitempty"`
 }
 
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
