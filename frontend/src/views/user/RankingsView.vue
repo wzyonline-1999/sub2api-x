@@ -203,7 +203,7 @@ const periods: Array<{ value: UsageRankingPeriod; label: string }> = [
   { value: 'month', label: '月榜' },
 ]
 
-const periodLabel = computed(() => periods.find((item) => item.value === period.value)?.label ?? '月榜')
+const periodLabel = computed(() => periods.find((item) => item.value === period.value)?.label ?? '日榜')
 const dateRangeLabel = computed(() => {
   if (!startDate.value || !endDate.value) return '当前周期'
   return `${startDate.value} 至 ${endDate.value}`

@@ -449,7 +449,7 @@ func (h *UsageHandler) Rankings(c *gin.Context) {
 		return
 	}
 
-	period := usagestats.UsageRankingPeriod(c.DefaultQuery("period", string(usagestats.UsageRankingPeriodMonth)))
+	period := usagestats.UsageRankingPeriod(c.DefaultQuery("period", string(usagestats.UsageRankingPeriodDay)))
 	if !usagestats.IsValidUsageRankingPeriod(period) {
 		response.BadRequest(c, "Invalid period, use day, week, or month")
 		return

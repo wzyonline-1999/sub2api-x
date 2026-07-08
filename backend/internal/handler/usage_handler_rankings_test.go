@@ -64,6 +64,24 @@ func TestUsageRankingsRejectsInvalidMetric(t *testing.T) {
 	require.Empty(t, repo.query.Metric)
 }
 
+func TestUsageRankingsDefaultsToDayPeriod(t *testing.T) {
+	repo := &usageRankingRepoCapture{}
+	router := newUsageRankingTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/rankings?timezone=UTC", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, usagestats.UsageRankingMetricTokens, repo.query.Metric)
+	require.Equal(t, usagestats.UsageRankingPeriodDay, repo.query.Period)
+	require.Equal(t, 10, repo.query.Limit)
+	require.Equal(t, int64(42), repo.query.CurrentUserID)
+	require.False(t, repo.query.StartTime.IsZero())
+	require.False(t, repo.query.EndTime.IsZero())
+	require.Equal(t, 24*time.Hour, repo.query.EndTime.Sub(repo.query.StartTime))
+}
+
 func TestUsageRankingsPassesMetricPeriodLimitAndCurrentUser(t *testing.T) {
 	repo := &usageRankingRepoCapture{}
 	router := newUsageRankingTestRouter(repo)
