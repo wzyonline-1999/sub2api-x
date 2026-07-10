@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 )
 
 func extractMaxBytesError(err error) (*http.MaxBytesError, bool) {
@@ -62,4 +65,15 @@ func errorString(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func readLenientJSONRequestBodyWithPrealloc(req *http.Request, cfg *config.Config) ([]byte, error) {
+	return pkghttputil.ReadLenientJSONRequestBodyWithPrealloc(req, gatewayMaxBodySize(cfg))
+}
+
+func gatewayMaxBodySize(cfg *config.Config) int64 {
+	if cfg == nil {
+		return 0
+	}
+	return cfg.Gateway.MaxBodySize
 }
