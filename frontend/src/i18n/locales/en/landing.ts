@@ -201,6 +201,7 @@ export default {
       username: 'Username',
       password: 'Password',
       databaseName: 'Database Name',
+      schema: 'Schema (optional)',
       sslMode: 'SSL Mode',
       passwordPlaceholder: 'Password',
       ssl: {

@@ -59,6 +59,11 @@ export default {
     addBalanceWithCode: '使用兑换码充值'
   },
 
+  rankings: {
+    title: '排行榜',
+    description: '查看 Token 使用量和实际花费排行榜',
+  },
+
   // Groups (shared)
   groups: {
     subscription: '订阅'

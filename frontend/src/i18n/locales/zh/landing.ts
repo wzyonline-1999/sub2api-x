@@ -201,6 +201,7 @@ export default {
       username: '用户名',
       password: '密码',
       databaseName: '数据库名称',
+      schema: 'Schema（可选）',
       sslMode: 'SSL 模式',
       passwordPlaceholder: '密码',
       ssl: {

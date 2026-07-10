@@ -759,7 +759,7 @@ func TestUsageLogRepositoryGetUsageRankingByTokens(t *testing.T) {
 		TargetType:        usagestats.UsageRankingTargetPrevious,
 		TargetRank:        int64Ptr(1),
 		TargetUserID:      int64Ptr(7),
-		TargetDisplayName: stringPtr("winner"),
+		TargetDisplayName: usageRankingStringPtr("winner"),
 		GapTokens:         29200001,
 		GapActualCost:     737.92,
 		ProgressPercent:   77,
@@ -810,7 +810,7 @@ func TestUsageLogRepositoryGetUsageRankingKeepsCurrentUserSeparateWhenOutsideLim
 		TargetType:        usagestats.UsageRankingTargetThreshold,
 		TargetRank:        int64Ptr(1),
 		TargetUserID:      int64Ptr(7),
-		TargetDisplayName: stringPtr("winner"),
+		TargetDisplayName: usageRankingStringPtr("winner"),
 		GapTokens:         127400001,
 		GapActualCost:     1832.92,
 		ProgressPercent:   1,
@@ -889,7 +889,7 @@ func TestUsageLogRepositoryGetUsageRankingUsesNearestHigherRankWhenRanksTie(t *t
 		TargetType:        usagestats.UsageRankingTargetPrevious,
 		TargetRank:        int64Ptr(1),
 		TargetUserID:      int64Ptr(7),
-		TargetDisplayName: stringPtr("winner-a"),
+		TargetDisplayName: usageRankingStringPtr("winner-a"),
 		GapTokens:         201,
 		GapActualCost:     2.01,
 		ProgressPercent:   80,
@@ -940,7 +940,7 @@ func TestUsageLogRepositoryGetUsageRankingUsesNearestThresholdWhenRanksSkip(t *t
 		TargetType:        usagestats.UsageRankingTargetThreshold,
 		TargetRank:        int64Ptr(9),
 		TargetUserID:      int64Ptr(9),
-		TargetDisplayName: stringPtr("rank-9"),
+		TargetDisplayName: usageRankingStringPtr("rank-9"),
 		GapTokens:         51,
 		GapActualCost:     0.51,
 		ProgressPercent:   83,
@@ -994,7 +994,7 @@ func int64Ptr(v int64) *int64 {
 	return &v
 }
 
-func stringPtr(v string) *string {
+func usageRankingStringPtr(v string) *string {
 	return &v
 }
 

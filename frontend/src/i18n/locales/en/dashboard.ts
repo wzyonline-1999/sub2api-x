@@ -59,6 +59,11 @@ export default {
     addBalanceWithCode: 'Add balance with a code'
   },
 
+  rankings: {
+    title: 'Rankings',
+    description: 'View token usage and actual spend rankings',
+  },
+
   // Groups (shared)
   groups: {
     subscription: 'Sub'

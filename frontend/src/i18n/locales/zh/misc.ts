@@ -107,11 +107,6 @@ export default {
     markReadHint: '点击"已读"标记此公告'
   },
 
-  rankings: {
-    title: '排行榜',
-    description: '查看 Token 使用量和实际花费排行榜',
-  },
-
   // User Subscriptions Page
   userSubscriptions: {
     title: '我的订阅',

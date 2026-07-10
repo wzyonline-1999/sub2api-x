@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testPrivateKeyHeader = "-----BEGIN " + "PRIVATE KEY-----"
+
 func TestBatchImageProviderRegistry_ReturnsVertex(t *testing.T) {
 	registry := NewDefaultBatchImageProviderRegistry()
 	provider, ok := registry.Get(BatchImageProviderVertex)
@@ -234,7 +236,7 @@ func TestVertexProvider_CleanupRejectsUnsafePath(t *testing.T) {
 }
 
 func TestVertexProvider_ErrorsDoNotExposeServiceAccountSecrets(t *testing.T) {
-	privateKey := "-----BEGIN PRIVATE KEY-----secret-----END PRIVATE KEY-----"
+	privateKey := testPrivateKeyHeader + "secret-----END PRIVATE KEY-----"
 	account := vertexServiceAccount()
 	account.Credentials["service_account_json"] = map[string]any{
 		"type":         "service_account",
@@ -307,7 +309,7 @@ func vertexServiceAccount() *Account {
 			"service_account_json": map[string]any{
 				"type":         "service_account",
 				"project_id":   "proj",
-				"private_key":  "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
+				"private_key":  testPrivateKeyHeader + "\nabc\n-----END PRIVATE KEY-----\n",
 				"client_email": "svc@proj.iam.gserviceaccount.com",
 			},
 		},

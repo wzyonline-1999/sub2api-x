@@ -109,11 +109,6 @@ export default {
     markReadHint: 'Click "Mark as read" to mark this announcement'
   },
 
-  rankings: {
-    title: 'Rankings',
-    description: 'View token usage and actual spend rankings',
-  },
-
   // User Subscriptions Page
   userSubscriptions: {
     title: 'My Subscriptions',
