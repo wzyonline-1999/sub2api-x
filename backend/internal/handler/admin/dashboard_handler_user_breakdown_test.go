@@ -269,6 +269,20 @@ func TestGetUserBreakdown_RequestTypeStringFilter(t *testing.T) {
 	}
 }
 
+func TestGetUserBreakdown_RequestTypeNumericCompatibility(t *testing.T) {
+	repo := &userBreakdownRepoCapture{}
+	router := newUserBreakdownRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/admin/dashboard/user-breakdown?start_date=2026-03-01&end_date=2026-03-16&request_type=1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, repo.capturedDim.RequestType)
+	require.Equal(t, int16(service.RequestTypeSync), *repo.capturedDim.RequestType)
+}
+
 func TestGetUserBreakdown_InvalidRequestType(t *testing.T) {
 	repo := &userBreakdownRepoCapture{}
 	router := newUserBreakdownRouter(repo)

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -57,7 +58,8 @@ func RequestTypeFromInt16(v int16) RequestType {
 }
 
 func ParseUsageRequestType(value string) (RequestType, error) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
 	case "unknown":
 		return RequestTypeUnknown, nil
 	case "sync":
@@ -68,9 +70,16 @@ func ParseUsageRequestType(value string) (RequestType, error) {
 		return RequestTypeWSV2, nil
 	case "cyber":
 		return RequestTypeCyberBlocked, nil
-	default:
-		return RequestTypeUnknown, fmt.Errorf("invalid request_type, allowed values: unknown, sync, stream, ws_v2, cyber")
 	}
+
+	if numeric, err := strconv.ParseInt(normalized, 10, 16); err == nil {
+		requestType := RequestType(numeric)
+		if requestType.IsValid() {
+			return requestType, nil
+		}
+	}
+
+	return RequestTypeUnknown, fmt.Errorf("invalid request_type, allowed values: unknown, sync, stream, ws_v2, cyber, or numeric 0-4")
 }
 
 func RequestTypeFromLegacy(stream bool, openAIWSMode bool) RequestType {
