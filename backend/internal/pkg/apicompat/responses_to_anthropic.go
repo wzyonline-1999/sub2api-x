@@ -268,9 +268,10 @@ func FinalizeResponsesAnthropicStream(state *ResponsesEventToAnthropicState) []A
 				StopReason: stopReason,
 			},
 			Usage: &AnthropicUsage{
-				InputTokens:          state.InputTokens,
-				OutputTokens:         state.OutputTokens,
-				CacheReadInputTokens: state.CacheReadInputTokens,
+				InputTokens:              state.InputTokens,
+				OutputTokens:             state.OutputTokens,
+				CacheReadInputTokens:     state.CacheReadInputTokens,
+				CacheCreationInputTokens: state.CacheCreationInputTokens,
 			},
 		},
 		AnthropicStreamEvent{Type: "message_stop"},
