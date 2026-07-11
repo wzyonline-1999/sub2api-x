@@ -281,10 +281,56 @@ func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt
 	if err != nil {
 		return "", "", status, err
 	}
-	if provider == MonitorProviderOpenAI && apiMode == MonitorAPIModeResponses {
-		return extractOpenAIResponsesText(respBytes), string(respBytes), status, nil
+	return extractMonitorResponseText(respBytes, adapter.textPath), string(respBytes), status, nil
+}
+
+// extractMonitorResponseText extracts assistant text from the adapter's native response shape,
+// then falls back to other common OpenAI-compatible shapes. The fallbacks are intentionally
+// limited to known text fields so a generic 2xx metadata or error object is not treated as healthy.
+func extractMonitorResponseText(respBytes []byte, primaryPath string) string {
+	if text := extractMonitorJSONText(respBytes, primaryPath); strings.TrimSpace(text) != "" {
+		return text
 	}
-	return gjson.GetBytes(respBytes, adapter.textPath).String(), string(respBytes), status, nil
+
+	var texts []string
+	forEachOpenAISSEDataPayload(string(respBytes), func(payload []byte) {
+		if text := extractMonitorJSONText(payload, primaryPath); strings.TrimSpace(text) != "" {
+			texts = append(texts, text)
+		}
+	})
+	return strings.Join(texts, "")
+}
+
+func extractMonitorJSONText(respBytes []byte, primaryPath string) string {
+	paths := []string{
+		primaryPath,
+		"choices.0.message.content",
+		"choices.0.message.reasoning_content",
+		"choices.0.text",
+		"choices.0.delta.content",
+		"choices.0.delta.reasoning_content",
+		"content.0.text",
+		"candidates.0.content.parts.0.text",
+		"delta.text",
+	}
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if text := gjson.GetBytes(respBytes, path).String(); strings.TrimSpace(text) != "" {
+			return text
+		}
+	}
+	if text := extractOpenAIResponsesText(respBytes); strings.TrimSpace(text) != "" {
+		return text
+	}
+	if response := gjson.GetBytes(respBytes, "response"); response.IsObject() {
+		return extractOpenAIResponsesText([]byte(response.Raw))
+	}
+	if delta := gjson.GetBytes(respBytes, "delta"); delta.Type == gjson.String {
+		return delta.String()
+	}
+	return ""
 }
 
 // extractOpenAIResponsesText 聚合 Responses API 的最终 assistant 文本。
@@ -490,12 +536,20 @@ func postRawJSON(ctx context.Context, fullURL string, payload []byte, headers ma
 	return respBody, resp.StatusCode, nil
 }
 
-// joinURL 把 base origin 与 path 拼成完整 URL。
-// 容忍 base 末尾有/无斜杠，path 必带前导斜杠。
+// joinURL 把 endpoint base 与 provider path 拼成完整 URL。
+// 容忍 base 末尾有/无斜杠；如果 base 已经以 /v1 或 /v1beta 结尾，则避免拼出 /v1/v1。
 func joinURL(base, path string) string {
 	base = strings.TrimRight(base, "/")
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
+	}
+	if strings.HasSuffix(base, path) {
+		return base
+	}
+	for _, version := range []string{"/v1", "/v1beta"} {
+		if strings.HasSuffix(base, version) && strings.HasPrefix(path, version+"/") {
+			return base + strings.TrimPrefix(path, version)
+		}
 	}
 	return base + path
 }

@@ -65,6 +65,7 @@ type openAICaptureHandler struct {
 	lastPath                  string
 	status                    int
 	responsesLeadingReasoning bool
+	responseBody              string
 }
 
 func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +81,10 @@ func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(h.status)
+	if h.responseBody != "" {
+		_, _ = w.Write([]byte(h.responseBody))
+		return
+	}
 
 	answer := answerFromOpenAIRequest(parsed)
 	if h.lastPath == providerOpenAIResponsesPath {
@@ -360,5 +365,44 @@ func TestRunCheckForModel_ReplaceMode_EmptyResponseIsFailed(t *testing.T) {
 	}
 	if !strings.Contains(res.Message, "replace-mode") {
 		t.Errorf("failure message should hint replace-mode, got %q", res.Message)
+	}
+}
+
+func TestRunCheckForModel_ReplaceMode_RecognizesReasoningOnlyResponse(t *testing.T) {
+	h := &openAICaptureHandler{
+		responseBody: `{"choices":[{"message":{"content":"","reasoning_content":"healthy"}}]}`,
+	}
+	endpoint := setupFakeOpenAI(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderOpenAI, endpoint, "sk-openai", "reasoner", &CheckOptions{
+		BodyOverrideMode: MonitorBodyOverrideModeReplace,
+		BodyOverride: map[string]any{
+			"model":    "reasoner",
+			"messages": []any{map[string]any{"role": "user", "content": "health check"}},
+		},
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("reasoning-only 2xx response should be operational, got status=%s message=%q", res.Status, res.Message)
+	}
+}
+
+func TestRunCheckForModel_ReplaceMode_RecognizesSSEText(t *testing.T) {
+	h := &openAICaptureHandler{
+		responseBody: "data: {\"choices\":[{\"delta\":{\"content\":\"healthy\"}}]}\n\ndata: [DONE]\n\n",
+	}
+	endpoint := setupFakeOpenAI(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderOpenAI, endpoint, "sk-openai", "streaming-model", &CheckOptions{
+		BodyOverrideMode: MonitorBodyOverrideModeReplace,
+		BodyOverride: map[string]any{
+			"model":    "streaming-model",
+			"messages": []any{map[string]any{"role": "user", "content": "health check"}},
+			"stream":   true,
+		},
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("SSE 2xx response with text should be operational, got status=%s message=%q", res.Status, res.Message)
 	}
 }
