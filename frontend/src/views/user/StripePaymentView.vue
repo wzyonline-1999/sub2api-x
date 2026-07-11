@@ -100,7 +100,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { appUrl } from '@/utils/basePath'
 import { isMobileDevice } from '@/utils/device'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { PAYMENT_RECOVERY_STORAGE_KEY, readPaymentRecoverySnapshot } from '@/components/payment/paymentFlow'
@@ -206,7 +205,7 @@ function formatGatewayAmount(value: number): string {
 
 async function confirmAlipay(stripe: Stripe, clientSecret: string, orderId: number) {
   redirecting.value = true
-  const returnUrl = appUrl(`/payment/result?order_id=${orderId}&status=success`)
+  const returnUrl = window.location.origin + '/payment/result?order_id=' + orderId + '&status=success'
   const { error } = await stripe.confirmAlipayPayment(clientSecret, { return_url: returnUrl })
   if (error) {
     redirecting.value = false
@@ -264,7 +263,7 @@ async function handleGenericPay() {
     const { error } = await stripeInstance.confirmPayment({
       elements: elementsInstance,
       confirmParams: {
-        return_url: appUrl(`/payment/result?order_id=${route.query.order_id}&status=success`),
+        return_url: window.location.origin + '/payment/result?order_id=' + route.query.order_id + '&status=success',
       },
       redirect: 'if_required',
     })

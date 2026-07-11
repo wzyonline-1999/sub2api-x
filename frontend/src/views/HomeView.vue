@@ -42,7 +42,7 @@
         <!-- Logo -->
         <div class="flex items-center">
           <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
-            <img :src="siteLogoSrc" alt="Logo" class="h-full w-full object-contain" />
+            <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
           </div>
         </div>
 
@@ -410,7 +410,6 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { appPath } from '@/utils/basePath'
 import { sanitizeUrl } from '@/utils/url'
 
 const { t } = useI18n()
@@ -426,7 +425,6 @@ const siteLogo = computed(() =>
     allowDataUrl: true
   })
 )
-const siteLogoSrc = computed(() => siteLogo.value || appPath('/logo.png'))
 const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'AI API Gateway Platform')
 const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')

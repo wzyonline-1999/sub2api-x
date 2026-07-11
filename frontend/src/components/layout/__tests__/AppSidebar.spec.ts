@@ -61,3 +61,11 @@ describe('AppSidebar ranking navigation icon', () => {
     expect(componentSource).toContain("{ path: '/rankings', label: t('nav.rankings'), icon: TrophyIcon")
   })
 })
+
+describe('AppSidebar resource status navigation', () => {
+  it('shares the capacity page between regular users and the admin personal section', () => {
+    expect(componentSource).toContain("{ path: '/capacity', label: t('nav.resourceStatus'), icon: CapacityIcon }")
+    expect(componentSource).toContain('finalizeNav(buildSelfNavItems(true))')
+    expect(componentSource).toContain('finalizeNav(buildSelfNavItems(false))')
+  })
+})

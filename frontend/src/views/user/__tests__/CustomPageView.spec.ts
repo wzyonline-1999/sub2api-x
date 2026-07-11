@@ -57,7 +57,7 @@ vi.mock('@/stores/adminSettings', () => ({
 }))
 
 vi.mock('@/api/client', () => ({
-  buildApiUrl: (path: string) => `/sub2api/api/v1${path.startsWith('/') ? path : `/${path}`}`,
+  buildApiUrl: (path: string) => `/api/v1${path.startsWith('/') ? path : `/${path}`}`,
 }))
 
 describe('CustomPageView', () => {
@@ -86,12 +86,12 @@ describe('CustomPageView', () => {
     await flushPromises()
 
     expect(fetch).toHaveBeenCalledWith(
-      '/sub2api/api/v1/pages/guide',
+      '/api/v1/pages/guide',
       expect.objectContaining({
         headers: { Authorization: 'Bearer viewer-token' },
       }),
     )
-    expect(wrapper.html()).toContain('/sub2api/api/v1/pages/guide/images/images/cat.png?size=small')
+    expect(wrapper.html()).toContain('/api/v1/pages/guide/images/images/cat.png?size=small')
 
     wrapper.unmount()
   })

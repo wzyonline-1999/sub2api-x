@@ -63,10 +63,10 @@ func SetupRouter(
 
 	// Serve embedded frontend with settings injection if available
 	if web.HasEmbeddedFrontend() {
-		frontendServer, err := web.NewFrontendServerWithBasePath(settingService, cfg.Server.BasePath)
+		frontendServer, err := web.NewFrontendServer(settingService)
 		if err != nil {
 			log.Printf("Warning: Failed to create frontend server with settings injection: %v, using legacy mode", err)
-			r.Use(web.ServeEmbeddedFrontendWithBasePath(cfg.Server.BasePath))
+			r.Use(web.ServeEmbeddedFrontend())
 			settingService.SetOnUpdateCallback(refreshFrameOrigins)
 		} else {
 			// Register combined callback: invalidate HTML cache + refresh frame origins
@@ -80,20 +80,15 @@ func SetupRouter(
 		settingService.SetOnUpdateCallback(refreshFrameOrigins)
 	}
 
-	routeRoot := gin.IRouter(r)
-	if cfg.Server.BasePath != "" {
-		routeRoot = r.Group(cfg.Server.BasePath)
-	}
-
 	// 注册路由
-	registerRoutes(routeRoot, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient)
+	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient)
 
 	return r
 }
 
 // registerRoutes 注册所有 HTTP 路由
 func registerRoutes(
-	r gin.IRouter,
+	r *gin.Engine,
 	h *handler.Handlers,
 	jwtAuth middleware2.JWTAuthMiddleware,
 	adminAuth middleware2.AdminAuthMiddleware,

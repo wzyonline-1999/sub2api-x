@@ -13,7 +13,7 @@ import (
 
 // RegisterGatewayRoutes 注册 API 网关路由（Claude/OpenAI/Gemini 兼容）
 func RegisterGatewayRoutes(
-	r gin.IRouter,
+	r *gin.Engine,
 	h *handler.Handlers,
 	apiKeyAuth middleware.APIKeyAuthMiddleware,
 	apiKeyService *service.APIKeyService,

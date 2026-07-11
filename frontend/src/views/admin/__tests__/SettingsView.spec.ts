@@ -108,15 +108,6 @@ vi.mock("@/utils/apiError", () => ({
   extractApiErrorMessage: () => "error",
 }));
 
-vi.mock("@/utils/basePath", () => ({
-  appPath: (path: string) =>
-    `/sub2api${path.startsWith("/") ? path : `/${path}`}`,
-  appBaseUrl: () => "https://admin.example.com/sub2api",
-  appUrl: (path: string) =>
-    `https://admin.example.com/sub2api${path.startsWith("/") ? path : `/${path}`}`,
-  defaultApiBaseUrl: () => "/sub2api/api/v1",
-}));
-
 vi.mock("vue-i18n", async () => {
   const actual = await vi.importActual<typeof import("vue-i18n")>("vue-i18n");
   const translations: Record<string, string> = {
@@ -1033,29 +1024,6 @@ describe("admin SettingsView wechat connect controls", () => {
           .element as HTMLInputElement
       ).value,
     ).toBe("/auth/wechat/callback");
-  });
-
-  it("suggests OAuth callback URLs under the configured app base path", async () => {
-    getSettings.mockResolvedValueOnce({
-      ...baseSettingsResponse,
-      linuxdo_connect_enabled: true,
-      oidc_connect_enabled: true,
-    });
-
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openSecurityTab(wrapper);
-
-    expect(wrapper.text()).toContain(
-      "https://admin.example.com/sub2api/api/v1/auth/oauth/linuxdo/callback",
-    );
-    expect(wrapper.text()).toContain(
-      "https://admin.example.com/sub2api/api/v1/auth/oauth/wechat/callback",
-    );
-    expect(wrapper.text()).toContain(
-      "https://admin.example.com/sub2api/api/v1/auth/oauth/oidc/callback",
-    );
   });
 
   it("links GitHub OAuth Apps guide to GitHub developer settings", async () => {

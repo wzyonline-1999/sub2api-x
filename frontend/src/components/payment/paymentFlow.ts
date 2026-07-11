@@ -77,7 +77,6 @@ export interface BuildCreateOrderPayloadInput {
   paymentType: string
   orderType: OrderType
   planId?: number
-  /** Absolute app base URL, including any deployment sub-path. */
   origin?: string
   isMobile: boolean
   isWechatBrowser: boolean

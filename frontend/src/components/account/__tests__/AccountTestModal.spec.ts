@@ -22,7 +22,7 @@ vi.mock('@/composables/useClipboard', () => ({
 }))
 
 vi.mock('@/api/client', () => ({
-  buildApiUrl: (path: string) => `/sub2api/api/v1${path.startsWith('/') ? path : `/${path}`}`
+  buildApiUrl: (path: string) => `/api/v1${path.startsWith('/') ? path : `/${path}`}`
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -146,7 +146,7 @@ describe('AccountTestModal', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1)
     const [url, options] = (global.fetch as any).mock.calls[0]
-    expect(url).toBe('/sub2api/api/v1/admin/accounts/1/test')
+    expect(url).toBe('/api/v1/admin/accounts/1/test')
     expect(JSON.parse(options.body)).toMatchObject({
       model_id: 'gpt-5.4',
       mode: 'compact'

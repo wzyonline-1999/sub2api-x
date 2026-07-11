@@ -261,7 +261,6 @@ import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
-import { appPath, appUrl } from '@/utils/basePath'
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
@@ -444,10 +443,7 @@ function buildWechatOAuthAuthorizeUrl(
   }
 
   try {
-    const targetUrl = new URL(
-      normalizedUrl.startsWith('/') ? appPath(normalizedUrl) : normalizedUrl,
-      window.location.origin,
-    )
+    const targetUrl = new URL(normalizedUrl, window.location.origin)
     const redirectPath = targetUrl.searchParams.get('redirect') || '/purchase'
     const redirectUrl = new URL(redirectPath, window.location.origin)
     const paymentType = normalizeVisibleMethod(context.paymentType) || context.paymentType.trim() || 'wxpay'
@@ -774,7 +770,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       paymentType: requestType,
       orderType,
       planId,
-      origin: appUrl('/'),
+      origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
       forceQRCode: !!(checkout.value.alipay_force_qrcode && normalizeVisibleMethod(requestType) === 'alipay'),
@@ -1000,7 +996,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       paymentType: visibleMethod,
       orderType: context.orderType,
       planId: context.planId,
-      origin: appUrl('/'),
+      origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: false,
       isWechatBrowser: false,
     })

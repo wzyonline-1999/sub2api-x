@@ -163,7 +163,6 @@ func (h *AuthHandler) LinuxDoOAuthCallback(c *gin.Context) {
 	if frontendCallback == "" {
 		frontendCallback = linuxDoOAuthDefaultFrontendCB
 	}
-	frontendCallback = h.frontendCallbackWithServerBasePath(frontendCallback)
 
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))
@@ -1039,7 +1038,7 @@ func setCookie(c *gin.Context, name string, value string, maxAgeSec int, secure 
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     oauthCookiePath(c, linuxDoOAuthCookiePath),
+		Path:     linuxDoOAuthCookiePath,
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1051,7 +1050,7 @@ func clearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     oauthCookiePath(c, linuxDoOAuthCookiePath),
+		Path:     linuxDoOAuthCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1063,7 +1062,7 @@ func clearOAuthBindAccessTokenCookie(c *gin.Context, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthBindAccessTokenCookieName,
 		Value:    "",
-		Path:     oauthCookiePath(c, oauthBindAccessTokenCookiePath),
+		Path:     oauthBindAccessTokenCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1075,7 +1074,7 @@ func setOAuthBindAccessTokenCookie(c *gin.Context, token string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthBindAccessTokenCookieName,
 		Value:    url.QueryEscape(strings.TrimSpace(token)),
-		Path:     oauthCookiePath(c, oauthBindAccessTokenCookiePath),
+		Path:     oauthBindAccessTokenCookiePath,
 		MaxAge:   linuxDoOAuthCookieMaxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,

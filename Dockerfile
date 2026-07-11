@@ -21,14 +21,6 @@ ARG NPM_CONFIG_REGISTRY=
 FROM ${NODE_IMAGE} AS frontend-builder
 ARG NPM_CONFIG_REGISTRY
 
-ARG VITE_APP_BASE_PATH=/
-ARG VITE_API_BASE_URL=
-ARG VITE_WS_BASE_URL=
-
-ENV VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-ENV VITE_WS_BASE_URL=${VITE_WS_BASE_URL}
-
 WORKDIR /app/frontend
 
 # Install pnpm (pinned to v9 to match CI and keep builds reproducible)
@@ -143,7 +135,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD base_path="${SERVER_BASE_PATH:-}"; base_path="${base_path%/}"; if [ -n "$base_path" ] && [ "${base_path#/}" = "$base_path" ]; then base_path="/$base_path"; fi; wget -q -T 5 -O /dev/null "http://localhost:${SERVER_PORT:-8080}${base_path}/health"
+    CMD wget -q -T 5 -O /dev/null http://localhost:${SERVER_PORT:-8080}/health || exit 1
 
 # Run the application (entrypoint fixes /app/data ownership then execs as sub2api)
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

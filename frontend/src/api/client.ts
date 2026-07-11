@@ -6,7 +6,6 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types'
 import { getLocale } from '@/i18n'
-import { appPath, isCurrentAppPath } from '@/utils/basePath'
 import { getAPIBaseURL } from './url'
 export { buildApiUrl, buildGatewayUrl } from './url'
 
@@ -139,8 +138,8 @@ apiClient.interceptors.response.use(
           // ignore event failures
         }
 
-        if (isCurrentAppPath('/admin/ops')) {
-          window.location.href = appPath('/admin/settings')
+        if (window.location.pathname.startsWith('/admin/ops')) {
+          window.location.href = '/admin/settings'
         }
 
         return Promise.reject({
@@ -236,8 +235,8 @@ apiClient.interceptors.response.use(
             localStorage.removeItem('token_expires_at')
             sessionStorage.setItem('auth_expired', '1')
 
-            if (!isCurrentAppPath('/login')) {
-              window.location.href = appPath('/login')
+            if (!window.location.pathname.includes('/login')) {
+              window.location.href = '/login'
             }
 
             return Promise.reject({
@@ -267,8 +266,8 @@ apiClient.interceptors.response.use(
           sessionStorage.setItem('auth_expired', '1')
         }
         // Only redirect if not already on login page
-        if (!isCurrentAppPath('/login')) {
-          window.location.href = appPath('/login')
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login'
         }
       }
 

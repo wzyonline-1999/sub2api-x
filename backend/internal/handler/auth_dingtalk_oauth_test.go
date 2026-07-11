@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,25 +19,6 @@ import (
 // TODO(task-1.10): newTestAuthHandlerWithDingTalk helper が追加されたら t.Skip を外す。
 func TestDingTalkOAuthStart_Disabled(t *testing.T) {
 	t.Skip("helper newTestAuthHandlerWithDingTalk added in Task 1.10; sentinel only")
-}
-
-func TestDingTalkOAuthCallbackAppliesServerBasePathOnProviderError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodGet, "/sub2api/api/v1/auth/oauth/dingtalk/callback?error=access_denied", nil)
-
-	handler := &AuthHandler{
-		cfg: &config.Config{
-			Server:   config.ServerConfig{BasePath: "/sub2api"},
-			DingTalk: config.DingTalkConnectConfig{Enabled: true},
-		},
-	}
-
-	handler.DingTalkOAuthCallback(c)
-
-	require.Equal(t, http.StatusFound, rec.Code)
-	require.True(t, strings.HasPrefix(rec.Header().Get("Location"), "/sub2api/auth/dingtalk/callback#"), rec.Header().Get("Location"))
 }
 
 // TestBuildDingTalkSyntheticEmail_UsesUnionID 验证合成邮箱种子使用 unionID。

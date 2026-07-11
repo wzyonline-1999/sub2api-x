@@ -103,7 +103,6 @@ func (h *AuthHandler) emailOAuthCallback(c *gin.Context, provider string) {
 	if frontendCallback == "" {
 		frontendCallback = "/auth/oauth/callback"
 	}
-	frontendCallback = h.frontendCallbackWithServerBasePath(frontendCallback)
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))
 		return
@@ -610,7 +609,7 @@ func emailOAuthSetCookie(c *gin.Context, name, value string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     oauthCookiePath(c, emailOAuthCookiePath),
+		Path:     emailOAuthCookiePath,
 		MaxAge:   emailOAuthCookieMaxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -622,7 +621,7 @@ func emailOAuthClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     oauthCookiePath(c, emailOAuthCookiePath),
+		Path:     emailOAuthCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,

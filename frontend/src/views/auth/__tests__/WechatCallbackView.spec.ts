@@ -130,7 +130,6 @@ vi.mock('@/stores', () => ({
 }))
 
 vi.mock('@/api/client', () => ({
-  API_BASE_URL: '/api/v1',
   apiClient: {
     post: (...args: any[]) => apiClientPostMock(...args),
   },

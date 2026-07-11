@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/sysutil"
 
@@ -20,7 +19,7 @@ import (
 var installMutex sync.Mutex
 
 // RegisterRoutes registers setup wizard routes
-func RegisterRoutes(r gin.IRouter) {
+func RegisterRoutes(r *gin.Engine) {
 	setup := r.Group("/setup")
 	{
 		// Status endpoint is always accessible (read-only)
@@ -122,7 +121,6 @@ type TestDatabaseRequest struct {
 	Password string `json:"password"`
 	DBName   string `json:"dbname" binding:"required"`
 	SSLMode  string `json:"sslmode"`
-	Schema   string `json:"schema"`
 }
 
 // testDatabase tests database connection
@@ -150,11 +148,6 @@ func testDatabase(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "Invalid database name format")
 		return
 	}
-	req.Schema = strings.TrimSpace(req.Schema)
-	if req.Schema != "" && !config.IsValidPostgresIdentifier(req.Schema) {
-		response.Error(c, http.StatusBadRequest, "Invalid database schema format")
-		return
-	}
 
 	if req.SSLMode == "" {
 		req.SSLMode = "disable"
@@ -171,7 +164,6 @@ func testDatabase(c *gin.Context) {
 		Password: req.Password,
 		DBName:   req.DBName,
 		SSLMode:  req.SSLMode,
-		Schema:   req.Schema,
 	}
 
 	if err := TestDatabaseConnection(cfg); err != nil {
@@ -259,12 +251,7 @@ func install(c *gin.Context) {
 	req.Database.Host = strings.TrimSpace(req.Database.Host)
 	req.Database.User = strings.TrimSpace(req.Database.User)
 	req.Database.DBName = strings.TrimSpace(req.Database.DBName)
-	req.Database.Schema = strings.TrimSpace(req.Database.Schema)
 	req.Redis.Host = strings.TrimSpace(req.Redis.Host)
-	req.Server.BasePath = config.NormalizeBasePath(req.Server.BasePath)
-	if req.Server.BasePath == "" {
-		req.Server.BasePath = config.GetServerBasePath()
-	}
 
 	// ========== COMPREHENSIVE INPUT VALIDATION ==========
 	// Database validation
@@ -282,10 +269,6 @@ func install(c *gin.Context) {
 	}
 	if !validateDBName(req.Database.DBName) {
 		response.Error(c, http.StatusBadRequest, "Invalid database name")
-		return
-	}
-	if req.Database.Schema != "" && !config.IsValidPostgresIdentifier(req.Database.Schema) {
-		response.Error(c, http.StatusBadRequest, "Invalid database schema")
 		return
 	}
 
@@ -316,10 +299,6 @@ func install(c *gin.Context) {
 	// Server validation
 	if req.Server.Port != 0 && !validatePort(req.Server.Port) {
 		response.Error(c, http.StatusBadRequest, "Invalid server port")
-		return
-	}
-	if err := config.ValidateBasePath(req.Server.BasePath); err != nil {
-		response.Error(c, http.StatusBadRequest, "Invalid server base path: "+err.Error())
 		return
 	}
 

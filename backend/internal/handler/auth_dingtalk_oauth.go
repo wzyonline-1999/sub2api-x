@@ -88,7 +88,7 @@ func setDingTalkCookie(c *gin.Context, name string, value string, maxAgeSec int,
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     oauthCookiePath(c, dingTalkOAuthCookiePath),
+		Path:     dingTalkOAuthCookiePath,
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -100,7 +100,7 @@ func clearDingTalkCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     oauthCookiePath(c, dingTalkOAuthCookiePath),
+		Path:     dingTalkOAuthCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -115,7 +115,7 @@ func clearDingTalkCookie(c *gin.Context, name string, secure bool) {
 func (h *AuthHandler) DingTalkOAuthStart(c *gin.Context) {
 	cfg, err := h.getDingTalkOAuthConfig(c.Request.Context())
 	if err != nil {
-		frontendCB := h.frontendCallbackWithServerBasePath(dingTalkOAuthDefaultFrontendCB)
+		frontendCB := dingTalkOAuthDefaultFrontendCB
 		redirectOAuthError(c, frontendCB, "dingtalk_not_enabled", "", "")
 		return
 	}
@@ -300,7 +300,6 @@ func (h *AuthHandler) DingTalkOAuthCallback(c *gin.Context) {
 	if frontendCallback == "" {
 		frontendCallback = dingTalkOAuthDefaultFrontendCB
 	}
-	frontendCallback = h.frontendCallbackWithServerBasePath(frontendCallback)
 
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))

@@ -131,10 +131,9 @@ type AdminConfig struct {
 }
 
 type ServerConfig struct {
-	Host     string `json:"host" yaml:"host"`
-	Port     int    `json:"port" yaml:"port"`
-	Mode     string `json:"mode" yaml:"mode"`
-	BasePath string `json:"base_path" yaml:"base_path"`
+	Host string `json:"host" yaml:"host"`
+	Port int    `json:"port" yaml:"port"`
+	Mode string `json:"mode" yaml:"mode"`
 }
 
 type JWTConfig struct {
@@ -607,10 +606,9 @@ func AutoSetupFromEnv() error {
 			Password: getEnvOrDefault("ADMIN_PASSWORD", ""),
 		},
 		Server: ServerConfig{
-			Host:     getEnvOrDefault("SERVER_HOST", "0.0.0.0"),
-			Port:     getEnvIntOrDefault("SERVER_PORT", 8080),
-			Mode:     getEnvOrDefault("SERVER_MODE", "release"),
-			BasePath: config.NormalizeBasePath(getEnvOrDefault("SERVER_BASE_PATH", "")),
+			Host: getEnvOrDefault("SERVER_HOST", "0.0.0.0"),
+			Port: getEnvIntOrDefault("SERVER_PORT", 8080),
+			Mode: getEnvOrDefault("SERVER_MODE", "release"),
 		},
 		JWT: JWTConfig{
 			Secret:     getEnvOrDefault("JWT_SECRET", ""),
@@ -629,10 +627,6 @@ func AutoSetupFromEnv() error {
 		cfg.JWT.Secret = secret
 		logger.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
 	}
-	if err := config.ValidateBasePath(cfg.Server.BasePath); err != nil {
-		return fmt.Errorf("invalid server base path: %w", err)
-	}
-
 	// Test database connection
 	logger.LegacyPrintf("setup", "%s", "Testing database connection...")
 	if err := TestDatabaseConnection(&cfg.Database); err != nil {

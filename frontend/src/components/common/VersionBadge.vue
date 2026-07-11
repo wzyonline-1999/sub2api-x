@@ -649,7 +649,6 @@ import {
   type RollbackVersionInfo
 } from '@/api/admin/system'
 import { useClipboard } from '@/composables/useClipboard'
-import { appPath } from '@/utils/basePath'
 import Icon from '@/components/icons/Icon.vue'
 
 const GITHUB_REPO = 'Wei-Shaw/sub2api'
@@ -880,7 +879,7 @@ async function checkServiceAndReload() {
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const response = await fetch(appPath('/health'), {
+      const response = await fetch('/health', {
         method: 'GET',
         cache: 'no-cache'
       })

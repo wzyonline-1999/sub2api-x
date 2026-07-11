@@ -644,7 +644,6 @@ const isDesktopViewport = ref(
 const hasEnteredViewport = ref(false)
 const pendingAutoLoad = ref(false)
 const pendingAutoLoadSource = ref<'passive' | 'active' | undefined>(undefined)
-const pendingAutoLoadBypassCache = ref(false)
 
 let desktopViewportMediaQuery: MediaQueryList | null = null
 let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
@@ -1224,24 +1223,21 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
 const flushPendingAutoLoad = () => {
   if (!pendingAutoLoad.value) return
   const source = pendingAutoLoadSource.value
-  const bypassCache = pendingAutoLoadBypassCache.value
   pendingAutoLoad.value = false
   pendingAutoLoadSource.value = undefined
-  pendingAutoLoadBypassCache.value = false
-  loadUsage({ source, bypassCache }).catch((e) => {
+  loadUsage({ source }).catch((e) => {
     console.error('Failed to load deferred usage:', e)
   })
 }
 
-const requestAutoLoad = (source?: 'passive' | 'active', bypassCache = false) => {
+const requestAutoLoad = (source?: 'passive' | 'active') => {
   if (!shouldFetchUsage.value) return
   if (shouldLazyLoadOnMobile.value && !hasEnteredViewport.value) {
     pendingAutoLoad.value = true
     pendingAutoLoadSource.value = source
-    pendingAutoLoadBypassCache.value = pendingAutoLoadBypassCache.value || bypassCache
     return
   }
-  loadUsage({ source, bypassCache }).catch((e) => {
+  loadUsage({ source }).catch((e) => {
     console.error('Failed to auto load usage:', e)
   })
 }
@@ -1395,8 +1391,7 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   if (!prevKey || nextKey === prevKey) return
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return
 
-  _usageCache.delete(props.account.id)
-  requestAutoLoad(undefined, true)
+  requestAutoLoad()
 })
 
 watch(

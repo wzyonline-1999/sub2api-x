@@ -19,10 +19,6 @@ vi.mock('@/stores/app', () => ({
   }),
 }))
 
-vi.mock('@/utils/basePath', () => ({
-  appPath: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
-}))
-
 vi.mock('vue-i18n', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-i18n')>()
   return {
@@ -52,7 +48,7 @@ const IconStub = defineComponent({
 })
 
 describe('OpsAlertEventsCard', () => {
-  it('keeps alert detail links under the configured app base path', async () => {
+  it('builds alert detail links from the application root', async () => {
     const wrapper = mount(OpsAlertEventsCard, {
       global: {
         stubs: {
@@ -78,7 +74,7 @@ describe('OpsAlertEventsCard', () => {
     await nextTick()
 
     const hrefs = wrapper.findAll('a').map((a) => a.attributes('href'))
-    expect(hrefs).toContain('/sub2api/admin/ops?open_alert_rules=1&alert_rule_id=88')
-    expect(hrefs).toContain('/sub2api/admin/ops?platform=openai&group_id=7&error_type=request&open_error_details=1')
+    expect(hrefs).toContain('/admin/ops?open_alert_rules=1&alert_rule_id=88')
+    expect(hrefs).toContain('/admin/ops?platform=openai&group_id=7&error_type=request&open_error_details=1')
   })
 })

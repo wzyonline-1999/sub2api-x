@@ -2,7 +2,6 @@ import { defineConfig, loadEnv, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
-import { buildDevProxy, normalizeBasePath, resolveDevBackendBaseUrl } from './vite.config.helpers'
 
 /**
  * Vite 插件：开发模式下注入公开配置到 index.html
@@ -40,17 +39,14 @@ export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
   const devPort = Number(env.VITE_DEV_PORT || 3000)
-  const appBasePath = normalizeBasePath(env.VITE_APP_BASE_PATH)
-  const devBackendBaseUrl = resolveDevBackendBaseUrl(backendUrl, appBasePath)
 
   const plugins = [
     vue(),
     ...(command === 'serve' ? [checker({ vueTsc: true })] : []),
-    injectPublicSettings(devBackendBaseUrl)
+    injectPublicSettings(backendUrl)
   ]
 
   return {
-    base: appBasePath,
     plugins,
     resolve: {
       alias: {
@@ -113,7 +109,20 @@ export default defineConfig(({ mode, command }) => {
     server: {
       host: '0.0.0.0',
       port: devPort,
-      proxy: buildDevProxy(backendUrl, appBasePath)
+      proxy: {
+        '/api': {
+          target: backendUrl,
+          changeOrigin: true
+        },
+        '/v1': {
+          target: backendUrl,
+          changeOrigin: true
+        },
+        '/setup': {
+          target: backendUrl,
+          changeOrigin: true
+        }
+      }
     }
   }
 })

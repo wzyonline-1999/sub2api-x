@@ -38,17 +38,6 @@ describe('API Client', () => {
       )
     })
 
-    it('未显式配置 API base 时沿用前端子路径', async () => {
-      vi.resetModules()
-      vi.stubEnv('BASE_URL', '/sub2api/')
-
-      const mod = await import('@/api/client')
-
-      expect(mod.apiClient.defaults.baseURL).toBe('/sub2api/api/v1')
-      expect(mod.buildApiUrl('/payment/orders/1')).toBe('/sub2api/api/v1/payment/orders/1')
-      expect(mod.buildGatewayUrl('/v1/usage')).toBe(`${window.location.origin}/sub2api/v1/usage`)
-    })
-
     it('自动附加 Authorization 头', async () => {
       localStorage.setItem('auth_token', 'my-jwt-token')
 

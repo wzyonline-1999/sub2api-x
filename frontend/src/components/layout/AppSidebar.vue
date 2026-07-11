@@ -14,7 +14,7 @@
         class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
         @click="handleMenuItemClick(homePath)"
       >
-        <img v-if="settingsLoaded" :src="siteLogoSrc" alt="Logo" class="h-full w-full object-contain" />
+        <img v-if="settingsLoaded" :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
       </router-link>
       <div class="sidebar-brand" :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
         <router-link
@@ -196,7 +196,6 @@ import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
-import { appPath } from '@/utils/basePath'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 
 interface NavItem {
@@ -261,7 +260,6 @@ const siteName = computed(() => appStore.siteName)
 const siteLogo = computed(() =>
   sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true })
 )
-const siteLogoSrc = computed(() => siteLogo.value || appPath('/logo.png'))
 const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
@@ -416,6 +414,21 @@ const ChannelIcon = {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
           d: 'M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0l4.179 2.25L12 17.25 2.25 12m15.321-2.25l4.179 2.25L12 17.25l-9.75-5.25'
+        })
+      ]
+    )
+}
+
+const CapacityIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M4.5 19.5v-6.75A2.25 2.25 0 016.75 10.5h.75a2.25 2.25 0 012.25 2.25v6.75m0 0V8.25A2.25 2.25 0 0112 6h.75A2.25 2.25 0 0115 8.25V19.5m0 0V4.5a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 4.5v15M3 19.5h18'
         })
       ]
     )
@@ -711,8 +724,8 @@ const flagBatchImageAccess = () => canUseBatchImage.value
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
 // withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
 //
-// 条目顺序：密钥 → 用量 → 可用渠道 → 渠道状态 → 订阅/支付 → 兑换/资料。
-// 可用渠道紧挨渠道状态之上，让用户"先看自己能用什么、再看对应状态"。
+// 条目顺序：密钥 → 用量 → 可用渠道 → 资源状态 → 渠道状态 → 订阅/支付 → 兑换/资料。
+// 可用渠道、资源状态、渠道状态连续排列，形成“能用什么 → 当前压力 → 渠道健康”的浏览顺序。
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
@@ -724,6 +737,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/rankings', label: t('nav.rankings'), icon: TrophyIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+    { path: '/capacity', label: t('nav.resourceStatus'), icon: CapacityIcon },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },

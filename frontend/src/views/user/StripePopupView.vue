@@ -57,7 +57,6 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { appUrl } from '@/utils/basePath'
 import { isMobileDevice } from '@/utils/device'
 import { buildApiUrl } from '@/api/client'
 
@@ -142,7 +141,7 @@ async function initStripe(clientSecret: string, publishableKey: string) {
     const stripe = await loadStripe(publishableKey)
     if (!stripe) { error.value = t('payment.stripeLoadFailed'); return }
 
-    const returnUrl = appUrl(`/payment/result?order_id=${orderId}&status=success`)
+    const returnUrl = window.location.origin + '/payment/result?order_id=' + orderId + '&status=success'
 
     if (method === 'alipay') {
       // Alipay: redirect this popup to Alipay payment page

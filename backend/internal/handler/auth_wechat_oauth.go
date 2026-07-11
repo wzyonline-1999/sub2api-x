@@ -384,7 +384,7 @@ func (h *AuthHandler) WeChatPaymentOAuthStart(c *gin.Context) {
 // WeChatPaymentOAuthCallback exchanges a payment OAuth code for an OpenID and
 // forwards the browser back to the frontend callback route.
 func (h *AuthHandler) WeChatPaymentOAuthCallback(c *gin.Context) {
-	frontendCallback := h.frontendCallbackWithServerBasePath(wechatPaymentOAuthFrontendCB)
+	frontendCallback := wechatPaymentOAuthFrontendCB
 
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))
@@ -1001,7 +1001,7 @@ func (h *AuthHandler) getWeChatOAuthConfig(ctx context.Context, rawMode string, 
 		appID:            strings.TrimSpace(effective.AppIDForMode(mode)),
 		appSecret:        strings.TrimSpace(effective.AppSecretForMode(mode)),
 		redirectURI:      firstNonEmpty(strings.TrimSpace(effective.RedirectURL), resolveWeChatOAuthAbsoluteURL(apiBaseURL, c, "/api/v1/auth/oauth/wechat/callback")),
-		frontendCallback: h.frontendCallbackWithServerBasePath(firstNonEmpty(strings.TrimSpace(effective.FrontendRedirectURL), wechatOAuthDefaultFrontendCB)),
+		frontendCallback: firstNonEmpty(strings.TrimSpace(effective.FrontendRedirectURL), wechatOAuthDefaultFrontendCB),
 		scope:            effective.ScopeForMode(mode),
 		openEnabled:      effective.OpenEnabled,
 		mpEnabled:        effective.MPEnabled,
@@ -1028,10 +1028,10 @@ func (h *AuthHandler) wechatOAuthFrontendCallback(ctx context.Context) string {
 	if h != nil && h.settingSvc != nil {
 		cfg, err := h.settingSvc.GetWeChatConnectOAuthConfig(ctx)
 		if err == nil && strings.TrimSpace(cfg.FrontendRedirectURL) != "" {
-			return h.frontendCallbackWithServerBasePath(cfg.FrontendRedirectURL)
+			return strings.TrimSpace(cfg.FrontendRedirectURL)
 		}
 	}
-	return h.frontendCallbackWithServerBasePath(wechatOAuthDefaultFrontendCB)
+	return wechatOAuthDefaultFrontendCB
 }
 
 func resolveWeChatOAuthMode(rawMode string, c *gin.Context) (string, error) {
@@ -1243,7 +1243,7 @@ func wechatSetCookie(c *gin.Context, name string, value string, maxAgeSec int, s
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     oauthCookiePath(c, wechatOAuthCookiePath),
+		Path:     wechatOAuthCookiePath,
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1255,7 +1255,7 @@ func wechatClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     oauthCookiePath(c, wechatOAuthCookiePath),
+		Path:     wechatOAuthCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1339,7 +1339,7 @@ func wechatPaymentSetCookie(c *gin.Context, name string, value string, maxAgeSec
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     oauthCookiePath(c, wechatPaymentOAuthCookiePath),
+		Path:     wechatPaymentOAuthCookiePath,
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1351,7 +1351,7 @@ func wechatPaymentClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     oauthCookiePath(c, wechatPaymentOAuthCookiePath),
+		Path:     wechatPaymentOAuthCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,

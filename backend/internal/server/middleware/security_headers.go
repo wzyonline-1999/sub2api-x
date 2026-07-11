@@ -120,11 +120,11 @@ func isAPIRoutePath(c *gin.Context) bool {
 		return false
 	}
 	path := c.Request.URL.Path
-	return requestPathHasMountedPrefix(path, "/v1") ||
-		requestPathHasMountedPrefix(path, "/v1beta") ||
-		requestPathHasMountedPrefix(path, "/antigravity") ||
-		requestPathHasMountedPrefix(path, "/responses") ||
-		requestPathHasMountedPrefix(path, "/images")
+	return strings.HasPrefix(path, "/v1/") ||
+		strings.HasPrefix(path, "/v1beta/") ||
+		strings.HasPrefix(path, "/antigravity/") ||
+		strings.HasPrefix(path, "/responses") ||
+		strings.HasPrefix(path, "/images")
 }
 
 // enhanceCSPPolicy 确保 CSP 策略包含 nonce 支持和支付 SDK 必需域名。

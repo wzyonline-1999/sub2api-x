@@ -111,7 +111,7 @@ func setOAuthPendingBrowserCookie(c *gin.Context, sessionKey string, secure bool
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthPendingBrowserCookieName,
 		Value:    encodeCookieValue(sessionKey),
-		Path:     oauthCookiePath(c, oauthPendingBrowserCookiePath),
+		Path:     oauthPendingBrowserCookiePath,
 		MaxAge:   oauthPendingCookieMaxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -123,7 +123,7 @@ func clearOAuthPendingBrowserCookie(c *gin.Context, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthPendingBrowserCookieName,
 		Value:    "",
-		Path:     oauthCookiePath(c, oauthPendingBrowserCookiePath),
+		Path:     oauthPendingBrowserCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
@@ -139,7 +139,7 @@ func setOAuthPendingSessionCookie(c *gin.Context, sessionToken string, secure bo
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthPendingSessionCookieName,
 		Value:    encodeCookieValue(sessionToken),
-		Path:     oauthCookiePath(c, oauthPendingSessionCookiePath),
+		Path:     oauthPendingSessionCookiePath,
 		MaxAge:   oauthPendingCookieMaxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -151,7 +151,7 @@ func clearOAuthPendingSessionCookie(c *gin.Context, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthPendingSessionCookieName,
 		Value:    "",
-		Path:     oauthCookiePath(c, oauthPendingSessionCookiePath),
+		Path:     oauthPendingSessionCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,

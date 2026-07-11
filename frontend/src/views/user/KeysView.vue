@@ -1139,7 +1139,6 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
-import { appBaseUrl } from '@/utils/basePath'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import {
@@ -1876,7 +1875,7 @@ const importToCcswitch = (row: ApiKey) => {
 }
 
 const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
-  const baseUrl = publicSettings.value?.api_base_url || appBaseUrl()
+  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
 
   const usageScript = `({

@@ -50,41 +50,6 @@ func TestNormalizeRunMode(t *testing.T) {
 	}
 }
 
-func TestNormalizeBasePath(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"", ""},
-		{"/", ""},
-		{"sub2api", "/sub2api"},
-		{"/sub2api/", "/sub2api"},
-		{" /sub2api//admin/ ", "/sub2api/admin"},
-	}
-
-	for _, tt := range tests {
-		if result := NormalizeBasePath(tt.input); result != tt.expected {
-			t.Fatalf("NormalizeBasePath(%q) = %q, want %q", tt.input, result, tt.expected)
-		}
-	}
-}
-
-func TestValidateBasePath(t *testing.T) {
-	valid := []string{"", "/sub2api", "/sub2api/admin"}
-	for _, input := range valid {
-		if err := ValidateBasePath(input); err != nil {
-			t.Fatalf("ValidateBasePath(%q) unexpected error: %v", input, err)
-		}
-	}
-
-	invalid := []string{"sub2api", "/sub2api/", "/sub2api?x=1", "/sub2 api", "/sub2api//admin", `/sub2api\admin`}
-	for _, input := range invalid {
-		if err := ValidateBasePath(input); err == nil {
-			t.Fatalf("ValidateBasePath(%q) expected error", input)
-		}
-	}
-}
-
 func TestLoadDefaultSchedulingConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
@@ -889,15 +854,6 @@ func TestGetServerAddressFromEnv(t *testing.T) {
 	address := GetServerAddress()
 	if address != "127.0.0.1:9090" {
 		t.Fatalf("GetServerAddress() = %q", address)
-	}
-}
-
-func TestGetServerBasePathFromEnv(t *testing.T) {
-	t.Setenv("SERVER_BASE_PATH", "/sub2api/")
-
-	basePath := GetServerBasePath()
-	if basePath != "/sub2api" {
-		t.Fatalf("GetServerBasePath() = %q", basePath)
 	}
 }
 

@@ -43,7 +43,6 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores'
-import { stripAppBasePath } from '@/utils/basePath'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -144,7 +143,7 @@ onMounted(async () => {
   }
 
   await router.replace({
-    path: stripAppBasePath(redirectURL.pathname),
+    path: redirectURL.pathname,
     query,
   })
 })

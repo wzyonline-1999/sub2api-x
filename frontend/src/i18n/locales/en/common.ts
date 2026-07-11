@@ -164,6 +164,7 @@ export default {
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
+    resourceStatus: 'Resource Status',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
     proxies: 'Proxies',

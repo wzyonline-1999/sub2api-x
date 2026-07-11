@@ -78,6 +78,12 @@ func RegisterUserRoutes(
 			channels.GET("/available", h.AvailableChannel.List)
 		}
 
+		// 用户可见分组容量（管理员与普通用户使用同一只读接口）
+		capacity := authenticated.Group("/capacity")
+		{
+			capacity.GET("/visible", h.Capacity.GetVisible)
+		}
+
 		// 使用记录
 		usage := authenticated.Group("/usage")
 		{

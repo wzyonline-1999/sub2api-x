@@ -7436,7 +7436,6 @@ import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSi
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
-import { appBaseUrl } from "@/utils/basePath";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
   isRegistrationEmailSuffixDomainValid,
@@ -8762,7 +8761,7 @@ const addQuotaNotifyEmail = () => {
 };
 
 const currentOrigin =
-  typeof window !== "undefined" ? appBaseUrl() : "";
+  typeof window !== "undefined" ? window.location.origin : "";
 
 function buildApiCallbackUrl(path: string): string {
   const base = (form.api_base_url || currentOrigin).replace(/\/+$/, "");

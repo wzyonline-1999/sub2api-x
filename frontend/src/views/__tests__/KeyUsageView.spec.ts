@@ -97,12 +97,8 @@ vi.mock('@/stores', () => ({
   }),
 }))
 
-vi.mock('@/utils/basePath', () => ({
-  appPath: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
-}))
-
 vi.mock('@/api/client', () => ({
-  buildGatewayUrl: (path: string) => `/sub2api${path.startsWith('/') ? path : `/${path}`}`,
+  buildGatewayUrl: (path: string) => path.startsWith('/') ? path : `/${path}`,
 }))
 
 describe('KeyUsageView daily detail', () => {
@@ -191,7 +187,7 @@ describe('KeyUsageView daily detail', () => {
 
     const fetchMock = vi.mocked(fetch)
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/sub2api/v1/usage?'),
+      expect.stringContaining('/v1/usage?'),
       expect.objectContaining({
         headers: { Authorization: 'Bearer sk-test-key' },
       })

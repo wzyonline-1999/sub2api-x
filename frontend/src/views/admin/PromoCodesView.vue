@@ -392,7 +392,6 @@ import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
-import { appUrl } from '@/utils/basePath'
 import { formatDateTime } from '@/utils/format'
 import type { PromoCode, PromoCodeUsage } from '@/types'
 import type { Column } from '@/components/common/types'
@@ -664,7 +663,8 @@ const handleUpdate = async () => {
 
 // Copy Register Link
 const copyRegisterLink = async (code: PromoCode) => {
-  const registerLink = appUrl(`/register?promo=${encodeURIComponent(code.code)}`)
+  const baseUrl = window.location.origin
+  const registerLink = `${baseUrl}/register?promo=${encodeURIComponent(code.code)}`
 
   try {
     await navigator.clipboard.writeText(registerLink)

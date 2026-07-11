@@ -206,7 +206,6 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 	if frontendCallback == "" {
 		frontendCallback = oidcOAuthDefaultFrontendCB
 	}
-	frontendCallback = h.frontendCallbackWithServerBasePath(frontendCallback)
 
 	if providerErr := strings.TrimSpace(c.Query("error")); providerErr != "" {
 		redirectOAuthError(c, frontendCallback, "provider_error", providerErr, c.Query("error_description"))
@@ -1200,7 +1199,7 @@ func oidcSetCookie(c *gin.Context, name, value string, maxAgeSec int, secure boo
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    value,
-		Path:     oauthCookiePath(c, oidcOAuthCookiePath),
+		Path:     oidcOAuthCookiePath,
 		MaxAge:   maxAgeSec,
 		HttpOnly: true,
 		Secure:   secure,
@@ -1212,7 +1211,7 @@ func oidcClearCookie(c *gin.Context, name string, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     name,
 		Value:    "",
-		Path:     oauthCookiePath(c, oidcOAuthCookiePath),
+		Path:     oidcOAuthCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,

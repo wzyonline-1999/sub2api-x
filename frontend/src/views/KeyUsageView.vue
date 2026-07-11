@@ -5,7 +5,7 @@
       <nav class="mx-auto flex max-w-6xl items-center justify-between">
         <router-link to="/home" class="flex items-center gap-3">
           <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
-            <img :src="siteLogoSrc" alt="Logo" class="h-full w-full object-contain" />
+            <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
           </div>
           <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{{ siteName }}</span>
         </router-link>
@@ -422,7 +422,6 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { appPath } from '@/utils/basePath'
 import { buildGatewayUrl } from '@/api/client'
 import { sanitizeUrl } from '@/utils/url'
 
@@ -438,7 +437,6 @@ const siteLogo = computed(() =>
     allowDataUrl: true
   })
 )
-const siteLogoSrc = computed(() => siteLogo.value || appPath('/logo.png'))
 const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
 
