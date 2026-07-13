@@ -277,6 +277,39 @@ func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_ExplicitSources(t *te
 	}
 }
 
+func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_GrokConversationHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{}
+	bodyWithKey := []byte(`{"prompt_cache_key":"body-cache-key"}`)
+
+	newContext := func(platform string) *gin.Context {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+		c.Request.Header.Set(grokConversationIDHeader, "native-grok-session")
+		c.Set("api_key", &APIKey{ID: 1, Group: &Group{Platform: platform}})
+		return c
+	}
+
+	t.Run("Grok group records native conversation source", func(t *testing.T) {
+		got := svc.ResolveOpenAISessionMetadata(newContext(PlatformGrok), bodyWithKey)
+
+		require.Equal(t, "native-grok-session", got.SessionID)
+		require.Equal(t, "header_x_grok_conv_id", got.SessionIDSource)
+		require.True(t, got.SessionExplicit)
+		require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String("native-grok-session")), got.SessionHash)
+	})
+
+	t.Run("non-Grok group ignores native conversation header", func(t *testing.T) {
+		got := svc.ResolveOpenAISessionMetadata(newContext(PlatformOpenAI), bodyWithKey)
+
+		require.Equal(t, "body-cache-key", got.SessionID)
+		require.Equal(t, "prompt_cache_key", got.SessionIDSource)
+		require.True(t, got.SessionExplicit)
+		require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String("body-cache-key")), got.SessionHash)
+	})
+}
+
 func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_ContentFallbackDoesNotExposeRawSeed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

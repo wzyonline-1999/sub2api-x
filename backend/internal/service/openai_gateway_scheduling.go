@@ -47,6 +47,13 @@ func explicitOpenAISessionIDWithSource(c *gin.Context, body []byte) (string, str
 		return sessionID, "header_conversation_id"
 	}
 
+	if isGrokRequestContext(c) {
+		sessionID = strings.TrimSpace(c.GetHeader(grokConversationIDHeader))
+		if sessionID != "" {
+			return sessionID, "header_x_grok_conv_id"
+		}
+	}
+
 	if len(body) > 0 {
 		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
 		if sessionID != "" {
@@ -120,6 +127,15 @@ func openAISessionMetadataFromSeed(c *gin.Context, seed string, source string, r
 	}
 }
 
+// explicitOpenAIRequestSessionID extends the common OpenAI session signals
+// with Grok's native conversation header only for requests authenticated to a
+// Grok group. This keeps an unrelated x-grok-conv-id header from changing
+// scheduling or upstream session behavior for non-Grok groups.
+func explicitOpenAIRequestSessionID(c *gin.Context, body []byte) string {
+	sessionID, _ := explicitOpenAISessionIDWithSource(c, body)
+	return sessionID
+}
+
 // GenerateExplicitSessionHash generates a sticky-session hash only from explicit
 // client session signals. It intentionally skips content-derived fallback and is
 // used by stateless endpoints such as /v1/images.
@@ -132,8 +148,9 @@ func (s *OpenAIGatewayService) GenerateExplicitSessionHash(c *gin.Context, body 
 // Priority:
 //  1. Header: session_id
 //  2. Header: conversation_id
-//  3. Body:   prompt_cache_key (opencode)
-//  4. Body:   content-based fallback (model + system + tools + first user message)
+//  3. Header: x-grok-conv-id (Grok groups only)
+//  4. Body:   prompt_cache_key (opencode)
+//  5. Body:   content-based fallback (model + system + tools + first user message)
 func (s *OpenAIGatewayService) GenerateSessionHash(c *gin.Context, body []byte) string {
 	return s.ResolveOpenAISessionMetadata(c, body).SessionHash
 }
