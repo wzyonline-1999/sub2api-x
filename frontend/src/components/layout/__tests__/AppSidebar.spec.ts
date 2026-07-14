@@ -62,9 +62,10 @@ describe('AppSidebar ranking navigation icon', () => {
   })
 })
 
-describe('AppSidebar resource status navigation', () => {
-  it('shares the capacity page between regular users and the admin personal section', () => {
-    expect(componentSource).toContain("{ path: '/capacity', label: t('nav.resourceStatus'), icon: CapacityIcon }")
+describe('AppSidebar channel resources navigation', () => {
+  it('uses a resource-specific server icon and shares the page between user menus', () => {
+    expect(componentSource).toContain("{ path: '/capacity', label: t('nav.resourceStatus'), icon: ServerIcon }")
+    expect(componentSource).not.toContain("{ path: '/capacity', label: t('nav.resourceStatus'), icon: ChartIcon }")
     expect(componentSource).toContain('finalizeNav(buildSelfNavItems(true))')
     expect(componentSource).toContain('finalizeNav(buildSelfNavItems(false))')
   })

@@ -470,9 +470,9 @@ export default {
     }
   },
 
-  // Resource capacity (shared authenticated view)
+  // Channel resources (shared authenticated view)
   capacity: {
-    title: 'Resource Status',
+    title: 'Channel Resources',
     description: 'View concurrency pressure, quota load, and schedulable capacity for visible groups',
     autoRefresh: 'Auto refresh every {seconds}s',
     updating: 'Updating',
@@ -526,8 +526,8 @@ export default {
       stressed: 'Stressed groups',
       stressedNote: '{warning} tight · {critical} congested'
     },
-    loadError: 'Failed to load resource status',
-    errorTitle: 'Resource status is unavailable',
+    loadError: 'Failed to load channel resources',
+    errorTitle: 'Channel resources are unavailable',
     retry: 'Try again',
     emptyTitle: 'No visible groups',
     emptyDescription: 'This account does not have an available resource group yet.',

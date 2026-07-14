@@ -419,21 +419,6 @@ const ChannelIcon = {
     )
 }
 
-const CapacityIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M4.5 19.5v-6.75A2.25 2.25 0 016.75 10.5h.75a2.25 2.25 0 012.25 2.25v6.75m0 0V8.25A2.25 2.25 0 0112 6h.75A2.25 2.25 0 0115 8.25V19.5m0 0V4.5a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 4.5v15M3 19.5h18'
-        })
-      ]
-    )
-}
-
 const CreditCardIcon = {
   render: () =>
     h(
@@ -724,8 +709,8 @@ const flagBatchImageAccess = () => canUseBatchImage.value
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
 // withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
 //
-// 条目顺序：密钥 → 用量 → 可用渠道 → 资源状态 → 渠道状态 → 订阅/支付 → 兑换/资料。
-// 可用渠道、资源状态、渠道状态连续排列，形成“能用什么 → 当前压力 → 渠道健康”的浏览顺序。
+// 条目顺序：密钥 → 用量 → 可用渠道 → 渠道资源 → 渠道状态 → 订阅/支付 → 兑换/资料。
+// 可用渠道、渠道资源、渠道状态连续排列，形成“能用什么 → 当前压力 → 渠道健康”的浏览顺序。
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
@@ -737,7 +722,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/rankings', label: t('nav.rankings'), icon: TrophyIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
-    { path: '/capacity', label: t('nav.resourceStatus'), icon: CapacityIcon },
+    { path: '/capacity', label: t('nav.resourceStatus'), icon: ServerIcon },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },

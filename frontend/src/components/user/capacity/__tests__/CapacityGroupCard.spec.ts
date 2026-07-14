@@ -78,10 +78,11 @@ describe('CapacityGroupCard', () => {
     })
 
     expect(wrapper.get('[data-testid="concurrency-grid"]').attributes('data-columns')).toBe('2')
-    expect(wrapper.get('[data-testid="group-concurrency-value"]').classes()).toContain('text-xl')
-    expect(wrapper.get('[data-testid="account-concurrency-value"]').classes()).toContain('text-xl')
-    expect(wrapper.get('[data-testid="group-concurrency"] [role="progressbar"]').classes()).toContain('h-2')
-    expect(wrapper.get('[data-testid="account-concurrency"] [role="progressbar"]').classes()).toContain('h-2')
+    expect(wrapper.get('[data-testid="capacity-platform-icon"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="group-concurrency-value"]').classes()).toContain('text-3xl')
+    expect(wrapper.get('[data-testid="account-concurrency-value"]').classes()).toContain('text-3xl')
+    expect(wrapper.get('[data-testid="group-concurrency"] [role="progressbar"]').classes()).toContain('h-1.5')
+    expect(wrapper.get('[data-testid="account-concurrency"] [role="progressbar"]').classes()).toContain('h-1.5')
     expect(wrapper.get('[data-testid="account-concurrency"]').text()).toContain('capacity.remaining')
   })
 
@@ -99,6 +100,7 @@ describe('CapacityGroupCard', () => {
     })
 
     expect(wrapper.get('[data-testid="load-capability"]').attributes('data-level')).toBe(expected)
+    expect(wrapper.get('[data-testid="load-capability"] [role="progressbar"]').attributes('aria-valuenow')).toBe(String(percentage))
   })
 
   it('uses the account load threshold independently from a queued group', () => {
@@ -149,7 +151,7 @@ describe('CapacityGroupCard', () => {
     })
 
     expect(wrapper.get('[data-testid="quota-five-hour"]').attributes('data-level')).toBe(expected)
-    expect(wrapper.get('[data-testid="quota-five-hour"] [role="progressbar"]').classes()).toContain('h-2')
+    expect(wrapper.get('[data-testid="quota-five-hour"] [role="progressbar"]').classes()).toContain('h-1.5')
   })
 
   it('renders 5-hour and 7-day quota loads as peers with account coverage', () => {
@@ -173,8 +175,8 @@ describe('CapacityGroupCard', () => {
     })
 
     expect(wrapper.get('[data-testid="quota-load"]').text()).toContain('capacity.quotaCoverage')
-    expect(wrapper.get('[data-testid="quota-five-hour-value"]').classes()).toContain('text-xl')
-    expect(wrapper.get('[data-testid="quota-seven-day-value"]').classes()).toContain('text-xl')
+    expect(wrapper.get('[data-testid="quota-five-hour-value"]').classes()).toContain('text-2xl')
+    expect(wrapper.get('[data-testid="quota-seven-day-value"]').classes()).toContain('text-2xl')
     expect(wrapper.get('[data-testid="quota-seven-day"]').attributes('data-level')).toBe('warning')
     expect(wrapper.get('[data-testid="capacity-group-card"]').attributes('data-pressure-level')).toBe('warning')
   })

@@ -284,7 +284,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Resource Status',
+      title: 'Channel Resources',
       titleKey: 'capacity.title',
       descriptionKey: 'capacity.description'
     }

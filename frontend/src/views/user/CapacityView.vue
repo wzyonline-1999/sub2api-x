@@ -1,62 +1,56 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-[1280px] space-y-6">
-      <section class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex min-w-0 items-center gap-2 text-xs font-medium">
-          <span
-            class="h-2 w-2 flex-shrink-0 rounded-full"
-            :class="errorMessage ? 'bg-red-500' : 'bg-emerald-500'"
-            aria-hidden="true"
-          ></span>
-          <span
-            class="truncate"
-            :class="errorMessage ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'"
-            data-testid="capacity-refresh-status"
-          >
-            {{ t('capacity.autoRefresh', { seconds: AUTO_REFRESH_SECONDS }) }} · {{ refreshStatusText }}
-          </span>
-        </div>
-        <button
-          type="button"
-          class="btn btn-secondary btn-icon self-start sm:self-auto"
-          :disabled="isRefreshing"
-          :aria-label="t('common.refresh')"
-          :title="t('common.refresh')"
-          data-testid="capacity-refresh"
-          @click="manualReload"
-        >
-          <Icon name="refresh" size="sm" :class="isRefreshing ? 'animate-spin' : ''" />
-        </button>
-      </section>
+    <div class="w-full space-y-6" data-testid="capacity-page">
+      <section
+        class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"
+        data-testid="capacity-toolbar"
+      >
+        <div class="flex min-w-0 items-center gap-4">
+          <div class="flex min-w-0 flex-shrink-0 items-center gap-2 text-xs font-medium">
+            <span
+              class="h-2 w-2 flex-shrink-0 rounded-full"
+              :class="errorMessage ? 'bg-red-500' : 'bg-emerald-500'"
+              aria-hidden="true"
+            ></span>
+            <span
+              class="truncate"
+              :class="errorMessage ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'"
+              data-testid="capacity-refresh-status"
+            >
+              {{ t('capacity.autoRefresh', { seconds: AUTO_REFRESH_SECONDS }) }} · {{ refreshStatusText }}
+            </span>
+          </div>
 
-      <section class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div class="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          <span class="flex-shrink-0 text-xs font-semibold text-gray-500 dark:text-dark-400">
-            {{ t('capacity.platform') }}
-          </span>
-          <button
-            type="button"
-            class="capacity-filter-chip"
-            :class="selectedPlatform === 'all' ? 'capacity-filter-chip-active' : 'capacity-filter-chip-idle'"
-            data-testid="capacity-platform-all"
-            @click="selectedPlatform = 'all'"
-          >
-            {{ t('capacity.allPlatforms') }} {{ groups.length }}
-          </button>
-          <button
-            v-for="option in platformOptions"
-            :key="option.key"
-            type="button"
-            class="capacity-filter-chip"
-            :class="selectedPlatform === option.key ? 'capacity-filter-chip-active' : 'capacity-filter-chip-idle'"
-            :data-testid="`capacity-platform-${option.key}`"
-            @click="selectedPlatform = option.key"
-          >
-            {{ option.label }} {{ option.count }}
-          </button>
+          <span class="hidden h-5 w-px flex-shrink-0 bg-gray-200 dark:bg-dark-600 sm:block" aria-hidden="true"></span>
+
+          <div class="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <span class="flex-shrink-0 text-xs font-semibold text-gray-500 dark:text-dark-400">
+              {{ t('capacity.platform') }}
+            </span>
+            <button
+              type="button"
+              class="capacity-filter-chip"
+              :class="selectedPlatform === 'all' ? 'capacity-filter-chip-active' : 'capacity-filter-chip-idle'"
+              data-testid="capacity-platform-all"
+              @click="selectedPlatform = 'all'"
+            >
+              {{ t('capacity.allPlatforms') }} {{ groups.length }}
+            </button>
+            <button
+              v-for="option in platformOptions"
+              :key="option.key"
+              type="button"
+              class="capacity-filter-chip"
+              :class="selectedPlatform === option.key ? 'capacity-filter-chip-active' : 'capacity-filter-chip-idle'"
+              :data-testid="`capacity-platform-${option.key}`"
+              @click="selectedPlatform = option.key"
+            >
+              {{ option.label }} {{ option.count }}
+            </button>
+          </div>
         </div>
 
-        <div class="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
+        <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-center xl:w-auto xl:flex-shrink-0">
           <label class="relative block w-full sm:min-w-[260px]">
             <span class="sr-only">{{ t('capacity.searchPlaceholder') }}</span>
             <Icon
@@ -93,6 +87,17 @@
               class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
             />
           </label>
+          <button
+            type="button"
+            class="btn btn-secondary btn-icon self-start sm:self-auto"
+            :disabled="isRefreshing"
+            :aria-label="t('common.refresh')"
+            :title="t('common.refresh')"
+            data-testid="capacity-refresh"
+            @click="manualReload"
+          >
+            <Icon name="refresh" size="sm" :class="isRefreshing ? 'animate-spin' : ''" />
+          </button>
         </div>
       </section>
 

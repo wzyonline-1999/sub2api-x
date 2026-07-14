@@ -89,6 +89,16 @@ describe('CapacityView', () => {
     vi.useRealTimers()
   })
 
+  it('uses the full content width instead of a centered max-width container', async () => {
+    getVisible.mockResolvedValue(snapshot([group(1), group(2)]))
+    const wrapper = mountView()
+    await flushPromises()
+
+    const page = wrapper.get('[data-testid="capacity-page"]')
+    expect(page.classes()).toContain('w-full')
+    expect(page.classes().some((className) => className.startsWith('max-w-'))).toBe(false)
+  })
+
   it.each([
     [1, ['grid-cols-1'], ['md:grid-cols-2', 'xl:grid-cols-3']],
     [2, ['grid-cols-1', 'md:grid-cols-2'], ['xl:grid-cols-3']],
@@ -123,6 +133,19 @@ describe('CapacityView', () => {
     expect(wrapper.findAll('[data-testid="capacity-group-card"]')).toHaveLength(1)
     expect(wrapper.get('[data-testid="capacity-grid"]').classes()).toEqual(expect.arrayContaining(['grid-cols-1']))
     expect(wrapper.get('[data-testid="capacity-grid"]').classes()).not.toContain('md:grid-cols-2')
+  })
+
+  it('keeps refresh status, platform filters, and actions in one toolbar', async () => {
+    getVisible.mockResolvedValue(snapshot([group(1), group(2)]))
+    const wrapper = mountView()
+    await flushPromises()
+
+    const toolbar = wrapper.get('[data-testid="capacity-toolbar"]')
+    expect(toolbar.find('[data-testid="capacity-refresh-status"]').exists()).toBe(true)
+    expect(toolbar.find('[data-testid="capacity-platform-all"]').exists()).toBe(true)
+    expect(toolbar.find('[data-testid="capacity-search"]').exists()).toBe(true)
+    expect(toolbar.find('[data-testid="capacity-sort"]').exists()).toBe(true)
+    expect(toolbar.find('[data-testid="capacity-refresh"]').exists()).toBe(true)
   })
 
   it('sorts pressure first and can restore backend order', async () => {

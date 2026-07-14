@@ -41,7 +41,7 @@ vi.mock('@/composables/useRoutePrefetch', () => ({
   }),
 }))
 
-describe('resource capacity route', () => {
+describe('channel resources route', () => {
   it('registers one shared authenticated route without admin-only access', async () => {
     const { default: router } = await import('@/router')
     const route = router.getRoutes().find((record) => record.name === 'Capacity')
@@ -49,6 +49,7 @@ describe('resource capacity route', () => {
     expect(route?.path).toBe('/capacity')
     expect(route?.meta.requiresAuth).toBe(true)
     expect(route?.meta.requiresAdmin).toBe(false)
+    expect(route?.meta.title).toBe('Channel Resources')
     expect(route?.meta.titleKey).toBe('capacity.title')
     expect(route?.meta.descriptionKey).toBe('capacity.description')
   })

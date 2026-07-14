@@ -475,9 +475,9 @@ export default {
     }
   },
 
-  // Resource capacity (shared authenticated view)
+  // Channel resources (shared authenticated view)
   capacity: {
-    title: '资源状态',
+    title: '渠道资源',
     description: '查看当前可见分组的并发压力、额度负载与可调度能力',
     autoRefresh: '{seconds} 秒自动刷新',
     updating: '正在更新',
@@ -531,8 +531,8 @@ export default {
       stressed: '紧张分组',
       stressedNote: '{warning} 个偏紧 · {critical} 个拥堵'
     },
-    loadError: '加载资源状态失败',
-    errorTitle: '资源状态暂时不可用',
+    loadError: '加载渠道资源失败',
+    errorTitle: '渠道资源暂时不可用',
     retry: '重新加载',
     emptyTitle: '暂无可见分组',
     emptyDescription: '当前账号还没有可用的资源分组。',
