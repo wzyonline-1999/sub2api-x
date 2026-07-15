@@ -121,9 +121,13 @@ export interface UsageRankingItem {
   rank: number
   user_id: number
   display_name: string
+  avatar_url?: string | null
   requests: number
   total_tokens: number
   actual_cost: number
+  previous_requests?: number
+  previous_total_tokens?: number
+  previous_actual_cost?: number
 }
 
 export type UsageRankingTargetType = 'previous' | 'threshold' | 'none'

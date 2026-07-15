@@ -196,12 +196,14 @@ func IsValidUsageRankingPeriod(period UsageRankingPeriod) bool {
 }
 
 type UsageRankingQuery struct {
-	StartTime     time.Time
-	EndTime       time.Time
-	Metric        UsageRankingMetric
-	Period        UsageRankingPeriod
-	Limit         int
-	CurrentUserID int64
+	StartTime           time.Time
+	EndTime             time.Time
+	ComparisonStartTime time.Time
+	ComparisonEndTime   time.Time
+	Metric              UsageRankingMetric
+	Period              UsageRankingPeriod
+	Limit               int
+	CurrentUserID       int64
 }
 
 type UsageRankingSummary struct {
@@ -212,12 +214,16 @@ type UsageRankingSummary struct {
 }
 
 type UsageRankingItem struct {
-	Rank        int64   `json:"rank"`
-	UserID      int64   `json:"user_id"`
-	DisplayName string  `json:"display_name"`
-	Requests    int64   `json:"requests"`
-	TotalTokens int64   `json:"total_tokens"`
-	ActualCost  float64 `json:"actual_cost"`
+	Rank                int64   `json:"rank"`
+	UserID              int64   `json:"user_id"`
+	DisplayName         string  `json:"display_name"`
+	AvatarURL           string  `json:"avatar_url,omitempty"`
+	Requests            int64   `json:"requests"`
+	TotalTokens         int64   `json:"total_tokens"`
+	ActualCost          float64 `json:"actual_cost"`
+	PreviousRequests    int64   `json:"previous_requests"`
+	PreviousTotalTokens int64   `json:"previous_total_tokens"`
+	PreviousActualCost  float64 `json:"previous_actual_cost"`
 }
 
 type UsageRankingTargetType string

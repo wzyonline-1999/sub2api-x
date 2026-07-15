@@ -414,8 +414,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 const maxUsageRankingLimit = 10
 
-func usageRankingTimeRange(period usagestats.UsageRankingPeriod, userTZ string) (time.Time, time.Time) {
-	now := timezone.NowInUserLocation(userTZ)
+func usageRankingTimeRangeAt(period usagestats.UsageRankingPeriod, now time.Time) (time.Time, time.Time) {
 	loc := now.Location()
 	switch period {
 	case usagestats.UsageRankingPeriodDay:
@@ -432,6 +431,35 @@ func usageRankingTimeRange(period usagestats.UsageRankingPeriod, userTZ string) 
 		start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		return start, start.AddDate(0, 1, 0)
 	}
+}
+
+func usageRankingTimeRange(period usagestats.UsageRankingPeriod, userTZ string) (time.Time, time.Time) {
+	return usageRankingTimeRangeAt(period, timezone.NowInUserLocation(userTZ))
+}
+
+func usageRankingComparisonTimeRange(period usagestats.UsageRankingPeriod, currentStart, currentEnd, now time.Time) (time.Time, time.Time) {
+	var previousStart time.Time
+	switch period {
+	case usagestats.UsageRankingPeriodDay:
+		previousStart = currentStart.AddDate(0, 0, -1)
+	case usagestats.UsageRankingPeriodWeek:
+		previousStart = currentStart.AddDate(0, 0, -7)
+	default:
+		previousStart = currentStart.AddDate(0, -1, 0)
+	}
+
+	currentProgressEnd := now
+	if currentProgressEnd.Before(currentStart) {
+		currentProgressEnd = currentStart
+	}
+	if currentProgressEnd.After(currentEnd) {
+		currentProgressEnd = currentEnd
+	}
+	previousEnd := previousStart.Add(currentProgressEnd.Sub(currentStart))
+	if previousEnd.After(currentStart) {
+		previousEnd = currentStart
+	}
+	return previousStart, previousEnd
 }
 
 // Rankings handles the shared usage leaderboard for admins and regular users.
@@ -467,14 +495,18 @@ func (h *UsageHandler) Rankings(c *gin.Context) {
 		}
 	}
 
-	startTime, endTime := usageRankingTimeRange(period, c.Query("timezone"))
+	now := timezone.NowInUserLocation(c.Query("timezone"))
+	startTime, endTime := usageRankingTimeRangeAt(period, now)
+	comparisonStartTime, comparisonEndTime := usageRankingComparisonTimeRange(period, startTime, endTime, now)
 	ranking, err := h.usageService.GetUsageRanking(c.Request.Context(), usagestats.UsageRankingQuery{
-		StartTime:     startTime,
-		EndTime:       endTime,
-		Metric:        metric,
-		Period:        period,
-		Limit:         limit,
-		CurrentUserID: subject.UserID,
+		StartTime:           startTime,
+		EndTime:             endTime,
+		ComparisonStartTime: comparisonStartTime,
+		ComparisonEndTime:   comparisonEndTime,
+		Metric:              metric,
+		Period:              period,
+		Limit:               limit,
+		CurrentUserID:       subject.UserID,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

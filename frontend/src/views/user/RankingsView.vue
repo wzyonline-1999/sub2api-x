@@ -10,6 +10,7 @@
               data-testid="ranking-metric-tokens"
               class="segment-button"
               :class="{ active: metric === 'tokens' }"
+              :aria-pressed="metric === 'tokens'"
               @click="setMetric('tokens')"
             >
               使用量榜
@@ -19,6 +20,7 @@
               data-testid="ranking-metric-cost"
               class="segment-button"
               :class="{ active: metric === 'cost' }"
+              :aria-pressed="metric === 'cost'"
               @click="setMetric('cost')"
             >
               花费榜
@@ -36,6 +38,7 @@
               :data-testid="`ranking-period-${item.value}`"
               class="segment-button compact"
               :class="{ active: period === item.value }"
+              :aria-pressed="period === item.value"
               @click="setPeriod(item.value)"
             >
               {{ item.label }}
@@ -84,7 +87,9 @@
         </article>
       </section>
 
-      <div v-if="loading" class="loading-panel panel">正在加载排行榜...</div>
+      <div v-if="loading" class="loading-panel panel" role="status" aria-live="polite">
+        正在加载排行榜...
+      </div>
 
       <template v-else>
         <section class="ranking-main">
@@ -95,29 +100,71 @@
             </div>
 
             <div v-if="topThree.length > 0" class="podium-grid">
-              <div v-if="secondPlace" class="podium-card second">
-                <RankAvatar :name="secondPlace.display_name" tone="silver" />
-                <span class="medal silver">银牌</span>
-                <strong>{{ secondPlace.display_name }}</strong>
-                <b>{{ primaryMetricLabel(secondPlace) }}</b>
-                <small>{{ secondaryMetricLabel(secondPlace) }}</small>
+              <div v-if="firstPlace" class="podium-card first">
+                <img
+                  class="podium-frame"
+                  :src="goldDragonFrame"
+                  alt=""
+                  aria-hidden="true"
+                  decoding="async"
+                />
+                <span class="podium-rank baked-in-frame">第 1 名</span>
+                <div class="podium-card-content">
+                  <RankAvatar
+                    :name="firstPlace.display_name"
+                    :avatar-url="firstPlace.avatar_url ?? ''"
+                    tone="gold"
+                    large
+                  />
+                  <span class="medal gold">金牌</span>
+                  <strong>{{ firstPlace.display_name }}</strong>
+                  <b>{{ primaryMetricLabel(firstPlace) }}</b>
+                  <small>{{ secondaryMetricLabel(firstPlace) }}</small>
+                </div>
               </div>
 
-              <div v-if="firstPlace" class="podium-card first">
-                <span class="crown" aria-label="榜首皇冠">♕</span>
-                <RankAvatar :name="firstPlace.display_name" tone="gold" large />
-                <span class="medal gold">金牌</span>
-                <strong>{{ firstPlace.display_name }}</strong>
-                <b>{{ primaryMetricLabel(firstPlace) }}</b>
-                <small>{{ secondaryMetricLabel(firstPlace) }}</small>
+              <div v-if="secondPlace" class="podium-card second">
+                <img
+                  class="podium-frame"
+                  :src="silverPythonFrame"
+                  alt=""
+                  aria-hidden="true"
+                  decoding="async"
+                />
+                <span class="podium-rank baked-in-frame">第 2 名</span>
+                <div class="podium-card-content">
+                  <RankAvatar
+                    :name="secondPlace.display_name"
+                    :avatar-url="secondPlace.avatar_url ?? ''"
+                    tone="silver"
+                  />
+                  <span class="medal silver">银牌</span>
+                  <strong>{{ secondPlace.display_name }}</strong>
+                  <b>{{ primaryMetricLabel(secondPlace) }}</b>
+                  <small>{{ secondaryMetricLabel(secondPlace) }}</small>
+                </div>
               </div>
 
               <div v-if="thirdPlace" class="podium-card third">
-                <RankAvatar :name="thirdPlace.display_name" tone="bronze" />
-                <span class="medal bronze">铜牌</span>
-                <strong>{{ thirdPlace.display_name }}</strong>
-                <b>{{ primaryMetricLabel(thirdPlace) }}</b>
-                <small>{{ secondaryMetricLabel(thirdPlace) }}</small>
+                <img
+                  class="podium-frame"
+                  :src="bronzeSnakeFrame"
+                  alt=""
+                  aria-hidden="true"
+                  decoding="async"
+                />
+                <span class="podium-rank baked-in-frame">第 3 名</span>
+                <div class="podium-card-content">
+                  <RankAvatar
+                    :name="thirdPlace.display_name"
+                    :avatar-url="thirdPlace.avatar_url ?? ''"
+                    tone="bronze"
+                  />
+                  <span class="medal bronze">铜牌</span>
+                  <strong>{{ thirdPlace.display_name }}</strong>
+                  <b>{{ primaryMetricLabel(thirdPlace) }}</b>
+                  <small>{{ secondaryMetricLabel(thirdPlace) }}</small>
+                </div>
               </div>
             </div>
 
@@ -150,21 +197,78 @@
         </section>
 
         <section class="list-panel panel">
-          <div class="panel-heading">
+          <div class="panel-heading list-heading">
             <h2>第 4-10 名</h2>
-            <span>{{ metric === 'tokens' ? '按 Token 从高到低' : '按实际花费从高到低' }}</span>
           </div>
 
-          <div v-if="restRanking.length > 0" class="rank-list">
-            <article v-for="item in restRanking" :key="item.user_id" class="rank-row">
-              <span class="rank-number">{{ item.rank }}</span>
-              <div class="rank-row-main">
-                <strong>{{ item.display_name }}</strong>
-                <span class="metric-track">
+          <div v-if="restRanking.length > 0" class="rank-list" role="list">
+            <article
+              v-for="item in restRanking"
+              :key="item.user_id"
+              class="rank-row"
+              :class="{ 'is-current': currentUser?.user_id === item.user_id }"
+              :data-testid="`ranking-row-${item.rank}`"
+              role="listitem"
+            >
+              <span class="rank-number" :aria-label="`第 ${item.rank} 名`">
+                <img
+                  class="rank-number-sticker"
+                  :src="jadeRankSticker"
+                  alt=""
+                  aria-hidden="true"
+                  decoding="async"
+                  draggable="false"
+                />
+                <strong aria-hidden="true">{{ item.rank }}</strong>
+              </span>
+              <div class="rank-identity">
+                <RankAvatar
+                  :name="item.display_name"
+                  :avatar-url="item.avatar_url ?? ''"
+                  tone="neutral"
+                  compact
+                  :data-testid="`ranking-avatar-${item.rank}`"
+                />
+                <div class="rank-profile">
+                  <strong>{{ item.display_name }}</strong>
+                  <div class="rank-profile-meta">
+                    <span>{{ item.requests.toLocaleString() }} 次调用</span>
+                    <span v-if="currentUser?.user_id === item.user_id" class="current-user-label">我的账号</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="rank-trend"
+                :class="trendTone(item)"
+                :aria-label="`${comparisonLabel} ${trendValueLabel(item)}`"
+                :data-testid="`ranking-trend-${item.rank}`"
+              >
+                <div class="rank-trend-summary">
+                  <span>{{ comparisonLabel }}</span>
+                  <strong>{{ trendValueLabel(item) }}</strong>
+                </div>
+                <small>{{ previousPeriodLabel }} {{ previousMetricLabel(item) }}</small>
+              </div>
+              <div class="rank-progress">
+                <div class="rank-progress-label">
+                  <span>相对榜首</span>
+                  <strong>{{ relativeMetricLabel(item) }}</strong>
+                </div>
+                <span
+                  class="metric-track"
+                  role="progressbar"
+                  aria-label="相对榜首进度"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  :aria-valuenow="Math.round(relativeMetricPercent(item))"
+                >
                   <i :style="{ width: `${barPercent(item)}%` }"></i>
                 </span>
               </div>
-              <b>{{ primaryMetricLabel(item) }}</b>
+              <div class="rank-value">
+                <b>{{ primaryMetricLabel(item) }}</b>
+                <small>{{ secondaryMetricLabel(item) }}</small>
+              </div>
             </article>
           </div>
           <div v-else class="empty-state compact">暂无更多排名</div>
@@ -175,8 +279,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, ref } from 'vue'
+import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import jadeRankSticker from '@/assets/rankings/badges/jade-rank-sticker.png'
+import bronzeSnakeFrame from '@/assets/rankings/podium/bronze-twin-snake-frame-v2.png'
+import goldDragonFrame from '@/assets/rankings/podium/gold-twin-dragon-frame-v2.png'
+import silverPythonFrame from '@/assets/rankings/podium/silver-twin-python-frame.png'
 import {
   getRankings,
   type UsageRankingItem,
@@ -212,6 +320,16 @@ const periods: Array<{ value: UsageRankingPeriod; label: string }> = [
 ]
 
 const periodLabel = computed(() => periods.find((item) => item.value === period.value)?.label ?? '日榜')
+const comparisonLabel = computed(() => {
+  if (period.value === 'week') return '较上周同期'
+  if (period.value === 'month') return '较上月同期'
+  return '较昨日同期'
+})
+const previousPeriodLabel = computed(() => {
+  if (period.value === 'week') return '上周'
+  if (period.value === 'month') return '上月'
+  return '昨日'
+})
 const dateRangeLabel = computed(() => {
   if (!startDate.value || !endDate.value) return '当前周期'
   return `${startDate.value} 至 ${endDate.value}`
@@ -366,21 +484,91 @@ function secondaryMetricLabel(item: UsageRankingItem): string {
     : `${formatTokens(item.total_tokens)} tokens`
 }
 
+function previousMetricValue(item: UsageRankingItem): number {
+  return metric.value === 'tokens'
+    ? (item.previous_total_tokens ?? 0)
+    : (item.previous_actual_cost ?? 0)
+}
+
+function previousMetricLabel(item: UsageRankingItem): string {
+  return formatMetricValue(previousMetricValue(item))
+}
+
+function trendPercent(item: UsageRankingItem): number | null {
+  const previous = previousMetricValue(item)
+  if (previous <= 0) return null
+  return ((metricValue(item) - previous) / previous) * 100
+}
+
+function trendTone(item: UsageRankingItem): 'up' | 'down' | 'flat' {
+  const previous = previousMetricValue(item)
+  const current = metricValue(item)
+  if (previous <= 0) return current > 0 ? 'up' : 'flat'
+  const percent = trendPercent(item) ?? 0
+  if (Math.abs(percent) < 0.05) return 'flat'
+  return percent > 0 ? 'up' : 'down'
+}
+
+function trendValueLabel(item: UsageRankingItem): string {
+  const previous = previousMetricValue(item)
+  const current = metricValue(item)
+  if (previous <= 0) return current > 0 ? '新增' : '持平'
+  const percent = trendPercent(item) ?? 0
+  if (Math.abs(percent) < 0.05) return '持平'
+  const absolute = Math.abs(percent)
+  const formatted = absolute >= 100
+    ? Math.round(absolute).toLocaleString()
+    : absolute.toFixed(1)
+  return `${percent > 0 ? '+' : '-'}${formatted}%`
+}
+
 function barPercent(item: UsageRankingItem): number {
-  const value = metricValue(item)
-  return Math.min(100, Math.max(6, Math.round((value / maxMetricValue.value) * 100)))
+  return Math.min(100, Math.max(6, relativeMetricPercent(item)))
+}
+
+function relativeMetricPercent(item: UsageRankingItem): number {
+  return (metricValue(item) / maxMetricValue.value) * 100
+}
+
+function relativeMetricLabel(item: UsageRankingItem): string {
+  const percent = relativeMetricPercent(item)
+  return `${percent >= 10 ? Math.round(percent) : percent.toFixed(1)}%`
 }
 
 const RankAvatar = defineComponent({
   props: {
     name: { type: String, required: true },
+    avatarUrl: { type: String, default: '' },
     tone: { type: String, required: true },
     large: { type: Boolean, default: false },
+    compact: { type: Boolean, default: false },
   },
   setup(props) {
-    return () => h('span', {
-      class: ['rank-avatar', props.tone, { large: props.large }],
-    }, props.name.trim().charAt(0).toUpperCase() || 'U')
+    const imageFailed = ref(false)
+
+    watch(() => props.avatarUrl, () => {
+      imageFailed.value = false
+    })
+
+    return () => {
+      const avatarUrl = props.avatarUrl.trim()
+      const fallback = props.name.trim().charAt(0).toUpperCase() || 'U'
+      const content = avatarUrl && !imageFailed.value
+        ? h('img', {
+          src: avatarUrl,
+          alt: '',
+          loading: props.compact ? 'lazy' : 'eager',
+          decoding: 'async',
+          onError: () => {
+            imageFailed.value = true
+          },
+        })
+        : h('span', { class: 'rank-avatar-initial', 'aria-hidden': 'true' }, fallback)
+
+      return h('span', {
+        class: ['rank-avatar', props.tone, { large: props.large, compact: props.compact }],
+      }, [content])
+    }
   },
 })
 
@@ -565,7 +753,7 @@ onMounted(() => {
 }
 
 .podium-panel {
-  min-height: 24.375rem;
+  min-height: 28rem;
   padding: 1.375rem 1.625rem 1.5rem;
 }
 
@@ -593,69 +781,150 @@ onMounted(() => {
 
 .podium-grid {
   display: grid;
+  width: 100%;
+  max-width: 75rem;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 1.125rem;
+  gap: 0.875rem;
   align-items: end;
+  margin-inline: auto;
+  padding-top: 0.625rem;
 }
 
 .podium-card {
-  display: grid;
+  position: relative;
+  display: block;
+  height: auto;
+  aspect-ratio: 4 / 3;
   min-width: 0;
-  justify-items: center;
-  align-content: start;
-  gap: 0.5rem;
-  min-height: 14.75rem;
-  padding: 1.125rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
-  background: #fff;
+  isolation: isolate;
+  overflow: visible;
+  border: 0;
+  border-radius: 1.5rem;
+  background: #fcfdff;
+  box-shadow: 0 16px 32px rgb(15 23 42 / 0.1);
   text-align: center;
 }
 
 .podium-card.first {
-  min-height: 17.875rem;
-  padding-top: 1.25rem;
-  border: 2px solid #f59e0b;
-  background: #fffbeb;
+  grid-column: 2;
+  grid-row: 1;
+  height: auto;
+  background: #fffcf4;
+  box-shadow: 0 18px 38px rgb(180 83 9 / 0.16);
 }
 
 .podium-card.second {
-  border-color: #94a3b8;
+  grid-column: 1;
+  grid-row: 1;
+  background: #fcfdff;
 }
 
 .podium-card.third {
-  border-color: #c2410c;
+  grid-column: 3;
+  grid-row: 1;
+  background: #fffaf7;
 }
 
-.crown {
-  display: inline-flex;
-  width: 2.125rem;
-  height: 1.5rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #f59e0b;
-  border-radius: 999px;
-  background: #fef3c7;
-  color: #b45309;
-  font-size: 1.125rem;
-  line-height: 1;
+.podium-frame {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.podium-card.first .podium-frame {
+  filter: drop-shadow(0 8px 10px rgb(180 83 9 / 0.18));
+}
+
+.podium-card.second .podium-frame {
+  filter: drop-shadow(0 8px 10px rgb(71 85 105 / 0.16));
+}
+
+.podium-card.third .podium-frame {
+  filter: drop-shadow(0 8px 10px rgb(154 52 18 / 0.16));
+}
+
+.podium-rank.baked-in-frame {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  transform: none;
+  white-space: nowrap;
+}
+
+.podium-card-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  align-content: start;
+  justify-items: center;
+  gap: 0.35rem;
+  padding: 5rem 2.75rem 1.25rem;
+}
+
+.podium-card.second .podium-card-content,
+.podium-card.third .podium-card-content {
+  gap: 0.25rem;
+  padding-top: 4.75rem;
+}
+
+.podium-card.second .podium-card-content small,
+.podium-card.third .podium-card-content small {
+  transform: translateY(-0.25rem);
+}
+
+.podium-card.first .podium-card-content {
+  gap: 0.45rem;
+  padding: 5.875rem 3.25rem 1.375rem;
 }
 
 .rank-avatar {
   display: inline-flex;
   width: 3.625rem;
   height: 3.625rem;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   border-radius: 50%;
   font-size: 1.25rem;
   font-weight: 900;
+}
+
+.rank-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rank-avatar-initial {
+  line-height: 1;
 }
 
 .rank-avatar.large {
   width: 4.75rem;
   height: 4.75rem;
   font-size: 1.7rem;
+}
+
+.rank-avatar.compact {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 0.9375rem;
 }
 
 .rank-avatar.gold {
@@ -674,6 +943,13 @@ onMounted(() => {
   border: 2px solid #c2410c;
   background: #ffedd5;
   color: #9a3412;
+}
+
+.rank-avatar.neutral {
+  border: 1px solid #d6e2e6;
+  background: #eef6f6;
+  color: #0f766e;
+  box-shadow: 0 0 0 3px #f8fbfb;
 }
 
 .medal {
@@ -845,7 +1121,12 @@ onMounted(() => {
 }
 
 .list-panel {
-  padding: 1.25rem 1.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: #f8fafc;
+}
+
+.list-heading {
+  margin-bottom: 1rem;
 }
 
 .rank-list {
@@ -855,59 +1136,239 @@ onMounted(() => {
 
 .rank-row {
   display: grid;
-  grid-template-columns: 2.125rem minmax(0, 1fr) 10rem;
-  gap: 0.875rem;
+  grid-template-columns: 2.75rem minmax(12rem, 1fr) minmax(10rem, 14rem) minmax(13rem, 22rem) minmax(10rem, auto);
+  gap: 1rem;
   align-items: center;
-  min-height: 3rem;
-  padding: 0 0.875rem;
-  border-radius: 0.625rem;
-  background: #f8fafc;
+  min-height: 4.25rem;
+  padding: 0.625rem 1rem;
+  border: 1px solid #e7edf3;
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 0.035);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.rank-row:hover {
+  border-color: #99e6dc;
+  box-shadow: 0 10px 22px rgb(15 118 110 / 0.1);
+  transform: translateY(-1px);
+}
+
+.rank-row.is-current {
+  border-color: #5eead4;
+  background: #f0fdfa;
+  box-shadow: 0 8px 20px rgb(15 118 110 / 0.1);
 }
 
 .rank-number {
-  display: inline-flex;
-  width: 2.125rem;
-  height: 2.125rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #eef2f7;
-  color: #64748b;
-  font-size: 0.8125rem;
-  font-weight: 900;
+  position: relative;
+  display: inline-grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  color: #0f766e;
+  isolation: isolate;
+  transform: translateY(-1px);
+  transition:
+    transform 0.18s ease;
 }
 
-.rank-row-main {
+.rank-number-sticker {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0.24rem 0.3rem rgb(15 118 110 / 0.18));
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: filter 0.18s ease;
+  user-select: none;
+}
+
+.rank-number strong {
+  position: relative;
+  z-index: 1;
+  color: inherit;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+  letter-spacing: -0.06em;
+  line-height: 1;
+  text-shadow:
+    0 1px 0 #fff,
+    0 2px 0 #b6d8d4,
+    0 3px 5px rgb(15 118 110 / 0.2);
+}
+
+.rank-row:hover .rank-number {
+  transform: translateY(-2px);
+}
+
+.rank-row:hover .rank-number-sticker {
+  filter: brightness(1.035) drop-shadow(0 0.32rem 0.4rem rgb(15 118 110 / 0.24));
+}
+
+.rank-identity {
   display: grid;
   min-width: 0;
-  gap: 0.3125rem;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
 }
 
-.rank-row-main strong {
+.rank-profile {
+  display: grid;
+  min-width: 0;
+  gap: 0.375rem;
+}
+
+.rank-profile > strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.875rem;
+  color: #1e293b;
+  font-size: 0.9375rem;
+  font-weight: 850;
+}
+
+.rank-profile-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.current-user-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+
+.rank-trend {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+  padding-left: 1rem;
+  border-left: 1px solid #e7edf3;
+}
+
+.rank-trend-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rank-trend-summary > span {
+  color: #94a3b8;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rank-trend-summary > strong {
+  display: inline-flex;
+  min-height: 1.375rem;
+  align-items: center;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.rank-trend.up .rank-trend-summary > strong {
+  background: #ecfdf5;
+  color: #15803d;
+}
+
+.rank-trend.down .rank-trend-summary > strong {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.rank-trend.flat .rank-trend-summary > strong {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.rank-trend > small {
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-progress {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.rank-progress-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #94a3b8;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.rank-progress-label strong {
+  color: #0f766e;
+  font-size: 0.75rem;
+  font-weight: 850;
 }
 
 .metric-track {
-  height: 0.375rem;
+  height: 0.5rem;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: #e8eef2;
 }
 
 .metric-track i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #64748b;
+  background: #0f9f8f;
+  box-shadow: 0 0 0 1px rgb(15 118 110 / 0.05);
+  transition: width 0.28s ease;
 }
 
-.rank-row > b {
-  color: #64748b;
+.rank-value {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
   text-align: right;
-  font-size: 0.875rem;
+}
+
+.rank-value b {
+  color: #334155;
+  font-size: 0.9375rem;
+  line-height: 1.15;
+}
+
+.rank-value small {
+  color: #94a3b8;
+  font-size: 0.6875rem;
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -952,7 +1413,7 @@ onMounted(() => {
 .dark .mine-card h2,
 .dark .status-card h2,
 .dark .stat-card strong,
-.dark .rank-row-main strong {
+.dark .rank-profile > strong {
   color: #f8fafc;
 }
 
@@ -971,9 +1432,24 @@ onMounted(() => {
   color: #a7b3c5;
 }
 
-.dark .segmented,
-.dark .rank-row {
+.dark .segmented {
   background: #1f2937;
+}
+
+.dark .rank-row {
+  border-color: #2a3648;
+  background: #172033;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.12);
+}
+
+.dark .rank-row:hover {
+  border-color: rgb(45 212 191 / 0.5);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.22);
+}
+
+.dark .rank-row.is-current {
+  border-color: rgb(45 212 191 / 0.65);
+  background: #102a2a;
 }
 
 .dark .selection-summary span {
@@ -1013,24 +1489,15 @@ onMounted(() => {
 }
 
 .dark .podium-card.first {
-  border-color: #f59e0b;
   background: #2a1f0b;
 }
 
 .dark .podium-card.second {
-  border-color: #64748b;
   background: #151c28;
 }
 
 .dark .podium-card.third {
-  border-color: #c2410c;
   background: #25140b;
-}
-
-.dark .crown {
-  border-color: #f59e0b;
-  background: rgb(245 158 11 / 0.18);
-  color: #facc15;
 }
 
 .dark .rank-avatar.gold,
@@ -1051,9 +1518,16 @@ onMounted(() => {
   color: #fdba74;
 }
 
+.dark .rank-avatar.neutral {
+  border-color: #3a4a5f;
+  background: #243044;
+  color: #5eead4;
+  box-shadow: 0 0 0 3px #111827;
+}
+
 .dark .podium-card strong,
 .dark .podium-card b,
-.dark .rank-row > b {
+.dark .rank-value b {
   color: #e5e7eb;
 }
 
@@ -1107,12 +1581,76 @@ onMounted(() => {
 }
 
 .dark .metric-track i {
-  background: #94a3b8;
+  background: #2dd4bf;
 }
 
 .dark .rank-number {
-  background: #273244;
+  color: #ccfbf1;
+}
+
+.dark .rank-number-sticker {
+  filter: saturate(0.78) brightness(0.82) drop-shadow(0 0.28rem 0.36rem rgb(0 0 0 / 0.35));
+}
+
+.dark .rank-number strong {
+  text-shadow:
+    0 1px 0 #071d1b,
+    0 2px 0 #0f5c55,
+    0 3px 6px rgb(0 0 0 / 0.45);
+}
+
+.dark .rank-row:hover .rank-number {
+  color: #e6fffb;
+}
+
+.dark .rank-row:hover .rank-number-sticker {
+  filter: saturate(0.86) brightness(0.9) drop-shadow(0 0.34rem 0.44rem rgb(0 0 0 / 0.42));
+}
+
+.dark .rank-profile-meta,
+.dark .rank-trend-summary > span,
+.dark .rank-trend > small,
+.dark .rank-progress-label,
+.dark .rank-value small {
+  color: #7f8da3;
+}
+
+.dark .rank-trend {
+  border-left-color: #2a3648;
+}
+
+.dark .rank-trend.up .rank-trend-summary > strong {
+  background: rgb(34 197 94 / 0.15);
+  color: #86efac;
+}
+
+.dark .rank-trend.down .rank-trend-summary > strong {
+  background: rgb(244 63 94 / 0.15);
+  color: #fda4af;
+}
+
+.dark .rank-trend.flat .rank-trend-summary > strong {
+  background: rgb(148 163 184 / 0.14);
   color: #cbd5e1;
+}
+
+.dark .rank-progress-label strong {
+  color: #5eead4;
+}
+
+.dark .current-user-label {
+  background: rgb(20 184 166 / 0.16);
+  color: #5eead4;
+}
+
+@media (max-width: 1600px) {
+  .ranking-main {
+    grid-template-columns: 1fr;
+  }
+
+  .side-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1180px) {
@@ -1125,11 +1663,118 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1280px) {
+  .podium-grid {
+    max-width: 52rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-inline: auto;
+  }
+
+  .podium-card.first {
+    width: 100%;
+    max-width: 26rem;
+    height: auto;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+  }
+
+  .podium-card.second,
+  .podium-card.third {
+    width: 100%;
+    max-width: 23.5rem;
+    height: auto;
+    grid-row: 2;
+  }
+
+  .podium-card.second {
+    grid-column: 1;
+    justify-self: end;
+  }
+
+  .podium-card.third {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 960px) {
   .selection-summary {
     display: none;
   }
 
+  .rank-row {
+    grid-template-columns: 2.5rem 2.5rem minmax(0, 1fr) auto;
+    gap: 0.625rem;
+    min-height: 7.25rem;
+    padding: 0.75rem;
+  }
+
+  .rank-number {
+    width: 2.5rem;
+    height: 2.5rem;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .rank-number-sticker {
+    width: 3.2rem;
+    height: 3.2rem;
+  }
+
+  .rank-identity {
+    display: contents;
+  }
+
+  .rank-avatar.compact {
+    width: 2.5rem;
+    height: 2.5rem;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .rank-profile {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .rank-profile-meta > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rank-trend {
+    display: flex;
+    grid-column: 2 / -1;
+    grid-row: 2;
+    align-items: center;
+    gap: 0.625rem;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .rank-trend > small {
+    margin-left: auto;
+    font-size: 0.625rem;
+  }
+
+  .rank-progress {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+
+  .rank-value {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .rank-value small {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
   .ranking-controls {
     display: grid;
     gap: 0.75rem;
@@ -1170,31 +1815,66 @@ onMounted(() => {
   }
 
   .podium-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding-top: 0.25rem;
+  }
+
+  .podium-card,
+  .podium-card.first,
+  .podium-card.second,
+  .podium-card.third {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+    max-width: 23.5rem;
+    height: auto;
+    margin-inline: auto;
+    justify-self: center;
   }
 
   .podium-card.first {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    max-width: 26rem;
+    height: auto;
   }
 
-  .podium-card.second,
-  .podium-card.third {
-    min-height: 7.75rem;
-    padding: 0.75rem;
+  .podium-card-content {
+    padding-right: 3.25rem;
+    padding-left: 3.25rem;
   }
 
-  .podium-card.second .rank-avatar,
-  .podium-card.third .rank-avatar {
-    display: none;
+  .podium-card.first .podium-card-content {
+    padding-top: 5.875rem;
   }
 
-  .rank-row {
-    grid-template-columns: 2.125rem minmax(0, 1fr);
+  .side-stack {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .podium-card.first .podium-card-content {
+    gap: 0.25rem;
+    padding-top: 4.5rem;
   }
 
-  .rank-row > b {
-    display: none;
+  .podium-card.first .rank-avatar.large {
+    width: 3.625rem;
+    height: 3.625rem;
+    font-size: 1.25rem;
+  }
+
+  .podium-card.first strong {
+    font-size: 1rem;
+  }
+
+  .podium-card.first b {
+    font-size: 1.375rem;
+  }
+
+  .podium-card.second .podium-card-content,
+  .podium-card.third .podium-card-content {
+    padding-top: 4.375rem;
   }
 }
 </style>

@@ -159,18 +159,34 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, query usagesta
 	}
 
 	sqlQuery := `
-		WITH user_usage AS (
+		WITH previous_user_usage AS (
+			SELECT
+				user_id,
+				COUNT(*) as previous_requests,
+				COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as previous_total_tokens,
+				COALESCE(SUM(actual_cost), 0) as previous_actual_cost
+			FROM usage_logs
+			WHERE created_at >= $6 AND created_at < $7
+			GROUP BY user_id
+		),
+		user_usage AS (
 			SELECT
 				u.user_id,
 				COALESCE(us.email, '') as email,
 				COALESCE(us.username, '') as username,
+				COALESCE(ua.url, '') as avatar_url,
 				COUNT(*) as requests,
 				COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) as total_tokens,
-				COALESCE(SUM(u.actual_cost), 0) as actual_cost
+				COALESCE(SUM(u.actual_cost), 0) as actual_cost,
+				COALESCE(pu.previous_requests, 0) as previous_requests,
+				COALESCE(pu.previous_total_tokens, 0) as previous_total_tokens,
+				COALESCE(pu.previous_actual_cost, 0) as previous_actual_cost
 			FROM usage_logs u
 			LEFT JOIN users us ON u.user_id = us.id
+			LEFT JOIN user_avatars ua ON u.user_id = ua.user_id
+			LEFT JOIN previous_user_usage pu ON u.user_id = pu.user_id
 			WHERE u.created_at >= $1 AND u.created_at < $2
-			GROUP BY u.user_id, us.email, us.username
+			GROUP BY u.user_id, us.email, us.username, ua.url, pu.previous_requests, pu.previous_total_tokens, pu.previous_actual_cost
 		),
 		ranked AS (
 			SELECT
@@ -184,9 +200,13 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, query usagesta
 				user_id,
 				email,
 				username,
+				avatar_url,
 				requests,
 				total_tokens,
 				actual_cost,
+				previous_requests,
+				previous_total_tokens,
+				previous_actual_cost,
 				COALESCE(SUM(total_tokens) OVER (), 0) as summary_total_tokens,
 				COALESCE(SUM(actual_cost) OVER (), 0) as summary_total_actual_cost,
 				COALESCE(SUM(requests) OVER (), 0) as summary_total_requests,
@@ -203,9 +223,13 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, query usagesta
 			user_id,
 			email,
 			username,
+			avatar_url,
 			requests,
 			total_tokens,
 			actual_cost,
+			previous_requests,
+			previous_total_tokens,
+			previous_actual_cost,
 			summary_total_tokens,
 			summary_total_actual_cost,
 			summary_total_requests,
@@ -221,7 +245,17 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, query usagesta
 		ORDER BY rank ASC, user_id ASC
 	`
 
-	rows, err := r.sql.QueryContext(ctx, sqlQuery, query.StartTime, query.EndTime, limit, string(metric), query.CurrentUserID)
+	rows, err := r.sql.QueryContext(
+		ctx,
+		sqlQuery,
+		query.StartTime,
+		query.EndTime,
+		limit,
+		string(metric),
+		query.CurrentUserID,
+		query.ComparisonStartTime,
+		query.ComparisonEndTime,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -249,9 +283,13 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, query usagesta
 			&item.UserID,
 			&email,
 			&username,
+			&item.AvatarURL,
 			&item.Requests,
 			&item.TotalTokens,
 			&item.ActualCost,
+			&item.PreviousRequests,
+			&item.PreviousTotalTokens,
+			&item.PreviousActualCost,
 			&response.Summary.TotalTokens,
 			&response.Summary.TotalActualCost,
 			&response.Summary.TotalRequests,

@@ -80,6 +80,9 @@ func TestUsageRankingsDefaultsToDayPeriod(t *testing.T) {
 	require.False(t, repo.query.StartTime.IsZero())
 	require.False(t, repo.query.EndTime.IsZero())
 	require.Equal(t, 24*time.Hour, repo.query.EndTime.Sub(repo.query.StartTime))
+	require.Equal(t, repo.query.StartTime.AddDate(0, 0, -1), repo.query.ComparisonStartTime)
+	require.True(t, repo.query.ComparisonEndTime.After(repo.query.ComparisonStartTime))
+	require.False(t, repo.query.ComparisonEndTime.After(repo.query.StartTime))
 }
 
 func TestUsageRankingsPassesMetricPeriodLimitAndCurrentUser(t *testing.T) {
@@ -99,4 +102,56 @@ func TestUsageRankingsPassesMetricPeriodLimitAndCurrentUser(t *testing.T) {
 	require.False(t, repo.query.EndTime.IsZero())
 	require.True(t, repo.query.EndTime.After(repo.query.StartTime))
 	require.LessOrEqual(t, repo.query.EndTime.Sub(repo.query.StartTime), 8*24*time.Hour)
+	require.Equal(t, repo.query.StartTime.AddDate(0, 0, -7), repo.query.ComparisonStartTime)
+	require.True(t, repo.query.ComparisonEndTime.After(repo.query.ComparisonStartTime))
+	require.False(t, repo.query.ComparisonEndTime.After(repo.query.StartTime))
+}
+
+func TestUsageRankingComparisonTimeRangeUsesEquivalentElapsedProgress(t *testing.T) {
+	loc := time.FixedZone("UTC+8", 8*60*60)
+	tests := []struct {
+		name              string
+		period            usagestats.UsageRankingPeriod
+		currentStart      time.Time
+		currentEnd        time.Time
+		now               time.Time
+		wantPreviousStart time.Time
+		wantPreviousEnd   time.Time
+	}{
+		{
+			name:              "day",
+			period:            usagestats.UsageRankingPeriodDay,
+			currentStart:      time.Date(2026, 7, 14, 0, 0, 0, 0, loc),
+			currentEnd:        time.Date(2026, 7, 15, 0, 0, 0, 0, loc),
+			now:               time.Date(2026, 7, 14, 15, 30, 0, 0, loc),
+			wantPreviousStart: time.Date(2026, 7, 13, 0, 0, 0, 0, loc),
+			wantPreviousEnd:   time.Date(2026, 7, 13, 15, 30, 0, 0, loc),
+		},
+		{
+			name:              "week",
+			period:            usagestats.UsageRankingPeriodWeek,
+			currentStart:      time.Date(2026, 7, 13, 0, 0, 0, 0, loc),
+			currentEnd:        time.Date(2026, 7, 20, 0, 0, 0, 0, loc),
+			now:               time.Date(2026, 7, 14, 15, 30, 0, 0, loc),
+			wantPreviousStart: time.Date(2026, 7, 6, 0, 0, 0, 0, loc),
+			wantPreviousEnd:   time.Date(2026, 7, 7, 15, 30, 0, 0, loc),
+		},
+		{
+			name:              "month",
+			period:            usagestats.UsageRankingPeriodMonth,
+			currentStart:      time.Date(2026, 7, 1, 0, 0, 0, 0, loc),
+			currentEnd:        time.Date(2026, 8, 1, 0, 0, 0, 0, loc),
+			now:               time.Date(2026, 7, 14, 15, 30, 0, 0, loc),
+			wantPreviousStart: time.Date(2026, 6, 1, 0, 0, 0, 0, loc),
+			wantPreviousEnd:   time.Date(2026, 6, 14, 15, 30, 0, 0, loc),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previousStart, previousEnd := usageRankingComparisonTimeRange(tt.period, tt.currentStart, tt.currentEnd, tt.now)
+			require.Equal(t, tt.wantPreviousStart, previousStart)
+			require.Equal(t, tt.wantPreviousEnd, previousEnd)
+		})
+	}
 }
