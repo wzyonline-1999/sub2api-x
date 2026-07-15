@@ -87,7 +87,7 @@ func TestPrepareUsageLogInsert_IncludesTruncatedSessionMetadata(t *testing.T) {
 	}
 
 	prepared := prepareUsageLogInsert(log)
-	require.Len(t, prepared.args, 57)
+	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 	sessionID, ok := prepared.args[len(prepared.args)-5].(sql.NullString)
 	require.True(t, ok)
 	require.True(t, sessionID.Valid)
