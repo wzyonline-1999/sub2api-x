@@ -248,17 +248,6 @@ func RegisterGatewayRoutes(
 		})
 		codexDirect.GET("/models", h.OpenAIGateway.CodexModels)
 	}
-	openAIV1 := r.Group("/openai/v1")
-	openAIV1.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, middleware.ForcePlatform(service.PlatformOpenAI), gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic)
-	{
-		openAIV1.POST("/responses", h.OpenAIGateway.Responses)
-		openAIV1.POST("/responses/*subpath", h.OpenAIGateway.Responses)
-		openAIV1.GET("/responses", h.OpenAIGateway.ResponsesWebSocket)
-		openAIV1.POST("/chat/completions", h.OpenAIGateway.ChatCompletions)
-		openAIV1.POST("/embeddings", h.OpenAIGateway.Embeddings)
-		openAIV1.POST("/images/generations", h.OpenAIGateway.Images)
-		openAIV1.POST("/images/edits", h.OpenAIGateway.Images)
-	}
 	// OpenAI Chat Completions API（不带v1前缀的别名）— auto-route based on group platform
 	r.POST("/chat/completions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {

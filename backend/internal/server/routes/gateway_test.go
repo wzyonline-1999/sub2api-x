@@ -53,8 +53,6 @@ func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 
 	for _, path := range []string{
-		"/openai/v1/responses",
-		"/openai/v1/responses/compact",
 		"/v1/responses/compact",
 		"/responses/compact",
 		"/backend-api/codex/responses",
@@ -103,8 +101,6 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 
 	for _, path := range []string{
-		"/openai/v1/images/generations",
-		"/openai/v1/images/edits",
 		"/v1/images/generations",
 		"/v1/images/edits",
 		"/images/generations",
@@ -116,29 +112,6 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 
 		router.ServeHTTP(w, req)
 		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI images handler", path)
-	}
-}
-
-func TestGatewayRoutesOpenAIExplicitPathsAreRegistered(t *testing.T) {
-	router := newGatewayRoutesTestRouter()
-
-	tests := []struct {
-		method string
-		path   string
-		body   string
-	}{
-		{method: http.MethodPost, path: "/openai/v1/chat/completions", body: `{"model":"gpt-5","messages":[{"role":"user","content":"hi"}]}`},
-		{method: http.MethodPost, path: "/openai/v1/embeddings", body: `{"model":"text-embedding-3-small","input":"hi"}`},
-		{method: http.MethodGet, path: "/openai/v1/responses", body: ``},
-	}
-
-	for _, tt := range tests {
-		req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI explicit handler", tt.path)
 	}
 }
 
