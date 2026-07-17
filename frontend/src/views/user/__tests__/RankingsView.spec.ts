@@ -133,9 +133,10 @@ describe('RankingsView', () => {
     expect(text).toContain('周榜')
     expect(text).toContain('月榜')
     expect(text).toContain('zeyu.wang.1999')
-    expect(text).toContain('金牌')
-    expect(text).toContain('银牌')
-    expect(text).toContain('铜牌')
+    expect(text).not.toContain('金牌')
+    expect(text).not.toContain('银牌')
+    expect(text).not.toContain('铜牌')
+    expect(wrapper.find('.medal').exists()).toBe(false)
     expect(text).toContain('我的排名')
     expect(text).toContain('全站实名账号')
 

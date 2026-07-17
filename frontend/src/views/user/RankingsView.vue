@@ -116,7 +116,6 @@
                     tone="gold"
                     large
                   />
-                  <span class="medal gold">金牌</span>
                   <strong>{{ firstPlace.display_name }}</strong>
                   <b>{{ primaryMetricLabel(firstPlace) }}</b>
                   <small>{{ secondaryMetricLabel(firstPlace) }}</small>
@@ -138,7 +137,6 @@
                     :avatar-url="secondPlace.avatar_url ?? ''"
                     tone="silver"
                   />
-                  <span class="medal silver">银牌</span>
                   <strong>{{ secondPlace.display_name }}</strong>
                   <b>{{ primaryMetricLabel(secondPlace) }}</b>
                   <small>{{ secondaryMetricLabel(secondPlace) }}</small>
@@ -160,7 +158,6 @@
                     :avatar-url="thirdPlace.avatar_url ?? ''"
                     tone="bronze"
                   />
-                  <span class="medal bronze">铜牌</span>
                   <strong>{{ thirdPlace.display_name }}</strong>
                   <b>{{ primaryMetricLabel(thirdPlace) }}</b>
                   <small>{{ secondaryMetricLabel(thirdPlace) }}</small>
@@ -952,34 +949,9 @@ onMounted(() => {
   box-shadow: 0 0 0 3px #f8fbfb;
 }
 
-.medal {
-  display: inline-flex;
-  min-width: 4.5rem;
-  height: 1.75rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  font-weight: 900;
-}
-
-.medal.gold {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.medal.silver {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.medal.bronze {
-  background: #fed7aa;
-  color: #9a3412;
-}
-
 .podium-card strong {
   max-width: 100%;
+  margin-top: 0.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1500,20 +1472,17 @@ onMounted(() => {
   background: #25140b;
 }
 
-.dark .rank-avatar.gold,
-.dark .medal.gold {
+.dark .rank-avatar.gold {
   background: rgb(245 158 11 / 0.18);
   color: #facc15;
 }
 
-.dark .rank-avatar.silver,
-.dark .medal.silver {
+.dark .rank-avatar.silver {
   background: rgb(148 163 184 / 0.16);
   color: #cbd5e1;
 }
 
-.dark .rank-avatar.bronze,
-.dark .medal.bronze {
+.dark .rank-avatar.bronze {
   background: rgb(194 65 12 / 0.18);
   color: #fdba74;
 }
