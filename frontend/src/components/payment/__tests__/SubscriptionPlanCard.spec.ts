@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { createPinia } from "pinia";
+import type { SubscriptionPlan } from "@/types/payment";
 import SubscriptionPlanCard from "../SubscriptionPlanCard.vue";
 
 const translations = vi.hoisted<Record<string, string>>(() => ({
@@ -29,7 +30,7 @@ vi.mock("vue-i18n", async (importOriginal) => {
   };
 });
 
-const mountPlanCard = (groupPlatform: string) =>
+const mountPlanCard = (groupPlatform: string, overrides: Partial<SubscriptionPlan> = {}) =>
   mount(SubscriptionPlanCard, {
     props: {
       plan: {
@@ -45,6 +46,7 @@ const mountPlanCard = (groupPlatform: string) =>
         validity_unit: "day",
         supported_model_scopes: ["claude", "gemini_text", "gemini_image"],
         is_active: true,
+        ...overrides,
       },
     },
     global: { plugins: [createPinia()] },
@@ -65,5 +67,14 @@ describe("SubscriptionPlanCard", () => {
     expect(text).toContain("Claude");
     expect(text).toContain("Gemini");
     expect(text).toContain("Imagen");
+  });
+
+  it("uses the configured currency symbol while preserving USD for legacy plans", () => {
+    const cnyPlan = mountPlanCard("openai", { currency: "CNY", original_price: 20 }).text();
+
+    expect(cnyPlan).toContain("¥10CNY");
+    expect(cnyPlan).toContain("¥20CNY");
+    expect(mountPlanCard("openai", { currency: "USD" }).text()).toContain("$10USD");
+    expect(mountPlanCard("openai", { currency: "" }).text()).toContain("$10");
   });
 });
