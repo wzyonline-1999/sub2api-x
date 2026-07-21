@@ -556,16 +556,26 @@ func (s *RedeemService) invalidateRedeemCaches(ctx context.Context, userID int64
 		if s.authCacheInvalidator != nil {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 		}
-		if s.billingCacheService == nil {
-			return
-		}
 		if redeemCode.GroupID != nil {
 			groupID := *redeemCode.GroupID
-			go func() {
-				cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, groupID)
-			}()
+			if s.subscriptionService != nil {
+				// Subscription redemption runs inside an outer transaction. This
+				// method is called only after commit, so invalidate both local L1 and
+				// shared Redis, then notify the other blue/green slot.
+				if err := s.subscriptionService.invalidateSubscriptionCaches(userID, groupID); err != nil {
+					logger.LegacyPrintf("service.redeem", "Warning: failed to invalidate redeemed subscription caches for user %d group %d: %v", userID, groupID, err)
+				}
+				return
+			}
+			// Compatibility fallback for tests or legacy construction paths that
+			// do not provide SubscriptionService.
+			if s.billingCacheService != nil {
+				go func() {
+					cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, groupID)
+				}()
+			}
 		}
 	}
 }

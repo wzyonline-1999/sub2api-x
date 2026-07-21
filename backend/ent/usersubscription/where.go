@@ -125,6 +125,21 @@ func MonthlyUsageUsd(v float64) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldEQ(FieldMonthlyUsageUsd, v))
 }
 
+// DailyWindowVersion applies equality check predicate on the "daily_window_version" field. It's identical to DailyWindowVersionEQ.
+func DailyWindowVersion(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldDailyWindowVersion, v))
+}
+
+// WeeklyWindowVersion applies equality check predicate on the "weekly_window_version" field. It's identical to WeeklyWindowVersionEQ.
+func WeeklyWindowVersion(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldWeeklyWindowVersion, v))
+}
+
+// MonthlyWindowVersion applies equality check predicate on the "monthly_window_version" field. It's identical to MonthlyWindowVersionEQ.
+func MonthlyWindowVersion(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldMonthlyWindowVersion, v))
+}
+
 // AssignedBy applies equality check predicate on the "assigned_by" field. It's identical to AssignedByEQ.
 func AssignedBy(v int64) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldEQ(FieldAssignedBy, v))
@@ -725,6 +740,126 @@ func MonthlyUsageUsdLTE(v float64) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldLTE(FieldMonthlyUsageUsd, v))
 }
 
+// DailyWindowVersionEQ applies the EQ predicate on the "daily_window_version" field.
+func DailyWindowVersionEQ(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldDailyWindowVersion, v))
+}
+
+// DailyWindowVersionNEQ applies the NEQ predicate on the "daily_window_version" field.
+func DailyWindowVersionNEQ(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNEQ(FieldDailyWindowVersion, v))
+}
+
+// DailyWindowVersionIn applies the In predicate on the "daily_window_version" field.
+func DailyWindowVersionIn(vs ...int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIn(FieldDailyWindowVersion, vs...))
+}
+
+// DailyWindowVersionNotIn applies the NotIn predicate on the "daily_window_version" field.
+func DailyWindowVersionNotIn(vs ...int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotIn(FieldDailyWindowVersion, vs...))
+}
+
+// DailyWindowVersionGT applies the GT predicate on the "daily_window_version" field.
+func DailyWindowVersionGT(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGT(FieldDailyWindowVersion, v))
+}
+
+// DailyWindowVersionGTE applies the GTE predicate on the "daily_window_version" field.
+func DailyWindowVersionGTE(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGTE(FieldDailyWindowVersion, v))
+}
+
+// DailyWindowVersionLT applies the LT predicate on the "daily_window_version" field.
+func DailyWindowVersionLT(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLT(FieldDailyWindowVersion, v))
+}
+
+// DailyWindowVersionLTE applies the LTE predicate on the "daily_window_version" field.
+func DailyWindowVersionLTE(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLTE(FieldDailyWindowVersion, v))
+}
+
+// WeeklyWindowVersionEQ applies the EQ predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionEQ(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldWeeklyWindowVersion, v))
+}
+
+// WeeklyWindowVersionNEQ applies the NEQ predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionNEQ(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNEQ(FieldWeeklyWindowVersion, v))
+}
+
+// WeeklyWindowVersionIn applies the In predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionIn(vs ...int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIn(FieldWeeklyWindowVersion, vs...))
+}
+
+// WeeklyWindowVersionNotIn applies the NotIn predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionNotIn(vs ...int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotIn(FieldWeeklyWindowVersion, vs...))
+}
+
+// WeeklyWindowVersionGT applies the GT predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionGT(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGT(FieldWeeklyWindowVersion, v))
+}
+
+// WeeklyWindowVersionGTE applies the GTE predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionGTE(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGTE(FieldWeeklyWindowVersion, v))
+}
+
+// WeeklyWindowVersionLT applies the LT predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionLT(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLT(FieldWeeklyWindowVersion, v))
+}
+
+// WeeklyWindowVersionLTE applies the LTE predicate on the "weekly_window_version" field.
+func WeeklyWindowVersionLTE(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLTE(FieldWeeklyWindowVersion, v))
+}
+
+// MonthlyWindowVersionEQ applies the EQ predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionEQ(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldMonthlyWindowVersion, v))
+}
+
+// MonthlyWindowVersionNEQ applies the NEQ predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionNEQ(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNEQ(FieldMonthlyWindowVersion, v))
+}
+
+// MonthlyWindowVersionIn applies the In predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionIn(vs ...int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIn(FieldMonthlyWindowVersion, vs...))
+}
+
+// MonthlyWindowVersionNotIn applies the NotIn predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionNotIn(vs ...int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotIn(FieldMonthlyWindowVersion, vs...))
+}
+
+// MonthlyWindowVersionGT applies the GT predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionGT(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGT(FieldMonthlyWindowVersion, v))
+}
+
+// MonthlyWindowVersionGTE applies the GTE predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionGTE(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGTE(FieldMonthlyWindowVersion, v))
+}
+
+// MonthlyWindowVersionLT applies the LT predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionLT(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLT(FieldMonthlyWindowVersion, v))
+}
+
+// MonthlyWindowVersionLTE applies the LTE predicate on the "monthly_window_version" field.
+func MonthlyWindowVersionLTE(v int64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLTE(FieldMonthlyWindowVersion, v))
+}
+
 // AssignedByEQ applies the EQ predicate on the "assigned_by" field.
 func AssignedByEQ(v int64) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldEQ(FieldAssignedBy, v))
@@ -954,6 +1089,29 @@ func HasUsageLogs() predicate.UserSubscription {
 func HasUsageLogsWith(preds ...predicate.UsageLog) predicate.UserSubscription {
 	return predicate.UserSubscription(func(s *sql.Selector) {
 		step := newUsageLogsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSubscriptionResetCardUsages applies the HasEdge predicate on the "subscription_reset_card_usages" edge.
+func HasSubscriptionResetCardUsages() predicate.UserSubscription {
+	return predicate.UserSubscription(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetCardUsagesTable, SubscriptionResetCardUsagesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSubscriptionResetCardUsagesWith applies the HasEdge predicate on the "subscription_reset_card_usages" edge with a given conditions (other predicates).
+func HasSubscriptionResetCardUsagesWith(preds ...predicate.SubscriptionResetCardUsage) predicate.UserSubscription {
+	return predicate.UserSubscription(func(s *sql.Selector) {
+		step := newSubscriptionResetCardUsagesStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

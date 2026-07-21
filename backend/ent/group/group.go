@@ -122,6 +122,12 @@ const (
 	EdgeSubscriptions = "subscriptions"
 	// EdgeUsageLogs holds the string denoting the usage_logs edge name in mutations.
 	EdgeUsageLogs = "usage_logs"
+	// EdgeSubscriptionResetCardGrants holds the string denoting the subscription_reset_card_grants edge name in mutations.
+	EdgeSubscriptionResetCardGrants = "subscription_reset_card_grants"
+	// EdgeSubscriptionResetCardUsages holds the string denoting the subscription_reset_card_usages edge name in mutations.
+	EdgeSubscriptionResetCardUsages = "subscription_reset_card_usages"
+	// EdgeSubscriptionResetPreferences holds the string denoting the subscription_reset_preferences edge name in mutations.
+	EdgeSubscriptionResetPreferences = "subscription_reset_preferences"
 	// EdgeAccounts holds the string denoting the accounts edge name in mutations.
 	EdgeAccounts = "accounts"
 	// EdgeAllowedUsers holds the string denoting the allowed_users edge name in mutations.
@@ -160,6 +166,27 @@ const (
 	UsageLogsInverseTable = "usage_logs"
 	// UsageLogsColumn is the table column denoting the usage_logs relation/edge.
 	UsageLogsColumn = "group_id"
+	// SubscriptionResetCardGrantsTable is the table that holds the subscription_reset_card_grants relation/edge.
+	SubscriptionResetCardGrantsTable = "subscription_reset_card_grants"
+	// SubscriptionResetCardGrantsInverseTable is the table name for the SubscriptionResetCardGrant entity.
+	// It exists in this package in order to avoid circular dependency with the "subscriptionresetcardgrant" package.
+	SubscriptionResetCardGrantsInverseTable = "subscription_reset_card_grants"
+	// SubscriptionResetCardGrantsColumn is the table column denoting the subscription_reset_card_grants relation/edge.
+	SubscriptionResetCardGrantsColumn = "group_id"
+	// SubscriptionResetCardUsagesTable is the table that holds the subscription_reset_card_usages relation/edge.
+	SubscriptionResetCardUsagesTable = "subscription_reset_card_usages"
+	// SubscriptionResetCardUsagesInverseTable is the table name for the SubscriptionResetCardUsage entity.
+	// It exists in this package in order to avoid circular dependency with the "subscriptionresetcardusage" package.
+	SubscriptionResetCardUsagesInverseTable = "subscription_reset_card_usages"
+	// SubscriptionResetCardUsagesColumn is the table column denoting the subscription_reset_card_usages relation/edge.
+	SubscriptionResetCardUsagesColumn = "group_id"
+	// SubscriptionResetPreferencesTable is the table that holds the subscription_reset_preferences relation/edge.
+	SubscriptionResetPreferencesTable = "subscription_reset_preferences"
+	// SubscriptionResetPreferencesInverseTable is the table name for the SubscriptionResetPreference entity.
+	// It exists in this package in order to avoid circular dependency with the "subscriptionresetpreference" package.
+	SubscriptionResetPreferencesInverseTable = "subscription_reset_preferences"
+	// SubscriptionResetPreferencesColumn is the table column denoting the subscription_reset_preferences relation/edge.
+	SubscriptionResetPreferencesColumn = "group_id"
 	// AccountsTable is the table that holds the accounts relation/edge. The primary key declared below.
 	AccountsTable = "account_groups"
 	// AccountsInverseTable is the table name for the Account entity.
@@ -640,6 +667,48 @@ func ByUsageLogs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// BySubscriptionResetCardGrantsCount orders the results by subscription_reset_card_grants count.
+func BySubscriptionResetCardGrantsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSubscriptionResetCardGrantsStep(), opts...)
+	}
+}
+
+// BySubscriptionResetCardGrants orders the results by subscription_reset_card_grants terms.
+func BySubscriptionResetCardGrants(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSubscriptionResetCardGrantsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// BySubscriptionResetCardUsagesCount orders the results by subscription_reset_card_usages count.
+func BySubscriptionResetCardUsagesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSubscriptionResetCardUsagesStep(), opts...)
+	}
+}
+
+// BySubscriptionResetCardUsages orders the results by subscription_reset_card_usages terms.
+func BySubscriptionResetCardUsages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSubscriptionResetCardUsagesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// BySubscriptionResetPreferencesCount orders the results by subscription_reset_preferences count.
+func BySubscriptionResetPreferencesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSubscriptionResetPreferencesStep(), opts...)
+	}
+}
+
+// BySubscriptionResetPreferences orders the results by subscription_reset_preferences terms.
+func BySubscriptionResetPreferences(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSubscriptionResetPreferencesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByAccountsCount orders the results by accounts count.
 func ByAccountsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -721,6 +790,27 @@ func newUsageLogsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(UsageLogsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, UsageLogsTable, UsageLogsColumn),
+	)
+}
+func newSubscriptionResetCardGrantsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SubscriptionResetCardGrantsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetCardGrantsTable, SubscriptionResetCardGrantsColumn),
+	)
+}
+func newSubscriptionResetCardUsagesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SubscriptionResetCardUsagesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetCardUsagesTable, SubscriptionResetCardUsagesColumn),
+	)
+}
+func newSubscriptionResetPreferencesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SubscriptionResetPreferencesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetPreferencesTable, SubscriptionResetPreferencesColumn),
 	)
 }
 func newAccountsStep() *sqlgraph.Step {

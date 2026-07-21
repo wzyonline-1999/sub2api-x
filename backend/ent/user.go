@@ -99,11 +99,19 @@ type UserEdges struct {
 	PendingAuthSessions []*PendingAuthSession `json:"pending_auth_sessions,omitempty"`
 	// PlatformQuotas holds the value of the platform_quotas edge.
 	PlatformQuotas []*UserPlatformQuota `json:"platform_quotas,omitempty"`
+	// SubscriptionResetCardGrants holds the value of the subscription_reset_card_grants edge.
+	SubscriptionResetCardGrants []*SubscriptionResetCardGrant `json:"subscription_reset_card_grants,omitempty"`
+	// IssuedSubscriptionResetCardGrants holds the value of the issued_subscription_reset_card_grants edge.
+	IssuedSubscriptionResetCardGrants []*SubscriptionResetCardGrant `json:"issued_subscription_reset_card_grants,omitempty"`
+	// SubscriptionResetCardUsages holds the value of the subscription_reset_card_usages edge.
+	SubscriptionResetCardUsages []*SubscriptionResetCardUsage `json:"subscription_reset_card_usages,omitempty"`
+	// SubscriptionResetPreferences holds the value of the subscription_reset_preferences edge.
+	SubscriptionResetPreferences []*SubscriptionResetPreference `json:"subscription_reset_preferences,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [14]bool
+	loadedTypes [18]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -223,10 +231,46 @@ func (e UserEdges) PlatformQuotasOrErr() ([]*UserPlatformQuota, error) {
 	return nil, &NotLoadedError{edge: "platform_quotas"}
 }
 
+// SubscriptionResetCardGrantsOrErr returns the SubscriptionResetCardGrants value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SubscriptionResetCardGrantsOrErr() ([]*SubscriptionResetCardGrant, error) {
+	if e.loadedTypes[13] {
+		return e.SubscriptionResetCardGrants, nil
+	}
+	return nil, &NotLoadedError{edge: "subscription_reset_card_grants"}
+}
+
+// IssuedSubscriptionResetCardGrantsOrErr returns the IssuedSubscriptionResetCardGrants value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) IssuedSubscriptionResetCardGrantsOrErr() ([]*SubscriptionResetCardGrant, error) {
+	if e.loadedTypes[14] {
+		return e.IssuedSubscriptionResetCardGrants, nil
+	}
+	return nil, &NotLoadedError{edge: "issued_subscription_reset_card_grants"}
+}
+
+// SubscriptionResetCardUsagesOrErr returns the SubscriptionResetCardUsages value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SubscriptionResetCardUsagesOrErr() ([]*SubscriptionResetCardUsage, error) {
+	if e.loadedTypes[15] {
+		return e.SubscriptionResetCardUsages, nil
+	}
+	return nil, &NotLoadedError{edge: "subscription_reset_card_usages"}
+}
+
+// SubscriptionResetPreferencesOrErr returns the SubscriptionResetPreferences value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SubscriptionResetPreferencesOrErr() ([]*SubscriptionResetPreference, error) {
+	if e.loadedTypes[16] {
+		return e.SubscriptionResetPreferences, nil
+	}
+	return nil, &NotLoadedError{edge: "subscription_reset_preferences"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[13] {
+	if e.loadedTypes[17] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -494,6 +538,26 @@ func (_m *User) QueryPendingAuthSessions() *PendingAuthSessionQuery {
 // QueryPlatformQuotas queries the "platform_quotas" edge of the User entity.
 func (_m *User) QueryPlatformQuotas() *UserPlatformQuotaQuery {
 	return NewUserClient(_m.config).QueryPlatformQuotas(_m)
+}
+
+// QuerySubscriptionResetCardGrants queries the "subscription_reset_card_grants" edge of the User entity.
+func (_m *User) QuerySubscriptionResetCardGrants() *SubscriptionResetCardGrantQuery {
+	return NewUserClient(_m.config).QuerySubscriptionResetCardGrants(_m)
+}
+
+// QueryIssuedSubscriptionResetCardGrants queries the "issued_subscription_reset_card_grants" edge of the User entity.
+func (_m *User) QueryIssuedSubscriptionResetCardGrants() *SubscriptionResetCardGrantQuery {
+	return NewUserClient(_m.config).QueryIssuedSubscriptionResetCardGrants(_m)
+}
+
+// QuerySubscriptionResetCardUsages queries the "subscription_reset_card_usages" edge of the User entity.
+func (_m *User) QuerySubscriptionResetCardUsages() *SubscriptionResetCardUsageQuery {
+	return NewUserClient(_m.config).QuerySubscriptionResetCardUsages(_m)
+}
+
+// QuerySubscriptionResetPreferences queries the "subscription_reset_preferences" edge of the User entity.
+func (_m *User) QuerySubscriptionResetPreferences() *SubscriptionResetPreferenceQuery {
+	return NewUserClient(_m.config).QuerySubscriptionResetPreferences(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.

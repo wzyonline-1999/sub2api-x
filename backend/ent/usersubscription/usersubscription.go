@@ -43,6 +43,12 @@ const (
 	FieldWeeklyUsageUsd = "weekly_usage_usd"
 	// FieldMonthlyUsageUsd holds the string denoting the monthly_usage_usd field in the database.
 	FieldMonthlyUsageUsd = "monthly_usage_usd"
+	// FieldDailyWindowVersion holds the string denoting the daily_window_version field in the database.
+	FieldDailyWindowVersion = "daily_window_version"
+	// FieldWeeklyWindowVersion holds the string denoting the weekly_window_version field in the database.
+	FieldWeeklyWindowVersion = "weekly_window_version"
+	// FieldMonthlyWindowVersion holds the string denoting the monthly_window_version field in the database.
+	FieldMonthlyWindowVersion = "monthly_window_version"
 	// FieldAssignedBy holds the string denoting the assigned_by field in the database.
 	FieldAssignedBy = "assigned_by"
 	// FieldAssignedAt holds the string denoting the assigned_at field in the database.
@@ -57,6 +63,8 @@ const (
 	EdgeAssignedByUser = "assigned_by_user"
 	// EdgeUsageLogs holds the string denoting the usage_logs edge name in mutations.
 	EdgeUsageLogs = "usage_logs"
+	// EdgeSubscriptionResetCardUsages holds the string denoting the subscription_reset_card_usages edge name in mutations.
+	EdgeSubscriptionResetCardUsages = "subscription_reset_card_usages"
 	// Table holds the table name of the usersubscription in the database.
 	Table = "user_subscriptions"
 	// UserTable is the table that holds the user relation/edge.
@@ -87,6 +95,13 @@ const (
 	UsageLogsInverseTable = "usage_logs"
 	// UsageLogsColumn is the table column denoting the usage_logs relation/edge.
 	UsageLogsColumn = "subscription_id"
+	// SubscriptionResetCardUsagesTable is the table that holds the subscription_reset_card_usages relation/edge.
+	SubscriptionResetCardUsagesTable = "subscription_reset_card_usages"
+	// SubscriptionResetCardUsagesInverseTable is the table name for the SubscriptionResetCardUsage entity.
+	// It exists in this package in order to avoid circular dependency with the "subscriptionresetcardusage" package.
+	SubscriptionResetCardUsagesInverseTable = "subscription_reset_card_usages"
+	// SubscriptionResetCardUsagesColumn is the table column denoting the subscription_reset_card_usages relation/edge.
+	SubscriptionResetCardUsagesColumn = "subscription_id"
 )
 
 // Columns holds all SQL columns for usersubscription fields.
@@ -106,6 +121,9 @@ var Columns = []string{
 	FieldDailyUsageUsd,
 	FieldWeeklyUsageUsd,
 	FieldMonthlyUsageUsd,
+	FieldDailyWindowVersion,
+	FieldWeeklyWindowVersion,
+	FieldMonthlyWindowVersion,
 	FieldAssignedBy,
 	FieldAssignedAt,
 	FieldNotes,
@@ -145,6 +163,12 @@ var (
 	DefaultWeeklyUsageUsd float64
 	// DefaultMonthlyUsageUsd holds the default value on creation for the "monthly_usage_usd" field.
 	DefaultMonthlyUsageUsd float64
+	// DefaultDailyWindowVersion holds the default value on creation for the "daily_window_version" field.
+	DefaultDailyWindowVersion int64
+	// DefaultWeeklyWindowVersion holds the default value on creation for the "weekly_window_version" field.
+	DefaultWeeklyWindowVersion int64
+	// DefaultMonthlyWindowVersion holds the default value on creation for the "monthly_window_version" field.
+	DefaultMonthlyWindowVersion int64
 	// DefaultAssignedAt holds the default value on creation for the "assigned_at" field.
 	DefaultAssignedAt func() time.Time
 )
@@ -227,6 +251,21 @@ func ByMonthlyUsageUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMonthlyUsageUsd, opts...).ToFunc()
 }
 
+// ByDailyWindowVersion orders the results by the daily_window_version field.
+func ByDailyWindowVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDailyWindowVersion, opts...).ToFunc()
+}
+
+// ByWeeklyWindowVersion orders the results by the weekly_window_version field.
+func ByWeeklyWindowVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWeeklyWindowVersion, opts...).ToFunc()
+}
+
+// ByMonthlyWindowVersion orders the results by the monthly_window_version field.
+func ByMonthlyWindowVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMonthlyWindowVersion, opts...).ToFunc()
+}
+
 // ByAssignedBy orders the results by the assigned_by field.
 func ByAssignedBy(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAssignedBy, opts...).ToFunc()
@@ -276,6 +315,20 @@ func ByUsageLogs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newUsageLogsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// BySubscriptionResetCardUsagesCount orders the results by subscription_reset_card_usages count.
+func BySubscriptionResetCardUsagesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSubscriptionResetCardUsagesStep(), opts...)
+	}
+}
+
+// BySubscriptionResetCardUsages orders the results by subscription_reset_card_usages terms.
+func BySubscriptionResetCardUsages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSubscriptionResetCardUsagesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newUserStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -302,5 +355,12 @@ func newUsageLogsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(UsageLogsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, UsageLogsTable, UsageLogsColumn),
+	)
+}
+func newSubscriptionResetCardUsagesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SubscriptionResetCardUsagesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetCardUsagesTable, SubscriptionResetCardUsagesColumn),
 	)
 }

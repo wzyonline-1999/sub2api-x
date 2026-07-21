@@ -1771,6 +1771,64 @@ export interface UserSubscription {
   group?: Group
 }
 
+export interface SubscriptionResetCardInventoryItem {
+  group_id: number
+  group_name: string
+  platform: GroupPlatform
+  remaining_count: number
+  next_expires_at: string | null
+  auto_use_enabled: boolean
+  auto_use_available: boolean
+  eligible_subscription_id: number | null
+  can_use: boolean
+  unavailable_reason?: string | null
+}
+
+export type SubscriptionResetCardUsageMode = 'manual' | 'auto'
+
+export interface SubscriptionResetCardUsage {
+  id: number
+  grant_id: number
+  subscription_id: number
+  user_id: number
+  group_id: number
+  group_name: string
+  user_email?: string
+  mode: SubscriptionResetCardUsageMode
+  previous_daily_usage_usd: number
+  previous_weekly_usage_usd: number
+  previous_monthly_usage_usd: number
+  previous_daily_window_start?: string | null
+  previous_weekly_window_start?: string | null
+  previous_monthly_window_start?: string | null
+  used_at: string
+}
+
+export interface SubscriptionResetCardGrant {
+  id: number
+  user_id: number
+  user_email?: string
+  group_id: number
+  group_name: string
+  issued_count: number
+  remaining_count: number
+  expires_at: string | null
+  status: string
+  source: string
+  issued_by?: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GrantSubscriptionResetCardsRequest {
+  user_id: number
+  group_id: number
+  count: number
+  expires_at?: string | null
+  notes?: string | null
+}
+
 export interface SubscriptionProgress {
   subscription_id: number
   daily: {

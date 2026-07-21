@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -245,6 +246,18 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 					}
 					subscription = refreshed
 					_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+				}
+				if validateErr != nil && (errors.Is(validateErr, service.ErrDailyLimitExceeded) ||
+					errors.Is(validateErr, service.ErrWeeklyLimitExceeded) ||
+					errors.Is(validateErr, service.ErrMonthlyLimitExceeded)) {
+					requestKey, _ := c.Request.Context().Value(ctxkey.RequestID).(string)
+					refreshed, used, autoErr := subscriptionService.TryAutoUseSubscriptionResetCard(c.Request.Context(), subscription, validateErr, requestKey)
+					if autoErr != nil {
+						log.Printf("Warning: automatic subscription reset failed: user=%d group=%d error=%v", subscription.UserID, subscription.GroupID, autoErr)
+					} else if used {
+						subscription = refreshed
+						_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+					}
 				}
 				if validateErr != nil {
 					code := "SUBSCRIPTION_INVALID"

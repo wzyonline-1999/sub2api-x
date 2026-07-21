@@ -15,6 +15,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardgrant"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardusage"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetpreference"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
@@ -751,6 +754,51 @@ func (_c *GroupCreate) AddUsageLogs(v ...*UsageLog) *GroupCreate {
 	return _c.AddUsageLogIDs(ids...)
 }
 
+// AddSubscriptionResetCardGrantIDs adds the "subscription_reset_card_grants" edge to the SubscriptionResetCardGrant entity by IDs.
+func (_c *GroupCreate) AddSubscriptionResetCardGrantIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddSubscriptionResetCardGrantIDs(ids...)
+	return _c
+}
+
+// AddSubscriptionResetCardGrants adds the "subscription_reset_card_grants" edges to the SubscriptionResetCardGrant entity.
+func (_c *GroupCreate) AddSubscriptionResetCardGrants(v ...*SubscriptionResetCardGrant) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSubscriptionResetCardGrantIDs(ids...)
+}
+
+// AddSubscriptionResetCardUsageIDs adds the "subscription_reset_card_usages" edge to the SubscriptionResetCardUsage entity by IDs.
+func (_c *GroupCreate) AddSubscriptionResetCardUsageIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddSubscriptionResetCardUsageIDs(ids...)
+	return _c
+}
+
+// AddSubscriptionResetCardUsages adds the "subscription_reset_card_usages" edges to the SubscriptionResetCardUsage entity.
+func (_c *GroupCreate) AddSubscriptionResetCardUsages(v ...*SubscriptionResetCardUsage) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSubscriptionResetCardUsageIDs(ids...)
+}
+
+// AddSubscriptionResetPreferenceIDs adds the "subscription_reset_preferences" edge to the SubscriptionResetPreference entity by IDs.
+func (_c *GroupCreate) AddSubscriptionResetPreferenceIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddSubscriptionResetPreferenceIDs(ids...)
+	return _c
+}
+
+// AddSubscriptionResetPreferences adds the "subscription_reset_preferences" edges to the SubscriptionResetPreference entity.
+func (_c *GroupCreate) AddSubscriptionResetPreferences(v ...*SubscriptionResetPreference) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSubscriptionResetPreferenceIDs(ids...)
+}
+
 // AddAccountIDs adds the "accounts" edge to the Account entity by IDs.
 func (_c *GroupCreate) AddAccountIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddAccountIDs(ids...)
@@ -1376,6 +1424,54 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SubscriptionResetCardGrantsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.SubscriptionResetCardGrantsTable,
+			Columns: []string{group.SubscriptionResetCardGrantsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardgrant.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SubscriptionResetCardUsagesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.SubscriptionResetCardUsagesTable,
+			Columns: []string{group.SubscriptionResetCardUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SubscriptionResetPreferencesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.SubscriptionResetPreferencesTable,
+			Columns: []string{group.SubscriptionResetPreferencesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetpreference.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

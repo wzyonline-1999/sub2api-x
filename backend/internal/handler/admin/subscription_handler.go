@@ -2,9 +2,12 @@ package admin
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -24,6 +27,93 @@ func toResponsePagination(p *pagination.PaginationResult) *response.PaginationRe
 		PageSize: p.PageSize,
 		Pages:    p.Pages,
 	}
+}
+
+type GrantSubscriptionResetCardsRequest struct {
+	UserID    int64      `json:"user_id" binding:"required"`
+	GroupID   int64      `json:"group_id" binding:"required"`
+	Count     int        `json:"count" binding:"required,min=1,max=10000"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	Notes     string     `json:"notes"`
+}
+
+// GrantResetCards grants group-bound reset cards to one user.
+// POST /api/v1/admin/subscription-reset-cards/grants
+func (h *SubscriptionHandler) GrantResetCards(c *gin.Context) {
+	var req GrantSubscriptionResetCardsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	input := service.GrantSubscriptionResetCardsInput{
+		UserID:         req.UserID,
+		GroupID:        req.GroupID,
+		Count:          req.Count,
+		ExpiresAt:      req.ExpiresAt,
+		IssuedBy:       getAdminIDFromContext(c),
+		Notes:          req.Notes,
+		IdempotencyKey: c.GetHeader("Idempotency-Key"),
+	}
+	result, err := executeAdminIdempotent(c, "admin.subscription_reset_cards.grant", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		return h.subscriptionService.GrantSubscriptionResetCards(ctx, input)
+	})
+	if err != nil {
+		reason := infraerrors.Reason(err)
+		if reason == infraerrors.Reason(service.ErrIdempotencyInProgress) || reason == infraerrors.Reason(service.ErrIdempotencyStoreUnavail) {
+			recovered, recoverErr := h.subscriptionService.RecoverSubscriptionResetCardGrant(c.Request.Context(), input)
+			if recoverErr != nil {
+				slog.Warn("subscription_reset_card_grant_recovery_failed", "user_id", input.UserID, "group_id", input.GroupID, "reason", reason, "error", recoverErr)
+			} else if recovered != nil {
+				c.Header("X-Idempotency-Recovered", "true")
+				response.Success(c, recovered)
+				return
+			}
+		}
+		if retryAfter := service.RetryAfterSecondsFromError(err); retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
+		response.ErrorFrom(c, err)
+		return
+	}
+	if result != nil && result.Replayed {
+		c.Header("X-Idempotency-Replayed", "true")
+	}
+	response.Success(c, result.Data)
+}
+
+func parseResetCardAdminFilter(c *gin.Context) service.SubscriptionResetCardListFilter {
+	filter := service.SubscriptionResetCardListFilter{}
+	if value, err := strconv.ParseInt(c.Query("user_id"), 10, 64); err == nil && value > 0 {
+		filter.UserID = &value
+	}
+	if value, err := strconv.ParseInt(c.Query("group_id"), 10, 64); err == nil && value > 0 {
+		filter.GroupID = &value
+	}
+	filter.Limit, _ = strconv.Atoi(c.Query("limit"))
+	filter.Offset, _ = strconv.Atoi(c.Query("offset"))
+	return filter
+}
+
+// ListResetCardGrants lists recent reset-card grants.
+// GET /api/v1/admin/subscription-reset-cards/grants
+func (h *SubscriptionHandler) ListResetCardGrants(c *gin.Context) {
+	items, err := h.subscriptionService.ListSubscriptionResetCardGrants(c.Request.Context(), parseResetCardAdminFilter(c))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, items)
+}
+
+// ListResetCardUsages lists recent reset-card consumption records.
+// GET /api/v1/admin/subscription-reset-cards/usages
+func (h *SubscriptionHandler) ListResetCardUsages(c *gin.Context) {
+	items, err := h.subscriptionService.ListSubscriptionResetCardUsages(c.Request.Context(), parseResetCardAdminFilter(c))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, items)
 }
 
 // SubscriptionHandler handles admin subscription management

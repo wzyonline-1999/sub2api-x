@@ -173,7 +173,15 @@ func (r *usageBillingRepository) applyBatchImageBalanceHold(
 
 func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, result *service.UsageBillingApplyResult) error {
 	if cmd.SubscriptionCost > 0 && cmd.SubscriptionID != nil {
-		if err := incrementUsageBillingSubscription(ctx, tx, *cmd.SubscriptionID, cmd.SubscriptionCost); err != nil {
+		if err := incrementUsageBillingSubscription(
+			ctx,
+			tx,
+			*cmd.SubscriptionID,
+			cmd.SubscriptionCost,
+			cmd.SubscriptionDailyWindowVersion,
+			cmd.SubscriptionWeeklyWindowVersion,
+			cmd.SubscriptionMonthlyWindowVersion,
+		); err != nil {
 			return err
 		}
 	}
@@ -212,13 +220,13 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	return nil
 }
 
-func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64) error {
+func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64, dailyVersion, weeklyVersion, monthlyVersion int64) error {
 	const updateSQL = `
 		UPDATE user_subscriptions us
 		SET
-			daily_usage_usd = us.daily_usage_usd + $1,
-			weekly_usage_usd = us.weekly_usage_usd + $1,
-			monthly_usage_usd = us.monthly_usage_usd + $1,
+			daily_usage_usd = us.daily_usage_usd + CASE WHEN us.daily_window_version = $3 THEN $1 ELSE 0 END,
+			weekly_usage_usd = us.weekly_usage_usd + CASE WHEN us.weekly_window_version = $4 THEN $1 ELSE 0 END,
+			monthly_usage_usd = us.monthly_usage_usd + CASE WHEN us.monthly_window_version = $5 THEN $1 ELSE 0 END,
 			updated_at = NOW()
 		FROM groups g
 		WHERE us.id = $2
@@ -226,7 +234,7 @@ func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscrip
 			AND us.group_id = g.id
 			AND g.deleted_at IS NULL
 	`
-	res, err := tx.ExecContext(ctx, updateSQL, costUSD, subscriptionID)
+	res, err := tx.ExecContext(ctx, updateSQL, costUSD, subscriptionID, dailyVersion, weeklyVersion, monthlyVersion)
 	if err != nil {
 		return err
 	}

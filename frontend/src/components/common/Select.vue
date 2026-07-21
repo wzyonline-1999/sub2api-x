@@ -7,7 +7,7 @@
       :disabled="disabled"
       :aria-expanded="isOpen"
       :aria-haspopup="true"
-      aria-label="Select option"
+      :aria-label="ariaLabel ?? t('common.selectOption')"
       :class="[
         'select-trigger',
         isOpen && 'select-trigger-open',
@@ -27,7 +27,7 @@
         class="select-clear"
         role="button"
         tabindex="-1"
-        aria-label="Clear selection"
+        :aria-label="t('common.clear')"
         @click.stop="clearSelection"
         @mousedown.stop
         @keydown.enter.stop.prevent="clearSelection"
@@ -148,6 +148,7 @@ interface Props {
   creatable?: boolean
   creatablePrefix?: string
   clearable?: boolean
+  ariaLabel?: string
 }
 
 interface Emits {

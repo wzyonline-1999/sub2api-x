@@ -146,6 +146,18 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 
 	// user_subscriptions: deleted_at for soft delete support (migration 012)
 	requireColumn(t, tx, "user_subscriptions", "deleted_at", "timestamp with time zone", 0, true)
+	requireColumn(t, tx, "user_subscriptions", "daily_window_version", "bigint", 0, false)
+	requireColumn(t, tx, "user_subscriptions", "weekly_window_version", "bigint", 0, false)
+	requireColumn(t, tx, "user_subscriptions", "monthly_window_version", "bigint", 0, false)
+
+	// Subscription quota reset-card inventory, audit trail and preferences.
+	requireColumn(t, tx, "subscription_reset_card_grants", "remaining_count", "integer", 0, false)
+	requireColumn(t, tx, "subscription_reset_card_grants", "request_id", "character varying", 64, true)
+	requireColumn(t, tx, "subscription_reset_card_usages", "mode", "character varying", 10, false)
+	requireColumn(t, tx, "subscription_reset_preferences", "auto_use_enabled", "boolean", 0, false)
+	requireIndex(t, tx, "subscription_reset_card_grants", "idx_subscription_reset_card_grants_inventory")
+	requireIndex(t, tx, "subscription_reset_card_grants", "idx_subscription_reset_card_grants_request")
+	requireIndex(t, tx, "subscription_reset_card_usages", "idx_subscription_reset_card_usages_request")
 
 	// orphan_allowed_groups_audit table should exist (migration 013)
 	var orphanAuditRegclass sql.NullString

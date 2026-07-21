@@ -2197,6 +2197,75 @@ func HasUsageLogsWith(preds ...predicate.UsageLog) predicate.Group {
 	})
 }
 
+// HasSubscriptionResetCardGrants applies the HasEdge predicate on the "subscription_reset_card_grants" edge.
+func HasSubscriptionResetCardGrants() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetCardGrantsTable, SubscriptionResetCardGrantsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSubscriptionResetCardGrantsWith applies the HasEdge predicate on the "subscription_reset_card_grants" edge with a given conditions (other predicates).
+func HasSubscriptionResetCardGrantsWith(preds ...predicate.SubscriptionResetCardGrant) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newSubscriptionResetCardGrantsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSubscriptionResetCardUsages applies the HasEdge predicate on the "subscription_reset_card_usages" edge.
+func HasSubscriptionResetCardUsages() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetCardUsagesTable, SubscriptionResetCardUsagesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSubscriptionResetCardUsagesWith applies the HasEdge predicate on the "subscription_reset_card_usages" edge with a given conditions (other predicates).
+func HasSubscriptionResetCardUsagesWith(preds ...predicate.SubscriptionResetCardUsage) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newSubscriptionResetCardUsagesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSubscriptionResetPreferences applies the HasEdge predicate on the "subscription_reset_preferences" edge.
+func HasSubscriptionResetPreferences() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SubscriptionResetPreferencesTable, SubscriptionResetPreferencesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSubscriptionResetPreferencesWith applies the HasEdge predicate on the "subscription_reset_preferences" edge with a given conditions (other predicates).
+func HasSubscriptionResetPreferencesWith(preds ...predicate.SubscriptionResetPreference) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newSubscriptionResetPreferencesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasAccounts applies the HasEdge predicate on the "accounts" edge.
 func HasAccounts() predicate.Group {
 	return predicate.Group(func(s *sql.Selector) {

@@ -19,20 +19,23 @@ type UsageBillingCommand struct {
 	RequestFingerprint string
 	RequestPayloadHash string
 
-	UserID              int64
-	AccountID           int64
-	SubscriptionID      *int64
-	AccountType         string
-	Model               string
-	ServiceTier         string
-	ReasoningEffort     string
-	BillingType         int8
-	InputTokens         int
-	OutputTokens        int
-	CacheCreationTokens int
-	CacheReadTokens     int
-	ImageCount          int
-	MediaType           string
+	UserID                           int64
+	AccountID                        int64
+	SubscriptionID                   *int64
+	SubscriptionDailyWindowVersion   int64
+	SubscriptionWeeklyWindowVersion  int64
+	SubscriptionMonthlyWindowVersion int64
+	AccountType                      string
+	Model                            string
+	ServiceTier                      string
+	ReasoningEffort                  string
+	BillingType                      int8
+	InputTokens                      int
+	OutputTokens                     int
+	CacheCreationTokens              int
+	CacheReadTokens                  int
+	ImageCount                       int
+	MediaType                        string
 
 	BalanceCost         float64
 	SubscriptionCost    float64
@@ -56,7 +59,7 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		return ""
 	}
 	raw := fmt.Sprintf(
-		"%d|%d|%d|%s|%s|%s|%s|%d|%d|%d|%d|%d|%d|%s|%d|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f",
+		"%d|%d|%d|%s|%s|%s|%s|%d|%d|%d|%d|%d|%d|%s|%d|%d|%d|%d|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f",
 		c.UserID,
 		c.AccountID,
 		c.APIKeyID,
@@ -72,6 +75,9 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		c.ImageCount,
 		strings.TrimSpace(c.MediaType),
 		valueOrZero(c.SubscriptionID),
+		c.SubscriptionDailyWindowVersion,
+		c.SubscriptionWeeklyWindowVersion,
+		c.SubscriptionMonthlyWindowVersion,
 		c.BalanceCost,
 		c.SubscriptionCost,
 		c.APIKeyQuotaCost,

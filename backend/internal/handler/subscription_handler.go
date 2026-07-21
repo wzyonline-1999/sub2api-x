@@ -1,7 +1,12 @@
 package handler
 
 import (
+	"context"
+	"strconv"
+
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -22,6 +27,129 @@ type SubscriptionSummaryItem struct {
 	MonthlyUsedUSD  float64 `json:"monthly_used_usd,omitempty"`
 	MonthlyLimitUSD float64 `json:"monthly_limit_usd,omitempty"`
 	ExpiresAt       *string `json:"expires_at,omitempty"`
+}
+
+// ListResetCards lists reset-card inventory for the current user.
+// GET /api/v1/subscription-reset-cards
+func (h *SubscriptionHandler) ListResetCards(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+	items, err := h.subscriptionService.ListUserSubscriptionResetCardInventory(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, items)
+}
+
+// ListResetCardUsages lists recent reset-card consumption records for the current user.
+// GET /api/v1/subscription-reset-cards/usages
+func (h *SubscriptionHandler) ListResetCardUsages(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	items, err := h.subscriptionService.ListSubscriptionResetCardUsages(c.Request.Context(), service.SubscriptionResetCardListFilter{
+		UserID: &subject.UserID,
+		Limit:  limit,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, items)
+}
+
+type useResetCardResponse struct {
+	Subscription *dto.UserSubscription               `json:"subscription"`
+	Usage        *service.SubscriptionResetCardUsage `json:"usage"`
+}
+
+func buildUseResetCardResponse(subscription *service.UserSubscription, usage *service.SubscriptionResetCardUsage) useResetCardResponse {
+	return useResetCardResponse{
+		Subscription: dto.UserSubscriptionFromService(subscription),
+		Usage:        usage,
+	}
+}
+
+// UseResetCard consumes one card and resets all configured quota windows.
+// POST /api/v1/subscriptions/:id/reset-card/use
+func (h *SubscriptionHandler) UseResetCard(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+	subscriptionID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || subscriptionID <= 0 {
+		response.BadRequest(c, "Invalid subscription ID")
+		return
+	}
+	payload := struct {
+		SubscriptionID int64 `json:"subscription_id"`
+	}{SubscriptionID: subscriptionID}
+	const scope = "user.subscription_reset_cards.use"
+	result, err := executeUserIdempotent(c, scope, payload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		subscription, usage, useErr := h.subscriptionService.UseSubscriptionResetCard(ctx, subject.UserID, subscriptionID, c.GetHeader("Idempotency-Key"))
+		if useErr != nil {
+			return nil, useErr
+		}
+		return buildUseResetCardResponse(subscription, usage), nil
+	})
+	if err != nil {
+		reason := infraerrors.Reason(err)
+		if reason == infraerrors.Reason(service.ErrIdempotencyInProgress) || reason == infraerrors.Reason(service.ErrIdempotencyStoreUnavail) {
+			subscription, usage, recoverErr := h.subscriptionService.RecoverUseSubscriptionResetCard(c.Request.Context(), subject.UserID, subscriptionID, c.GetHeader("Idempotency-Key"))
+			if recoverErr != nil {
+				logger.LegacyPrintf("handler.subscription", "[ResetCard] committed usage recovery failed: user=%d subscription=%d reason=%s error=%v", subject.UserID, subscriptionID, reason, recoverErr)
+			} else if subscription != nil && usage != nil {
+				c.Header("X-Idempotency-Recovered", "true")
+				response.Success(c, buildUseResetCardResponse(subscription, usage))
+				return
+			}
+		}
+		respondUserIdempotentError(c, scope, err)
+		return
+	}
+	if result != nil && result.Replayed {
+		c.Header("X-Idempotency-Replayed", "true")
+	}
+	response.Success(c, result.Data)
+}
+
+type updateResetCardPreferenceRequest struct {
+	AutoUseEnabled *bool `json:"auto_use_enabled" binding:"required"`
+}
+
+// UpdateResetCardPreference updates automatic card use for one subscription group.
+// PUT /api/v1/subscription-reset-cards/preferences/:group_id
+func (h *SubscriptionHandler) UpdateResetCardPreference(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+	groupID, err := strconv.ParseInt(c.Param("group_id"), 10, 64)
+	if err != nil || groupID <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req updateResetCardPreferenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	item, err := h.subscriptionService.SetSubscriptionResetAutoUse(c.Request.Context(), subject.UserID, groupID, *req.AutoUseEnabled)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, item)
 }
 
 // SubscriptionProgressInfo represents subscription with progress info

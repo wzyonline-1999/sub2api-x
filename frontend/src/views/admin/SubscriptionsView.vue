@@ -159,6 +159,24 @@
             >
               <Icon name="questionCircle" size="md" />
             </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-testid="reset-card-records"
+              @click="openResetCardRecordsModal"
+            >
+              <Icon name="clock" size="md" class="mr-2" />
+              {{ t('admin.subscriptions.resetCards.recordsAction') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-testid="grant-reset-cards"
+              @click="openGrantResetCardsModal()"
+            >
+              <Icon name="gift" size="md" class="mr-2" />
+              {{ t('admin.subscriptions.resetCards.grantAction') }}
+            </button>
             <button @click="showAssignModal = true" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
@@ -380,6 +398,15 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
               <button
+                type="button"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-900/20 dark:hover:text-violet-300"
+                :data-testid="`grant-reset-cards-${row.id}`"
+                @click="openGrantResetCardsModal(row)"
+              >
+                <Icon name="gift" size="sm" />
+                <span class="text-xs">{{ t('admin.subscriptions.resetCards.grantShort') }}</span>
+              </button>
+              <button
                 v-if="row.status === 'active' || row.status === 'expired'"
                 @click="handleExtend(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
@@ -438,6 +465,580 @@
       />
       </template>
     </TablePageLayout>
+
+    <!-- Grant subscription reset cards -->
+    <BaseDialog
+      :show="showGrantResetCardsModal"
+      :title="t('admin.subscriptions.resetCards.grantTitle')"
+      width="normal"
+      @close="closeGrantResetCardsModal"
+    >
+      <form
+        id="grant-reset-cards-form"
+        class="space-y-5"
+        @submit.prevent="handleGrantResetCards"
+      >
+        <div>
+          <label for="reset-card-user-search" class="input-label">
+            {{ t('admin.subscriptions.form.user') }}
+          </label>
+          <div class="relative" data-reset-card-user-search>
+            <input
+              id="reset-card-user-search"
+              v-model="resetCardUserSearchKeyword"
+              type="text"
+              class="input pr-8"
+              :placeholder="t('admin.usage.searchUserPlaceholder')"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="reset-card-user-options"
+              :aria-expanded="resetCardUserDropdownOpen"
+              @input="debounceSearchResetCardUsers"
+              @focus="showResetCardUserDropdown = true"
+            />
+            <button
+              v-if="selectedResetCardUser"
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              :aria-label="t('common.clear')"
+              @click="clearResetCardUserSelection"
+            >
+              <Icon name="x" size="sm" :stroke-width="2" />
+            </button>
+            <div
+              v-if="resetCardUserDropdownOpen"
+              id="reset-card-user-options"
+              role="listbox"
+              :aria-label="t('admin.subscriptions.form.user')"
+              class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+            >
+              <div
+                v-if="resetCardUserSearchLoading"
+                role="status"
+                class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400"
+              >
+                {{ t('common.loading') }}
+              </div>
+              <div
+                v-else-if="resetCardUserSearchResults.length === 0 && resetCardUserSearchKeyword"
+                role="status"
+                class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400"
+              >
+                {{ t('common.noOptionsFound') }}
+              </div>
+              <button
+                v-for="user in resetCardUserSearchResults"
+                :key="user.id"
+                type="button"
+                role="option"
+                :aria-selected="selectedResetCardUser?.id === user.id"
+                class="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                @click="selectResetCardUser(user)"
+              >
+                <span class="font-medium text-gray-900 dark:text-white">{{ user.email }}</span>
+                <span class="ml-2 text-gray-500 dark:text-gray-400">#{{ user.id }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="input-label">{{ t('admin.subscriptions.form.group') }}</label>
+          <Select
+            v-model="grantResetCardsForm.group_id"
+            :options="subscriptionGroupOptions"
+            :placeholder="t('admin.subscriptions.selectGroup')"
+            :aria-label="t('admin.subscriptions.form.group')"
+          >
+            <template #selected="{ option }">
+              <GroupBadge
+                v-if="option"
+                :name="(option as unknown as GroupOption).label"
+                :platform="(option as unknown as GroupOption).platform"
+                :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                :rate-multiplier="(option as unknown as GroupOption).rate"
+              />
+              <span v-else class="text-gray-400">{{ t('admin.subscriptions.selectGroup') }}</span>
+            </template>
+            <template #option="{ option, selected }">
+              <GroupOptionItem
+                :name="(option as unknown as GroupOption).label"
+                :platform="(option as unknown as GroupOption).platform"
+                :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                :rate-multiplier="(option as unknown as GroupOption).rate"
+                :description="(option as unknown as GroupOption).description"
+                :selected="selected"
+              />
+            </template>
+          </Select>
+          <p class="input-hint">{{ t('admin.subscriptions.groupHint') }}</p>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="reset-card-count" class="input-label">
+              {{ t('admin.subscriptions.resetCards.form.count') }}
+            </label>
+            <input
+              id="reset-card-count"
+              v-model.number="grantResetCardsForm.count"
+              type="number"
+              min="1"
+              max="10000"
+              required
+              class="input"
+            />
+          </div>
+          <div>
+            <label for="reset-card-expires-at" class="input-label">
+              {{ t('admin.subscriptions.resetCards.form.expiresAt') }}
+            </label>
+            <input
+              id="reset-card-expires-at"
+              v-model="grantResetCardsForm.expires_at_local"
+              type="datetime-local"
+              class="input"
+            />
+            <p class="input-hint">
+              {{ t('admin.subscriptions.resetCards.form.expiresAtHint') }}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label for="reset-card-notes" class="input-label">
+            {{ t('admin.subscriptions.resetCards.form.notes') }}
+          </label>
+          <textarea
+            id="reset-card-notes"
+            v-model="grantResetCardsForm.notes"
+            rows="3"
+            maxlength="1000"
+            class="input resize-y"
+            :placeholder="t('admin.subscriptions.resetCards.form.notesPlaceholder')"
+          ></textarea>
+        </div>
+
+        <div
+          class="rounded-lg bg-violet-50 px-4 py-3 text-xs leading-5 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
+        >
+          {{ t('admin.subscriptions.resetCards.grantHint') }}
+        </div>
+      </form>
+
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn btn-secondary" @click="closeGrantResetCardsModal">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="submit"
+            form="grant-reset-cards-form"
+            class="btn btn-primary"
+            :disabled="grantingResetCards"
+          >
+            <svg
+              v-if="grantingResetCards"
+              class="-ml-1 mr-2 h-4 w-4 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            {{
+              grantingResetCards
+                ? t('admin.subscriptions.resetCards.granting')
+                : t('admin.subscriptions.resetCards.confirmGrant')
+            }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <!-- Reset-card grant and usage audit records -->
+    <BaseDialog
+      :show="showResetCardRecordsModal"
+      :title="t('admin.subscriptions.resetCards.recordsTitle')"
+      width="extra-wide"
+      @close="showResetCardRecordsModal = false"
+    >
+      <div class="space-y-4" data-testid="reset-card-records-dialog">
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-dark-700"
+        >
+          <div
+			class="flex items-center gap-1"
+			role="tablist"
+			:aria-label="t('admin.subscriptions.resetCards.recordsTitle')"
+		  >
+            <button
+			  id="reset-card-records-tab-grants"
+              type="button"
+              role="tab"
+              data-testid="reset-card-records-tab-grants"
+              :aria-selected="resetCardRecordsActiveTab === 'grants'"
+			  aria-controls="reset-card-records-panel-grants"
+			  :tabindex="resetCardRecordsActiveTab === 'grants' ? 0 : -1"
+              :class="[
+                'border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
+                resetCardRecordsActiveTab === 'grants'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              ]"
+              @click="resetCardRecordsActiveTab = 'grants'"
+			  @keydown.left.prevent="activateResetCardRecordsTab('usages')"
+			  @keydown.right.prevent="activateResetCardRecordsTab('usages')"
+			  @keydown.home.prevent="activateResetCardRecordsTab('grants')"
+			  @keydown.end.prevent="activateResetCardRecordsTab('usages')"
+            >
+              {{ t('admin.subscriptions.resetCards.tabs.grants') }}
+              <span
+                class="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500 dark:bg-dark-700 dark:text-gray-400"
+              >
+                {{ resetCardGrants.length }}
+              </span>
+            </button>
+            <button
+			  id="reset-card-records-tab-usages"
+              type="button"
+              role="tab"
+              data-testid="reset-card-records-tab-usages"
+              :aria-selected="resetCardRecordsActiveTab === 'usages'"
+			  aria-controls="reset-card-records-panel-usages"
+			  :tabindex="resetCardRecordsActiveTab === 'usages' ? 0 : -1"
+              :class="[
+                'border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
+                resetCardRecordsActiveTab === 'usages'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              ]"
+              @click="resetCardRecordsActiveTab = 'usages'"
+			  @keydown.left.prevent="activateResetCardRecordsTab('grants')"
+			  @keydown.right.prevent="activateResetCardRecordsTab('grants')"
+			  @keydown.home.prevent="activateResetCardRecordsTab('grants')"
+			  @keydown.end.prevent="activateResetCardRecordsTab('usages')"
+            >
+              {{ t('admin.subscriptions.resetCards.tabs.usages') }}
+              <span
+                class="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500 dark:bg-dark-700 dark:text-gray-400"
+              >
+                {{ resetCardAdminUsages.length }}
+              </span>
+            </button>
+          </div>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm mb-1"
+            :disabled="
+              resetCardRecordsActiveTab === 'grants'
+                ? resetCardGrantsLoading || resetCardGrantsLoadingMore
+                : resetCardUsagesLoading || resetCardUsagesLoadingMore
+            "
+            data-testid="refresh-reset-card-records"
+            @click="refreshActiveResetCardRecords"
+          >
+            <Icon
+              name="refresh"
+              size="sm"
+              class="mr-1.5"
+              :class="
+                (resetCardRecordsActiveTab === 'grants' &&
+                  (resetCardGrantsLoading || resetCardGrantsLoadingMore)) ||
+                (resetCardRecordsActiveTab === 'usages' &&
+                  (resetCardUsagesLoading || resetCardUsagesLoadingMore))
+                  ? 'animate-spin'
+                  : ''
+              "
+            />
+            {{ t('common.refresh') }}
+          </button>
+        </div>
+
+        <div
+		  v-if="resetCardRecordsActiveTab === 'grants'"
+		  id="reset-card-records-panel-grants"
+		  role="tabpanel"
+		  aria-labelledby="reset-card-records-tab-grants"
+		  tabindex="0"
+		>
+          <div
+            v-if="resetCardGrantsLoading && resetCardGrants.length === 0"
+            class="flex justify-center py-14"
+            data-testid="reset-card-grants-loading"
+          >
+            <div
+              class="h-7 w-7 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
+            ></div>
+          </div>
+          <div
+            v-else-if="resetCardGrantsError && resetCardGrants.length === 0"
+            class="rounded-xl border border-red-200 bg-red-50 px-5 py-8 text-center dark:border-red-900/50 dark:bg-red-900/20"
+            role="alert"
+            data-testid="reset-card-grants-error"
+          >
+            <p class="text-sm text-red-700 dark:text-red-300">{{ resetCardGrantsError }}</p>
+            <button type="button" class="btn btn-secondary btn-sm mt-3" @click="loadResetCardGrants()">
+              {{ t('common.retry') }}
+            </button>
+          </div>
+          <div
+            v-else-if="resetCardGrants.length === 0"
+            class="py-14 text-center"
+            data-testid="reset-card-grants-empty"
+          >
+            <div
+              class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-gray-500"
+            >
+              <Icon name="gift" size="lg" />
+            </div>
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t('admin.subscriptions.resetCards.emptyGrants') }}
+            </p>
+          </div>
+          <div v-else class="space-y-3">
+            <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700">
+              <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
+              <thead class="bg-gray-50 dark:bg-dark-800/80">
+                <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.user') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.group') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.inventory') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.expiresAt') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.status') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.grantedAt') }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 bg-white dark:divide-dark-700 dark:bg-dark-800">
+                <tr
+                  v-for="grant in resetCardGrants"
+                  :key="grant.id"
+                  :data-testid="`reset-card-grant-${grant.id}`"
+                  class="text-gray-700 dark:text-gray-300"
+                >
+                  <td class="whitespace-nowrap px-4 py-3">
+                    <p class="font-medium text-gray-900 dark:text-white">
+                      {{ grant.user_email || `#${grant.user_id}` }}
+                    </p>
+                    <p v-if="grant.user_email" class="text-[11px] text-gray-400">#{{ grant.user_id }}</p>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3">
+                    <p class="font-medium text-gray-900 dark:text-white">{{ grant.group_name }}</p>
+                    <p class="text-[11px] text-gray-400">#{{ grant.group_id }}</p>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 tabular-nums">
+                    <span class="font-semibold text-violet-600 dark:text-violet-300">
+                      {{ grant.remaining_count }}
+                    </span>
+                    <span class="text-gray-400"> / {{ grant.issued_count }}</span>
+                    <p class="text-[11px] text-gray-400">
+                      {{ t('admin.subscriptions.resetCards.remainingLabel') }}
+                    </p>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3">
+                    {{
+                      grant.expires_at
+                        ? formatDateTimeToMinute(grant.expires_at)
+                        : t('admin.subscriptions.resetCards.neverExpires')
+                    }}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3">
+                    <span
+                      :class="[
+                        'rounded-full px-2 py-1 text-xs font-medium',
+                        resetCardGrantStatusClass(grant)
+                      ]"
+                    >
+                      {{ resetCardGrantStatusLabel(grant) }}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3">
+                    {{ formatDateTimeToMinute(grant.created_at) }}
+                  </td>
+                </tr>
+              </tbody>
+              </table>
+            </div>
+            <div
+              v-if="resetCardGrantsError"
+              class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center dark:border-red-900/50 dark:bg-red-900/20"
+              role="alert"
+              data-testid="reset-card-grants-load-more-error"
+            >
+              <p class="text-sm text-red-700 dark:text-red-300">{{ resetCardGrantsError }}</p>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm mt-2"
+                @click="loadResetCardGrants(resetCardGrantsErrorAppend)"
+              >
+                {{ t('common.retry') }}
+              </button>
+            </div>
+            <div v-else-if="resetCardGrantsHasMore" class="flex justify-center">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                data-testid="load-more-reset-card-grants"
+                :disabled="resetCardGrantsLoadingMore"
+                @click="loadResetCardGrants(true)"
+              >
+                {{
+                  resetCardGrantsLoadingMore
+                    ? t('admin.subscriptions.resetCards.loadingMore')
+                    : t('admin.subscriptions.resetCards.loadMore')
+                }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+		  v-else
+		  id="reset-card-records-panel-usages"
+		  role="tabpanel"
+		  aria-labelledby="reset-card-records-tab-usages"
+		  tabindex="0"
+		>
+          <div
+            v-if="resetCardUsagesLoading && resetCardAdminUsages.length === 0"
+            class="flex justify-center py-14"
+            data-testid="reset-card-usages-loading"
+          >
+            <div
+              class="h-7 w-7 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
+            ></div>
+          </div>
+          <div
+            v-else-if="resetCardUsagesError && resetCardAdminUsages.length === 0"
+            class="rounded-xl border border-red-200 bg-red-50 px-5 py-8 text-center dark:border-red-900/50 dark:bg-red-900/20"
+            role="alert"
+            data-testid="reset-card-usages-error"
+          >
+            <p class="text-sm text-red-700 dark:text-red-300">{{ resetCardUsagesError }}</p>
+            <button type="button" class="btn btn-secondary btn-sm mt-3" @click="loadResetCardAdminUsages()">
+              {{ t('common.retry') }}
+            </button>
+          </div>
+          <div
+            v-else-if="resetCardAdminUsages.length === 0"
+            class="py-14 text-center"
+            data-testid="reset-card-usages-empty"
+          >
+            <div
+              class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-gray-500"
+            >
+              <Icon name="clock" size="lg" />
+            </div>
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t('admin.subscriptions.resetCards.emptyUsages') }}
+            </p>
+          </div>
+          <div v-else class="space-y-3">
+            <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700">
+              <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
+              <thead class="bg-gray-50 dark:bg-dark-800/80">
+                <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.user') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.group') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.mode') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.subscription') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.previousUsage') }}</th>
+                  <th class="px-4 py-3">{{ t('admin.subscriptions.resetCards.columns.usedAt') }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 bg-white dark:divide-dark-700 dark:bg-dark-800">
+                <tr
+                  v-for="usage in resetCardAdminUsages"
+                  :key="usage.id"
+                  :data-testid="`reset-card-usage-${usage.id}`"
+                  class="text-gray-700 dark:text-gray-300"
+                >
+                  <td class="whitespace-nowrap px-4 py-3">
+                    <p class="font-medium text-gray-900 dark:text-white">
+                      {{ usage.user_email || `#${usage.user_id}` }}
+                    </p>
+                    <p v-if="usage.user_email" class="text-[11px] text-gray-400">#{{ usage.user_id }}</p>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3">
+                    <p class="font-medium text-gray-900 dark:text-white">{{ usage.group_name }}</p>
+                    <p class="text-[11px] text-gray-400">#{{ usage.group_id }}</p>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3">
+                    <span
+                      class="rounded-full px-2 py-1 text-xs font-medium"
+                      :class="
+                        usage.mode === 'auto'
+                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                          : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'
+                      "
+                    >
+                      {{ t(`admin.subscriptions.resetCards.mode.${usage.mode}`) }}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 tabular-nums">
+                    #{{ usage.subscription_id }}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 text-xs tabular-nums">
+                    {{ formatAdminResetCardPreviousUsage(usage) }}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3">
+                    {{ formatDateTimeToMinute(usage.used_at) }}
+                  </td>
+                </tr>
+              </tbody>
+              </table>
+            </div>
+            <div
+              v-if="resetCardUsagesError"
+              class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center dark:border-red-900/50 dark:bg-red-900/20"
+              role="alert"
+              data-testid="reset-card-usages-load-more-error"
+            >
+              <p class="text-sm text-red-700 dark:text-red-300">{{ resetCardUsagesError }}</p>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm mt-2"
+                @click="loadResetCardAdminUsages(resetCardUsagesErrorAppend)"
+              >
+                {{ t('common.retry') }}
+              </button>
+            </div>
+            <div v-else-if="resetCardUsagesHasMore" class="flex justify-center">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                data-testid="load-more-reset-card-usages"
+                :disabled="resetCardUsagesLoadingMore"
+                @click="loadResetCardAdminUsages(true)"
+              >
+                {{
+                  resetCardUsagesLoadingMore
+                    ? t('admin.subscriptions.resetCards.loadingMore')
+                    : t('admin.subscriptions.resetCards.loadMore')
+                }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <button type="button" class="btn btn-secondary" @click="showResetCardRecordsModal = false">
+          {{ t('common.close') }}
+        </button>
+      </template>
+    </BaseDialog>
 
     <!-- Assign Subscription Modal -->
     <BaseDialog
@@ -757,11 +1358,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
+import type {
+  Group,
+  GroupPlatform,
+  SubscriptionResetCardGrant,
+  SubscriptionResetCardUsage,
+  SubscriptionType,
+  UserSubscription
+} from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
@@ -957,6 +1565,9 @@ const pagination = reactive({
 })
 
 const showAssignModal = ref(false)
+const showGrantResetCardsModal = ref(false)
+const showResetCardRecordsModal = ref(false)
+const resetCardRecordsActiveTab = ref<'grants' | 'usages'>('grants')
 const showExtendModal = ref(false)
 const showRevokeDialog = ref(false)
 const showRestoreDialog = ref(false)
@@ -964,6 +1575,28 @@ const showResetQuotaConfirm = ref(false)
 const submitting = ref(false)
 const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
+const grantingResetCards = ref(false)
+const grantResetCardsIdempotencyKey = ref('')
+const grantResetCardsIdempotencySignature = ref('')
+const resetCardGrants = ref<SubscriptionResetCardGrant[]>([])
+const resetCardAdminUsages = ref<SubscriptionResetCardUsage[]>([])
+const resetCardGrantsLoading = ref(false)
+const resetCardUsagesLoading = ref(false)
+const resetCardGrantsLoadingMore = ref(false)
+const resetCardUsagesLoadingMore = ref(false)
+const resetCardGrantsHasMore = ref(false)
+const resetCardUsagesHasMore = ref(false)
+const resetCardGrantsError = ref('')
+const resetCardUsagesError = ref('')
+const resetCardGrantsErrorAppend = ref(false)
+const resetCardUsagesErrorAppend = ref(false)
+let resetCardGrantsLoadSequence = 0
+let resetCardUsagesLoadSequence = 0
+
+const RESET_CARD_RECORDS_PAGE_SIZE = 100
+
+const resetCardErrorMessage = (error: any, fallback: string): string =>
+  error?.response?.data?.detail || error?.message || fallback
 const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
 const restoringSubscription = ref<UserSubscription | null>(null)
@@ -977,6 +1610,27 @@ const assignForm = reactive({
 const extendForm = reactive({
   days: 30
 })
+
+const grantResetCardsForm = reactive({
+  user_id: null as number | null,
+  group_id: null as number | null,
+  count: 1,
+  expires_at_local: '',
+  notes: ''
+})
+
+const resetCardUserSearchKeyword = ref('')
+const resetCardUserSearchResults = ref<SimpleUser[]>([])
+const resetCardUserSearchLoading = ref(false)
+const showResetCardUserDropdown = ref(false)
+const selectedResetCardUser = ref<SimpleUser | null>(null)
+let resetCardUserSearchTimeout: ReturnType<typeof setTimeout> | null = null
+let resetCardUserSearchSequence = 0
+const resetCardUserDropdownOpen = computed(
+  () =>
+    showResetCardUserDropdown.value &&
+    (resetCardUserSearchResults.value.length > 0 || !!resetCardUserSearchKeyword.value)
+)
 
 // Group options for filter (all groups)
 const groupOptions = computed(() => [
@@ -1158,6 +1812,327 @@ const clearUserSelection = () => {
   userSearchKeyword.value = ''
   userSearchResults.value = []
   assignForm.user_id = null
+}
+
+const appendUniqueResetCardRecords = <T extends { id: number }>(current: T[], incoming: T[]): T[] => {
+  const loadedIDs = new Set(current.map((item) => item.id))
+  return [...current, ...incoming.filter((item) => !loadedIDs.has(item.id))]
+}
+
+const loadResetCardGrants = async (append = false, force = false) => {
+  if (!force && (resetCardGrantsLoading.value || resetCardGrantsLoadingMore.value)) return
+
+  const loadSequence = ++resetCardGrantsLoadSequence
+  const offset = append ? resetCardGrants.value.length : 0
+  resetCardGrantsLoading.value = !append
+  resetCardGrantsLoadingMore.value = append
+  resetCardGrantsError.value = ''
+  resetCardGrantsErrorAppend.value = append
+  try {
+    const items = await adminAPI.subscriptionResetCards.listGrants({
+      limit: RESET_CARD_RECORDS_PAGE_SIZE,
+      offset
+    })
+    if (loadSequence === resetCardGrantsLoadSequence) {
+      resetCardGrants.value = append
+        ? appendUniqueResetCardRecords(resetCardGrants.value, items)
+        : items
+      resetCardGrantsHasMore.value = items.length === RESET_CARD_RECORDS_PAGE_SIZE
+    }
+  } catch (error: any) {
+    if (loadSequence === resetCardGrantsLoadSequence) {
+      resetCardGrantsError.value =
+        resetCardErrorMessage(error, t('admin.subscriptions.resetCards.loadGrantsFailed'))
+    }
+  } finally {
+    if (loadSequence === resetCardGrantsLoadSequence) {
+      resetCardGrantsLoading.value = false
+      resetCardGrantsLoadingMore.value = false
+    }
+  }
+}
+
+const loadResetCardAdminUsages = async (append = false, force = false) => {
+  if (!force && (resetCardUsagesLoading.value || resetCardUsagesLoadingMore.value)) return
+
+  const loadSequence = ++resetCardUsagesLoadSequence
+  const offset = append ? resetCardAdminUsages.value.length : 0
+  resetCardUsagesLoading.value = !append
+  resetCardUsagesLoadingMore.value = append
+  resetCardUsagesError.value = ''
+  resetCardUsagesErrorAppend.value = append
+  try {
+    const items = await adminAPI.subscriptionResetCards.listUsages({
+      limit: RESET_CARD_RECORDS_PAGE_SIZE,
+      offset
+    })
+    if (loadSequence === resetCardUsagesLoadSequence) {
+      resetCardAdminUsages.value = append
+        ? appendUniqueResetCardRecords(resetCardAdminUsages.value, items)
+        : items
+      resetCardUsagesHasMore.value = items.length === RESET_CARD_RECORDS_PAGE_SIZE
+    }
+  } catch (error: any) {
+    if (loadSequence === resetCardUsagesLoadSequence) {
+      resetCardUsagesError.value =
+        resetCardErrorMessage(error, t('admin.subscriptions.resetCards.loadUsagesFailed'))
+    }
+  } finally {
+    if (loadSequence === resetCardUsagesLoadSequence) {
+      resetCardUsagesLoading.value = false
+      resetCardUsagesLoadingMore.value = false
+    }
+  }
+}
+
+const openResetCardRecordsModal = () => {
+  resetCardRecordsActiveTab.value = 'grants'
+  showResetCardRecordsModal.value = true
+  void Promise.all([loadResetCardGrants(), loadResetCardAdminUsages()])
+}
+
+const activateResetCardRecordsTab = (tab: 'grants' | 'usages') => {
+	resetCardRecordsActiveTab.value = tab
+	void nextTick(() => {
+		document.getElementById(`reset-card-records-tab-${tab}`)?.focus()
+	})
+}
+
+const refreshActiveResetCardRecords = () => {
+  if (resetCardRecordsActiveTab.value === 'grants') {
+    void loadResetCardGrants(false)
+    return
+  }
+  void loadResetCardAdminUsages(false)
+}
+
+const resetCardGrantDisplayStatus = (grant: SubscriptionResetCardGrant): string => {
+  if (grant.remaining_count <= 0 || grant.status === 'exhausted') return 'exhausted'
+  if (grant.expires_at && new Date(grant.expires_at) <= new Date()) return 'expired'
+  return grant.status
+}
+
+const resetCardGrantStatusLabel = (grant: SubscriptionResetCardGrant): string => {
+  const status = resetCardGrantDisplayStatus(grant)
+  const knownStatuses = ['active', 'exhausted', 'expired', 'revoked']
+  return knownStatuses.includes(status)
+    ? t(`admin.subscriptions.resetCards.status.${status}`)
+    : status
+}
+
+const resetCardGrantStatusClass = (grant: SubscriptionResetCardGrant): string => {
+  switch (resetCardGrantDisplayStatus(grant)) {
+    case 'active':
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+    case 'exhausted':
+      return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'
+    case 'expired':
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+    default:
+      return 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+  }
+}
+
+const formatAdminResetCardPreviousUsage = (usage: SubscriptionResetCardUsage): string =>
+  t('admin.subscriptions.resetCards.previousUsage', {
+    daily: usage.previous_daily_usage_usd.toFixed(2),
+    weekly: usage.previous_weekly_usage_usd.toFixed(2),
+    monthly: usage.previous_monthly_usage_usd.toFixed(2)
+  })
+
+const createResetCardGrantIdempotencyKey = () => {
+  const requestID =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `subscription-reset-card-grant-${requestID}`
+}
+
+const openGrantResetCardsModal = (subscription?: UserSubscription) => {
+	resetCardUserSearchSequence++
+  grantResetCardsForm.user_id = subscription?.user_id ?? null
+  grantResetCardsForm.group_id = subscription?.group_id ?? null
+  grantResetCardsForm.count = 1
+  grantResetCardsForm.expires_at_local = ''
+  grantResetCardsForm.notes = ''
+  resetCardUserSearchResults.value = []
+  showResetCardUserDropdown.value = false
+
+  if (subscription?.user?.email) {
+    selectedResetCardUser.value = {
+      id: subscription.user_id,
+      email: subscription.user.email,
+      deleted: false
+    }
+    resetCardUserSearchKeyword.value = subscription.user.email
+  } else {
+    selectedResetCardUser.value = null
+    resetCardUserSearchKeyword.value = ''
+  }
+
+  grantResetCardsIdempotencyKey.value = ''
+  grantResetCardsIdempotencySignature.value = ''
+  showGrantResetCardsModal.value = true
+}
+
+const closeGrantResetCardsModal = () => {
+  if (grantingResetCards.value) return
+  showGrantResetCardsModal.value = false
+  selectedResetCardUser.value = null
+  resetCardUserSearchKeyword.value = ''
+  resetCardUserSearchResults.value = []
+  showResetCardUserDropdown.value = false
+  grantResetCardsForm.user_id = null
+  grantResetCardsForm.group_id = null
+  grantResetCardsForm.count = 1
+  grantResetCardsForm.expires_at_local = ''
+  grantResetCardsForm.notes = ''
+  grantResetCardsIdempotencyKey.value = ''
+  grantResetCardsIdempotencySignature.value = ''
+  resetCardUserSearchSequence++
+  resetCardUserSearchLoading.value = false
+}
+
+const debounceSearchResetCardUsers = () => {
+	const sequence = ++resetCardUserSearchSequence
+	const keyword = resetCardUserSearchKeyword.value.trim()
+	if (selectedResetCardUser.value && keyword !== selectedResetCardUser.value.email) {
+		selectedResetCardUser.value = null
+		grantResetCardsForm.user_id = null
+	}
+  if (resetCardUserSearchTimeout) {
+    clearTimeout(resetCardUserSearchTimeout)
+  }
+	if (!keyword) {
+		resetCardUserSearchResults.value = []
+		resetCardUserSearchLoading.value = false
+		return
+	}
+	resetCardUserSearchTimeout = setTimeout(() => {
+		void searchResetCardUsers(sequence)
+	}, 300)
+}
+
+const searchResetCardUsers = async (sequence: number) => {
+	if (sequence !== resetCardUserSearchSequence) return
+	const keyword = resetCardUserSearchKeyword.value.trim()
+
+  if (!keyword) {
+    resetCardUserSearchResults.value = []
+    return
+  }
+
+  resetCardUserSearchLoading.value = true
+  try {
+		const results = await adminAPI.usage.searchUsers(keyword)
+		if (sequence === resetCardUserSearchSequence) {
+			resetCardUserSearchResults.value = results
+		}
+  } catch (error) {
+		if (sequence === resetCardUserSearchSequence) {
+			console.error('Failed to search users for reset-card grant:', error)
+			resetCardUserSearchResults.value = []
+		}
+  } finally {
+		if (sequence === resetCardUserSearchSequence) {
+			resetCardUserSearchLoading.value = false
+		}
+  }
+}
+
+const selectResetCardUser = (user: SimpleUser) => {
+	resetCardUserSearchSequence++
+  selectedResetCardUser.value = user
+  resetCardUserSearchKeyword.value = user.email
+  showResetCardUserDropdown.value = false
+  grantResetCardsForm.user_id = user.id
+}
+
+const clearResetCardUserSelection = () => {
+	resetCardUserSearchSequence++
+  selectedResetCardUser.value = null
+  resetCardUserSearchKeyword.value = ''
+  resetCardUserSearchResults.value = []
+  showResetCardUserDropdown.value = false
+  grantResetCardsForm.user_id = null
+}
+
+const handleGrantResetCards = async () => {
+	if (
+		!grantResetCardsForm.user_id ||
+		!selectedResetCardUser.value ||
+		selectedResetCardUser.value.id !== grantResetCardsForm.user_id ||
+		resetCardUserSearchKeyword.value.trim() !== selectedResetCardUser.value.email
+	) {
+    appStore.showError(t('admin.subscriptions.pleaseSelectUser'))
+    return
+  }
+  if (!grantResetCardsForm.group_id) {
+    appStore.showError(t('admin.subscriptions.pleaseSelectGroup'))
+    return
+  }
+	if (
+		!subscriptionGroupOptions.value.some(
+			(option) => option.value === grantResetCardsForm.group_id
+		)
+	) {
+		appStore.showError(t('admin.subscriptions.pleaseSelectGroup'))
+		return
+	}
+  if (
+    !Number.isInteger(grantResetCardsForm.count) ||
+    grantResetCardsForm.count < 1 ||
+    grantResetCardsForm.count > 10000
+  ) {
+    appStore.showError(t('admin.subscriptions.resetCards.invalidCount'))
+    return
+  }
+
+  let expiresAt: string | undefined
+  if (grantResetCardsForm.expires_at_local) {
+    const parsedExpiresAt = new Date(grantResetCardsForm.expires_at_local)
+    if (Number.isNaN(parsedExpiresAt.getTime()) || parsedExpiresAt <= new Date()) {
+      appStore.showError(t('admin.subscriptions.resetCards.invalidExpiration'))
+      return
+    }
+    expiresAt = parsedExpiresAt.toISOString()
+  }
+
+  const payload = {
+    user_id: grantResetCardsForm.user_id,
+    group_id: grantResetCardsForm.group_id,
+    count: grantResetCardsForm.count,
+    expires_at: expiresAt,
+    notes: grantResetCardsForm.notes.trim() || undefined
+  }
+  const payloadSignature = JSON.stringify(payload)
+  if (
+    !grantResetCardsIdempotencyKey.value ||
+    grantResetCardsIdempotencySignature.value !== payloadSignature
+  ) {
+    grantResetCardsIdempotencyKey.value = createResetCardGrantIdempotencyKey()
+    grantResetCardsIdempotencySignature.value = payloadSignature
+  }
+
+  grantingResetCards.value = true
+  try {
+    await adminAPI.subscriptionResetCards.grant(
+      payload,
+      grantResetCardsIdempotencyKey.value
+    )
+    await loadResetCardGrants(false, true)
+    appStore.showSuccess(
+      t('admin.subscriptions.resetCards.grantSuccess', {
+        count: grantResetCardsForm.count,
+        user: selectedResetCardUser.value?.email || `#${grantResetCardsForm.user_id}`
+      })
+    )
+    grantingResetCards.value = false
+    closeGrantResetCardsModal()
+  } catch (error: any) {
+    appStore.showError(resetCardErrorMessage(error, t('admin.subscriptions.resetCards.grantFailed')))
+    console.error('Error granting subscription reset cards:', error)
+  } finally {
+    grantingResetCards.value = false
+  }
 }
 
 const handlePageChange = (page: number) => {
@@ -1418,6 +2393,7 @@ const formatResetTime = (windowStart: string | null, period: 'daily' | 'weekly' 
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement
   if (!target.closest('[data-assign-user-search]')) showUserDropdown.value = false
+  if (!target.closest('[data-reset-card-user-search]')) showResetCardUserDropdown.value = false
   if (!target.closest('[data-filter-user-search]')) showFilterUserDropdown.value = false
   if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
     showColumnDropdown.value = false
@@ -1439,6 +2415,9 @@ onUnmounted(() => {
   }
   if (userSearchTimeout) {
     clearTimeout(userSearchTimeout)
+  }
+  if (resetCardUserSearchTimeout) {
+    clearTimeout(resetCardUserSearchTimeout)
   }
 })
 </script>

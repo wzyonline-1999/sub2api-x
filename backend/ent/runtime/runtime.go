@@ -35,6 +35,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
 	"github.com/Wei-Shaw/sub2api/ent/setting"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardgrant"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardusage"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetpreference"
 	"github.com/Wei-Shaw/sub2api/ent/tlsfingerprintprofile"
 	"github.com/Wei-Shaw/sub2api/ent/usagecleanuptask"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
@@ -1766,6 +1769,90 @@ func init() {
 	subscriptionplan.DefaultUpdatedAt = subscriptionplanDescUpdatedAt.Default.(func() time.Time)
 	// subscriptionplan.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	subscriptionplan.UpdateDefaultUpdatedAt = subscriptionplanDescUpdatedAt.UpdateDefault.(func() time.Time)
+	subscriptionresetcardgrantMixin := schema.SubscriptionResetCardGrant{}.Mixin()
+	subscriptionresetcardgrantMixinFields0 := subscriptionresetcardgrantMixin[0].Fields()
+	_ = subscriptionresetcardgrantMixinFields0
+	subscriptionresetcardgrantFields := schema.SubscriptionResetCardGrant{}.Fields()
+	_ = subscriptionresetcardgrantFields
+	// subscriptionresetcardgrantDescCreatedAt is the schema descriptor for created_at field.
+	subscriptionresetcardgrantDescCreatedAt := subscriptionresetcardgrantMixinFields0[0].Descriptor()
+	// subscriptionresetcardgrant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	subscriptionresetcardgrant.DefaultCreatedAt = subscriptionresetcardgrantDescCreatedAt.Default.(func() time.Time)
+	// subscriptionresetcardgrantDescUpdatedAt is the schema descriptor for updated_at field.
+	subscriptionresetcardgrantDescUpdatedAt := subscriptionresetcardgrantMixinFields0[1].Descriptor()
+	// subscriptionresetcardgrant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	subscriptionresetcardgrant.DefaultUpdatedAt = subscriptionresetcardgrantDescUpdatedAt.Default.(func() time.Time)
+	// subscriptionresetcardgrant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	subscriptionresetcardgrant.UpdateDefaultUpdatedAt = subscriptionresetcardgrantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// subscriptionresetcardgrantDescIssuedCount is the schema descriptor for issued_count field.
+	subscriptionresetcardgrantDescIssuedCount := subscriptionresetcardgrantFields[2].Descriptor()
+	// subscriptionresetcardgrant.IssuedCountValidator is a validator for the "issued_count" field. It is called by the builders before save.
+	subscriptionresetcardgrant.IssuedCountValidator = subscriptionresetcardgrantDescIssuedCount.Validators[0].(func(int) error)
+	// subscriptionresetcardgrantDescRemainingCount is the schema descriptor for remaining_count field.
+	subscriptionresetcardgrantDescRemainingCount := subscriptionresetcardgrantFields[3].Descriptor()
+	// subscriptionresetcardgrant.RemainingCountValidator is a validator for the "remaining_count" field. It is called by the builders before save.
+	subscriptionresetcardgrant.RemainingCountValidator = subscriptionresetcardgrantDescRemainingCount.Validators[0].(func(int) error)
+	// subscriptionresetcardgrantDescStatus is the schema descriptor for status field.
+	subscriptionresetcardgrantDescStatus := subscriptionresetcardgrantFields[5].Descriptor()
+	// subscriptionresetcardgrant.DefaultStatus holds the default value on creation for the status field.
+	subscriptionresetcardgrant.DefaultStatus = subscriptionresetcardgrantDescStatus.Default.(string)
+	// subscriptionresetcardgrant.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	subscriptionresetcardgrant.StatusValidator = subscriptionresetcardgrantDescStatus.Validators[0].(func(string) error)
+	// subscriptionresetcardgrantDescSource is the schema descriptor for source field.
+	subscriptionresetcardgrantDescSource := subscriptionresetcardgrantFields[6].Descriptor()
+	// subscriptionresetcardgrant.DefaultSource holds the default value on creation for the source field.
+	subscriptionresetcardgrant.DefaultSource = subscriptionresetcardgrantDescSource.Default.(string)
+	// subscriptionresetcardgrant.SourceValidator is a validator for the "source" field. It is called by the builders before save.
+	subscriptionresetcardgrant.SourceValidator = subscriptionresetcardgrantDescSource.Validators[0].(func(string) error)
+	// subscriptionresetcardgrantDescRequestID is the schema descriptor for request_id field.
+	subscriptionresetcardgrantDescRequestID := subscriptionresetcardgrantFields[7].Descriptor()
+	// subscriptionresetcardgrant.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	subscriptionresetcardgrant.RequestIDValidator = subscriptionresetcardgrantDescRequestID.Validators[0].(func(string) error)
+	subscriptionresetcardusageFields := schema.SubscriptionResetCardUsage{}.Fields()
+	_ = subscriptionresetcardusageFields
+	// subscriptionresetcardusageDescMode is the schema descriptor for mode field.
+	subscriptionresetcardusageDescMode := subscriptionresetcardusageFields[4].Descriptor()
+	// subscriptionresetcardusage.ModeValidator is a validator for the "mode" field. It is called by the builders before save.
+	subscriptionresetcardusage.ModeValidator = subscriptionresetcardusageDescMode.Validators[0].(func(string) error)
+	// subscriptionresetcardusageDescRequestID is the schema descriptor for request_id field.
+	subscriptionresetcardusageDescRequestID := subscriptionresetcardusageFields[5].Descriptor()
+	// subscriptionresetcardusage.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	subscriptionresetcardusage.RequestIDValidator = subscriptionresetcardusageDescRequestID.Validators[0].(func(string) error)
+	// subscriptionresetcardusageDescPreviousDailyUsageUsd is the schema descriptor for previous_daily_usage_usd field.
+	subscriptionresetcardusageDescPreviousDailyUsageUsd := subscriptionresetcardusageFields[6].Descriptor()
+	// subscriptionresetcardusage.DefaultPreviousDailyUsageUsd holds the default value on creation for the previous_daily_usage_usd field.
+	subscriptionresetcardusage.DefaultPreviousDailyUsageUsd = subscriptionresetcardusageDescPreviousDailyUsageUsd.Default.(float64)
+	// subscriptionresetcardusageDescPreviousWeeklyUsageUsd is the schema descriptor for previous_weekly_usage_usd field.
+	subscriptionresetcardusageDescPreviousWeeklyUsageUsd := subscriptionresetcardusageFields[7].Descriptor()
+	// subscriptionresetcardusage.DefaultPreviousWeeklyUsageUsd holds the default value on creation for the previous_weekly_usage_usd field.
+	subscriptionresetcardusage.DefaultPreviousWeeklyUsageUsd = subscriptionresetcardusageDescPreviousWeeklyUsageUsd.Default.(float64)
+	// subscriptionresetcardusageDescPreviousMonthlyUsageUsd is the schema descriptor for previous_monthly_usage_usd field.
+	subscriptionresetcardusageDescPreviousMonthlyUsageUsd := subscriptionresetcardusageFields[8].Descriptor()
+	// subscriptionresetcardusage.DefaultPreviousMonthlyUsageUsd holds the default value on creation for the previous_monthly_usage_usd field.
+	subscriptionresetcardusage.DefaultPreviousMonthlyUsageUsd = subscriptionresetcardusageDescPreviousMonthlyUsageUsd.Default.(float64)
+	// subscriptionresetcardusageDescUsedAt is the schema descriptor for used_at field.
+	subscriptionresetcardusageDescUsedAt := subscriptionresetcardusageFields[12].Descriptor()
+	// subscriptionresetcardusage.DefaultUsedAt holds the default value on creation for the used_at field.
+	subscriptionresetcardusage.DefaultUsedAt = subscriptionresetcardusageDescUsedAt.Default.(func() time.Time)
+	subscriptionresetpreferenceMixin := schema.SubscriptionResetPreference{}.Mixin()
+	subscriptionresetpreferenceMixinFields0 := subscriptionresetpreferenceMixin[0].Fields()
+	_ = subscriptionresetpreferenceMixinFields0
+	subscriptionresetpreferenceFields := schema.SubscriptionResetPreference{}.Fields()
+	_ = subscriptionresetpreferenceFields
+	// subscriptionresetpreferenceDescCreatedAt is the schema descriptor for created_at field.
+	subscriptionresetpreferenceDescCreatedAt := subscriptionresetpreferenceMixinFields0[0].Descriptor()
+	// subscriptionresetpreference.DefaultCreatedAt holds the default value on creation for the created_at field.
+	subscriptionresetpreference.DefaultCreatedAt = subscriptionresetpreferenceDescCreatedAt.Default.(func() time.Time)
+	// subscriptionresetpreferenceDescUpdatedAt is the schema descriptor for updated_at field.
+	subscriptionresetpreferenceDescUpdatedAt := subscriptionresetpreferenceMixinFields0[1].Descriptor()
+	// subscriptionresetpreference.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	subscriptionresetpreference.DefaultUpdatedAt = subscriptionresetpreferenceDescUpdatedAt.Default.(func() time.Time)
+	// subscriptionresetpreference.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	subscriptionresetpreference.UpdateDefaultUpdatedAt = subscriptionresetpreferenceDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// subscriptionresetpreferenceDescAutoUseEnabled is the schema descriptor for auto_use_enabled field.
+	subscriptionresetpreferenceDescAutoUseEnabled := subscriptionresetpreferenceFields[2].Descriptor()
+	// subscriptionresetpreference.DefaultAutoUseEnabled holds the default value on creation for the auto_use_enabled field.
+	subscriptionresetpreference.DefaultAutoUseEnabled = subscriptionresetpreferenceDescAutoUseEnabled.Default.(bool)
 	tlsfingerprintprofileMixin := schema.TLSFingerprintProfile{}.Mixin()
 	tlsfingerprintprofileMixinFields0 := tlsfingerprintprofileMixin[0].Fields()
 	_ = tlsfingerprintprofileMixinFields0
@@ -2348,8 +2435,20 @@ func init() {
 	usersubscriptionDescMonthlyUsageUsd := usersubscriptionFields[10].Descriptor()
 	// usersubscription.DefaultMonthlyUsageUsd holds the default value on creation for the monthly_usage_usd field.
 	usersubscription.DefaultMonthlyUsageUsd = usersubscriptionDescMonthlyUsageUsd.Default.(float64)
+	// usersubscriptionDescDailyWindowVersion is the schema descriptor for daily_window_version field.
+	usersubscriptionDescDailyWindowVersion := usersubscriptionFields[11].Descriptor()
+	// usersubscription.DefaultDailyWindowVersion holds the default value on creation for the daily_window_version field.
+	usersubscription.DefaultDailyWindowVersion = usersubscriptionDescDailyWindowVersion.Default.(int64)
+	// usersubscriptionDescWeeklyWindowVersion is the schema descriptor for weekly_window_version field.
+	usersubscriptionDescWeeklyWindowVersion := usersubscriptionFields[12].Descriptor()
+	// usersubscription.DefaultWeeklyWindowVersion holds the default value on creation for the weekly_window_version field.
+	usersubscription.DefaultWeeklyWindowVersion = usersubscriptionDescWeeklyWindowVersion.Default.(int64)
+	// usersubscriptionDescMonthlyWindowVersion is the schema descriptor for monthly_window_version field.
+	usersubscriptionDescMonthlyWindowVersion := usersubscriptionFields[13].Descriptor()
+	// usersubscription.DefaultMonthlyWindowVersion holds the default value on creation for the monthly_window_version field.
+	usersubscription.DefaultMonthlyWindowVersion = usersubscriptionDescMonthlyWindowVersion.Default.(int64)
 	// usersubscriptionDescAssignedAt is the schema descriptor for assigned_at field.
-	usersubscriptionDescAssignedAt := usersubscriptionFields[12].Descriptor()
+	usersubscriptionDescAssignedAt := usersubscriptionFields[15].Descriptor()
 	// usersubscription.DefaultAssignedAt holds the default value on creation for the assigned_at field.
 	usersubscription.DefaultAssignedAt = usersubscriptionDescAssignedAt.Default.(func() time.Time)
 }

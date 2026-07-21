@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardusage"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
@@ -189,6 +190,48 @@ func (_c *UserSubscriptionCreate) SetNillableMonthlyUsageUsd(v *float64) *UserSu
 	return _c
 }
 
+// SetDailyWindowVersion sets the "daily_window_version" field.
+func (_c *UserSubscriptionCreate) SetDailyWindowVersion(v int64) *UserSubscriptionCreate {
+	_c.mutation.SetDailyWindowVersion(v)
+	return _c
+}
+
+// SetNillableDailyWindowVersion sets the "daily_window_version" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableDailyWindowVersion(v *int64) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetDailyWindowVersion(*v)
+	}
+	return _c
+}
+
+// SetWeeklyWindowVersion sets the "weekly_window_version" field.
+func (_c *UserSubscriptionCreate) SetWeeklyWindowVersion(v int64) *UserSubscriptionCreate {
+	_c.mutation.SetWeeklyWindowVersion(v)
+	return _c
+}
+
+// SetNillableWeeklyWindowVersion sets the "weekly_window_version" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableWeeklyWindowVersion(v *int64) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetWeeklyWindowVersion(*v)
+	}
+	return _c
+}
+
+// SetMonthlyWindowVersion sets the "monthly_window_version" field.
+func (_c *UserSubscriptionCreate) SetMonthlyWindowVersion(v int64) *UserSubscriptionCreate {
+	_c.mutation.SetMonthlyWindowVersion(v)
+	return _c
+}
+
+// SetNillableMonthlyWindowVersion sets the "monthly_window_version" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableMonthlyWindowVersion(v *int64) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetMonthlyWindowVersion(*v)
+	}
+	return _c
+}
+
 // SetAssignedBy sets the "assigned_by" field.
 func (_c *UserSubscriptionCreate) SetAssignedBy(v int64) *UserSubscriptionCreate {
 	_c.mutation.SetAssignedBy(v)
@@ -275,6 +318,21 @@ func (_c *UserSubscriptionCreate) AddUsageLogs(v ...*UsageLog) *UserSubscription
 	return _c.AddUsageLogIDs(ids...)
 }
 
+// AddSubscriptionResetCardUsageIDs adds the "subscription_reset_card_usages" edge to the SubscriptionResetCardUsage entity by IDs.
+func (_c *UserSubscriptionCreate) AddSubscriptionResetCardUsageIDs(ids ...int64) *UserSubscriptionCreate {
+	_c.mutation.AddSubscriptionResetCardUsageIDs(ids...)
+	return _c
+}
+
+// AddSubscriptionResetCardUsages adds the "subscription_reset_card_usages" edges to the SubscriptionResetCardUsage entity.
+func (_c *UserSubscriptionCreate) AddSubscriptionResetCardUsages(v ...*SubscriptionResetCardUsage) *UserSubscriptionCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSubscriptionResetCardUsageIDs(ids...)
+}
+
 // Mutation returns the UserSubscriptionMutation object of the builder.
 func (_c *UserSubscriptionCreate) Mutation() *UserSubscriptionMutation {
 	return _c.mutation
@@ -342,6 +400,18 @@ func (_c *UserSubscriptionCreate) defaults() error {
 		v := usersubscription.DefaultMonthlyUsageUsd
 		_c.mutation.SetMonthlyUsageUsd(v)
 	}
+	if _, ok := _c.mutation.DailyWindowVersion(); !ok {
+		v := usersubscription.DefaultDailyWindowVersion
+		_c.mutation.SetDailyWindowVersion(v)
+	}
+	if _, ok := _c.mutation.WeeklyWindowVersion(); !ok {
+		v := usersubscription.DefaultWeeklyWindowVersion
+		_c.mutation.SetWeeklyWindowVersion(v)
+	}
+	if _, ok := _c.mutation.MonthlyWindowVersion(); !ok {
+		v := usersubscription.DefaultMonthlyWindowVersion
+		_c.mutation.SetMonthlyWindowVersion(v)
+	}
 	if _, ok := _c.mutation.AssignedAt(); !ok {
 		if usersubscription.DefaultAssignedAt == nil {
 			return fmt.Errorf("ent: uninitialized usersubscription.DefaultAssignedAt (forgotten import ent/runtime?)")
@@ -388,6 +458,15 @@ func (_c *UserSubscriptionCreate) check() error {
 	}
 	if _, ok := _c.mutation.MonthlyUsageUsd(); !ok {
 		return &ValidationError{Name: "monthly_usage_usd", err: errors.New(`ent: missing required field "UserSubscription.monthly_usage_usd"`)}
+	}
+	if _, ok := _c.mutation.DailyWindowVersion(); !ok {
+		return &ValidationError{Name: "daily_window_version", err: errors.New(`ent: missing required field "UserSubscription.daily_window_version"`)}
+	}
+	if _, ok := _c.mutation.WeeklyWindowVersion(); !ok {
+		return &ValidationError{Name: "weekly_window_version", err: errors.New(`ent: missing required field "UserSubscription.weekly_window_version"`)}
+	}
+	if _, ok := _c.mutation.MonthlyWindowVersion(); !ok {
+		return &ValidationError{Name: "monthly_window_version", err: errors.New(`ent: missing required field "UserSubscription.monthly_window_version"`)}
 	}
 	if _, ok := _c.mutation.AssignedAt(); !ok {
 		return &ValidationError{Name: "assigned_at", err: errors.New(`ent: missing required field "UserSubscription.assigned_at"`)}
@@ -473,6 +552,18 @@ func (_c *UserSubscriptionCreate) createSpec() (*UserSubscription, *sqlgraph.Cre
 		_spec.SetField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
 		_node.MonthlyUsageUsd = value
 	}
+	if value, ok := _c.mutation.DailyWindowVersion(); ok {
+		_spec.SetField(usersubscription.FieldDailyWindowVersion, field.TypeInt64, value)
+		_node.DailyWindowVersion = value
+	}
+	if value, ok := _c.mutation.WeeklyWindowVersion(); ok {
+		_spec.SetField(usersubscription.FieldWeeklyWindowVersion, field.TypeInt64, value)
+		_node.WeeklyWindowVersion = value
+	}
+	if value, ok := _c.mutation.MonthlyWindowVersion(); ok {
+		_spec.SetField(usersubscription.FieldMonthlyWindowVersion, field.TypeInt64, value)
+		_node.MonthlyWindowVersion = value
+	}
 	if value, ok := _c.mutation.AssignedAt(); ok {
 		_spec.SetField(usersubscription.FieldAssignedAt, field.TypeTime, value)
 		_node.AssignedAt = value
@@ -541,6 +632,22 @@ func (_c *UserSubscriptionCreate) createSpec() (*UserSubscription, *sqlgraph.Cre
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SubscriptionResetCardUsagesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   usersubscription.SubscriptionResetCardUsagesTable,
+			Columns: []string{usersubscription.SubscriptionResetCardUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -795,6 +902,60 @@ func (u *UserSubscriptionUpsert) UpdateMonthlyUsageUsd() *UserSubscriptionUpsert
 // AddMonthlyUsageUsd adds v to the "monthly_usage_usd" field.
 func (u *UserSubscriptionUpsert) AddMonthlyUsageUsd(v float64) *UserSubscriptionUpsert {
 	u.Add(usersubscription.FieldMonthlyUsageUsd, v)
+	return u
+}
+
+// SetDailyWindowVersion sets the "daily_window_version" field.
+func (u *UserSubscriptionUpsert) SetDailyWindowVersion(v int64) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldDailyWindowVersion, v)
+	return u
+}
+
+// UpdateDailyWindowVersion sets the "daily_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateDailyWindowVersion() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldDailyWindowVersion)
+	return u
+}
+
+// AddDailyWindowVersion adds v to the "daily_window_version" field.
+func (u *UserSubscriptionUpsert) AddDailyWindowVersion(v int64) *UserSubscriptionUpsert {
+	u.Add(usersubscription.FieldDailyWindowVersion, v)
+	return u
+}
+
+// SetWeeklyWindowVersion sets the "weekly_window_version" field.
+func (u *UserSubscriptionUpsert) SetWeeklyWindowVersion(v int64) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldWeeklyWindowVersion, v)
+	return u
+}
+
+// UpdateWeeklyWindowVersion sets the "weekly_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateWeeklyWindowVersion() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldWeeklyWindowVersion)
+	return u
+}
+
+// AddWeeklyWindowVersion adds v to the "weekly_window_version" field.
+func (u *UserSubscriptionUpsert) AddWeeklyWindowVersion(v int64) *UserSubscriptionUpsert {
+	u.Add(usersubscription.FieldWeeklyWindowVersion, v)
+	return u
+}
+
+// SetMonthlyWindowVersion sets the "monthly_window_version" field.
+func (u *UserSubscriptionUpsert) SetMonthlyWindowVersion(v int64) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldMonthlyWindowVersion, v)
+	return u
+}
+
+// UpdateMonthlyWindowVersion sets the "monthly_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateMonthlyWindowVersion() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldMonthlyWindowVersion)
+	return u
+}
+
+// AddMonthlyWindowVersion adds v to the "monthly_window_version" field.
+func (u *UserSubscriptionUpsert) AddMonthlyWindowVersion(v int64) *UserSubscriptionUpsert {
+	u.Add(usersubscription.FieldMonthlyWindowVersion, v)
 	return u
 }
 
@@ -1119,6 +1280,69 @@ func (u *UserSubscriptionUpsertOne) AddMonthlyUsageUsd(v float64) *UserSubscript
 func (u *UserSubscriptionUpsertOne) UpdateMonthlyUsageUsd() *UserSubscriptionUpsertOne {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.UpdateMonthlyUsageUsd()
+	})
+}
+
+// SetDailyWindowVersion sets the "daily_window_version" field.
+func (u *UserSubscriptionUpsertOne) SetDailyWindowVersion(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetDailyWindowVersion(v)
+	})
+}
+
+// AddDailyWindowVersion adds v to the "daily_window_version" field.
+func (u *UserSubscriptionUpsertOne) AddDailyWindowVersion(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddDailyWindowVersion(v)
+	})
+}
+
+// UpdateDailyWindowVersion sets the "daily_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateDailyWindowVersion() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateDailyWindowVersion()
+	})
+}
+
+// SetWeeklyWindowVersion sets the "weekly_window_version" field.
+func (u *UserSubscriptionUpsertOne) SetWeeklyWindowVersion(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetWeeklyWindowVersion(v)
+	})
+}
+
+// AddWeeklyWindowVersion adds v to the "weekly_window_version" field.
+func (u *UserSubscriptionUpsertOne) AddWeeklyWindowVersion(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddWeeklyWindowVersion(v)
+	})
+}
+
+// UpdateWeeklyWindowVersion sets the "weekly_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateWeeklyWindowVersion() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateWeeklyWindowVersion()
+	})
+}
+
+// SetMonthlyWindowVersion sets the "monthly_window_version" field.
+func (u *UserSubscriptionUpsertOne) SetMonthlyWindowVersion(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetMonthlyWindowVersion(v)
+	})
+}
+
+// AddMonthlyWindowVersion adds v to the "monthly_window_version" field.
+func (u *UserSubscriptionUpsertOne) AddMonthlyWindowVersion(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddMonthlyWindowVersion(v)
+	})
+}
+
+// UpdateMonthlyWindowVersion sets the "monthly_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateMonthlyWindowVersion() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateMonthlyWindowVersion()
 	})
 }
 
@@ -1617,6 +1841,69 @@ func (u *UserSubscriptionUpsertBulk) AddMonthlyUsageUsd(v float64) *UserSubscrip
 func (u *UserSubscriptionUpsertBulk) UpdateMonthlyUsageUsd() *UserSubscriptionUpsertBulk {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.UpdateMonthlyUsageUsd()
+	})
+}
+
+// SetDailyWindowVersion sets the "daily_window_version" field.
+func (u *UserSubscriptionUpsertBulk) SetDailyWindowVersion(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetDailyWindowVersion(v)
+	})
+}
+
+// AddDailyWindowVersion adds v to the "daily_window_version" field.
+func (u *UserSubscriptionUpsertBulk) AddDailyWindowVersion(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddDailyWindowVersion(v)
+	})
+}
+
+// UpdateDailyWindowVersion sets the "daily_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateDailyWindowVersion() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateDailyWindowVersion()
+	})
+}
+
+// SetWeeklyWindowVersion sets the "weekly_window_version" field.
+func (u *UserSubscriptionUpsertBulk) SetWeeklyWindowVersion(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetWeeklyWindowVersion(v)
+	})
+}
+
+// AddWeeklyWindowVersion adds v to the "weekly_window_version" field.
+func (u *UserSubscriptionUpsertBulk) AddWeeklyWindowVersion(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddWeeklyWindowVersion(v)
+	})
+}
+
+// UpdateWeeklyWindowVersion sets the "weekly_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateWeeklyWindowVersion() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateWeeklyWindowVersion()
+	})
+}
+
+// SetMonthlyWindowVersion sets the "monthly_window_version" field.
+func (u *UserSubscriptionUpsertBulk) SetMonthlyWindowVersion(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetMonthlyWindowVersion(v)
+	})
+}
+
+// AddMonthlyWindowVersion adds v to the "monthly_window_version" field.
+func (u *UserSubscriptionUpsertBulk) AddMonthlyWindowVersion(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddMonthlyWindowVersion(v)
+	})
+}
+
+// UpdateMonthlyWindowVersion sets the "monthly_window_version" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateMonthlyWindowVersion() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateMonthlyWindowVersion()
 	})
 }
 

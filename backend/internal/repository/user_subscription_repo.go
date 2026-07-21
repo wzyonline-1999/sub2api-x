@@ -38,6 +38,9 @@ func (r *userSubscriptionRepository) Create(ctx context.Context, sub *service.Us
 		SetDailyUsageUsd(sub.DailyUsageUSD).
 		SetWeeklyUsageUsd(sub.WeeklyUsageUSD).
 		SetMonthlyUsageUsd(sub.MonthlyUsageUSD).
+		SetDailyWindowVersion(sub.DailyWindowVersion).
+		SetWeeklyWindowVersion(sub.WeeklyWindowVersion).
+		SetMonthlyWindowVersion(sub.MonthlyWindowVersion).
 		SetNillableAssignedBy(sub.AssignedBy)
 
 	if sub.StartsAt.IsZero() {
@@ -137,6 +140,9 @@ func (r *userSubscriptionRepository) Update(ctx context.Context, sub *service.Us
 		SetDailyUsageUsd(sub.DailyUsageUSD).
 		SetWeeklyUsageUsd(sub.WeeklyUsageUSD).
 		SetMonthlyUsageUsd(sub.MonthlyUsageUSD).
+		SetDailyWindowVersion(sub.DailyWindowVersion).
+		SetWeeklyWindowVersion(sub.WeeklyWindowVersion).
+		SetMonthlyWindowVersion(sub.MonthlyWindowVersion).
 		SetNillableAssignedBy(sub.AssignedBy).
 		SetAssignedAt(sub.AssignedAt).
 		SetNotes(sub.Notes)
@@ -340,6 +346,30 @@ func (r *userSubscriptionRepository) ExtendExpiry(ctx context.Context, subscript
 	return translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 }
 
+// RenewExpiredTerm atomically starts a fresh term and advances all quota-window
+// generations. Using database-side increments prevents a stale service object
+// from overwriting a concurrent reset's newer generations.
+func (r *userSubscriptionRepository) RenewExpiredTerm(ctx context.Context, subscriptionID int64, startsAt, expiresAt time.Time, notes string) error {
+	client := clientFromContext(ctx, r.client)
+	windowStart := time.Date(startsAt.Year(), startsAt.Month(), startsAt.Day(), 0, 0, 0, 0, startsAt.Location())
+	_, err := client.UserSubscription.UpdateOneID(subscriptionID).
+		SetStartsAt(startsAt).
+		SetExpiresAt(expiresAt).
+		SetStatus(service.SubscriptionStatusActive).
+		SetDailyWindowStart(windowStart).
+		SetWeeklyWindowStart(windowStart).
+		SetMonthlyWindowStart(windowStart).
+		SetDailyUsageUsd(0).
+		SetWeeklyUsageUsd(0).
+		SetMonthlyUsageUsd(0).
+		AddDailyWindowVersion(1).
+		AddWeeklyWindowVersion(1).
+		AddMonthlyWindowVersion(1).
+		SetNotes(notes).
+		Save(ctx)
+	return translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
+}
+
 func (r *userSubscriptionRepository) UpdateStatus(ctx context.Context, subscriptionID int64, status string) error {
 	client := clientFromContext(ctx, r.client)
 	_, err := client.UserSubscription.UpdateOneID(subscriptionID).
@@ -370,13 +400,13 @@ func (r *userSubscriptionRepository) ResetUsageWindows(ctx context.Context, id i
 	client := clientFromContext(ctx, r.client)
 	update := client.UserSubscription.UpdateOneID(id)
 	if resetDaily {
-		update.SetDailyUsageUsd(0).SetDailyWindowStart(newWindowStart)
+		update.SetDailyUsageUsd(0).SetDailyWindowStart(newWindowStart).AddDailyWindowVersion(1)
 	}
 	if resetWeekly {
-		update.SetWeeklyUsageUsd(0).SetWeeklyWindowStart(newWindowStart)
+		update.SetWeeklyUsageUsd(0).SetWeeklyWindowStart(newWindowStart).AddWeeklyWindowVersion(1)
 	}
 	if resetMonthly {
-		update.SetMonthlyUsageUsd(0).SetMonthlyWindowStart(newWindowStart)
+		update.SetMonthlyUsageUsd(0).SetMonthlyWindowStart(newWindowStart).AddMonthlyWindowVersion(1)
 	}
 	_, err := update.Save(ctx)
 	return translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
@@ -393,6 +423,7 @@ func (r *userSubscriptionRepository) ResetDailyUsage(ctx context.Context, id int
 	n, err := query.
 		SetDailyUsageUsd(0).
 		SetDailyWindowStart(newWindowStart).
+		AddDailyWindowVersion(1).
 		Save(ctx)
 	return r.translateConditionalWindowReset(ctx, client, id, n, err)
 }
@@ -408,6 +439,7 @@ func (r *userSubscriptionRepository) ResetWeeklyUsage(ctx context.Context, id in
 	n, err := query.
 		SetWeeklyUsageUsd(0).
 		SetWeeklyWindowStart(newWindowStart).
+		AddWeeklyWindowVersion(1).
 		Save(ctx)
 	return r.translateConditionalWindowReset(ctx, client, id, n, err)
 }
@@ -423,6 +455,7 @@ func (r *userSubscriptionRepository) ResetMonthlyUsage(ctx context.Context, id i
 	n, err := query.
 		SetMonthlyUsageUsd(0).
 		SetMonthlyWindowStart(newWindowStart).
+		AddMonthlyWindowVersion(1).
 		Save(ctx)
 	return r.translateConditionalWindowReset(ctx, client, id, n, err)
 }
@@ -482,6 +515,37 @@ func (r *userSubscriptionRepository) IncrementUsage(ctx context.Context, id int6
 
 	// affected == 0：订阅不存在或已删除
 	return service.ErrSubscriptionNotFound
+}
+
+// IncrementUsageForWindows ignores an in-flight request for any quota window
+// that was reset after the request was admitted.
+func (r *userSubscriptionRepository) IncrementUsageForWindows(ctx context.Context, id int64, costUSD float64, dailyVersion, weeklyVersion, monthlyVersion int64) error {
+	const updateSQL = `
+		UPDATE user_subscriptions us
+		SET
+			daily_usage_usd = us.daily_usage_usd + CASE WHEN us.daily_window_version = $3 THEN $1 ELSE 0 END,
+			weekly_usage_usd = us.weekly_usage_usd + CASE WHEN us.weekly_window_version = $4 THEN $1 ELSE 0 END,
+			monthly_usage_usd = us.monthly_usage_usd + CASE WHEN us.monthly_window_version = $5 THEN $1 ELSE 0 END,
+			updated_at = NOW()
+		FROM groups g
+		WHERE us.id = $2
+			AND us.deleted_at IS NULL
+			AND us.group_id = g.id
+			AND g.deleted_at IS NULL
+	`
+	client := clientFromContext(ctx, r.client)
+	result, err := client.ExecContext(ctx, updateSQL, costUSD, id, dailyVersion, weeklyVersion, monthlyVersion)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrSubscriptionNotFound
+	}
+	return nil
 }
 
 func (r *userSubscriptionRepository) BatchUpdateExpiredStatus(ctx context.Context) (int64, error) {
@@ -623,24 +687,27 @@ func userSubscriptionEntityToServiceWithStatusMapping(m *dbent.UserSubscription,
 		status = service.SubscriptionStatusRevoked
 	}
 	out := &service.UserSubscription{
-		ID:                 m.ID,
-		UserID:             m.UserID,
-		GroupID:            m.GroupID,
-		StartsAt:           m.StartsAt,
-		ExpiresAt:          m.ExpiresAt,
-		Status:             status,
-		DailyWindowStart:   m.DailyWindowStart,
-		WeeklyWindowStart:  m.WeeklyWindowStart,
-		MonthlyWindowStart: m.MonthlyWindowStart,
-		DailyUsageUSD:      m.DailyUsageUsd,
-		WeeklyUsageUSD:     m.WeeklyUsageUsd,
-		MonthlyUsageUSD:    m.MonthlyUsageUsd,
-		AssignedBy:         m.AssignedBy,
-		AssignedAt:         m.AssignedAt,
-		Notes:              derefString(m.Notes),
-		CreatedAt:          m.CreatedAt,
-		UpdatedAt:          m.UpdatedAt,
-		DeletedAt:          m.DeletedAt,
+		ID:                   m.ID,
+		UserID:               m.UserID,
+		GroupID:              m.GroupID,
+		StartsAt:             m.StartsAt,
+		ExpiresAt:            m.ExpiresAt,
+		Status:               status,
+		DailyWindowStart:     m.DailyWindowStart,
+		WeeklyWindowStart:    m.WeeklyWindowStart,
+		MonthlyWindowStart:   m.MonthlyWindowStart,
+		DailyUsageUSD:        m.DailyUsageUsd,
+		WeeklyUsageUSD:       m.WeeklyUsageUsd,
+		MonthlyUsageUSD:      m.MonthlyUsageUsd,
+		DailyWindowVersion:   m.DailyWindowVersion,
+		WeeklyWindowVersion:  m.WeeklyWindowVersion,
+		MonthlyWindowVersion: m.MonthlyWindowVersion,
+		AssignedBy:           m.AssignedBy,
+		AssignedAt:           m.AssignedAt,
+		Notes:                derefString(m.Notes),
+		CreatedAt:            m.CreatedAt,
+		UpdatedAt:            m.UpdatedAt,
+		DeletedAt:            m.DeletedAt,
 	}
 	if m.Edges.User != nil {
 		out.User = userEntityToService(m.Edges.User)
@@ -671,4 +738,7 @@ func applyUserSubscriptionEntityToService(dst *service.UserSubscription, src *db
 	dst.ID = src.ID
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
+	dst.DailyWindowVersion = src.DailyWindowVersion
+	dst.WeeklyWindowVersion = src.WeeklyWindowVersion
+	dst.MonthlyWindowVersion = src.MonthlyWindowVersion
 }

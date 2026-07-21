@@ -230,6 +230,10 @@ func (Group) Edges() []ent.Edge {
 		edge.To("redeem_codes", RedeemCode.Type),
 		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("usage_logs", UsageLog.Type),
+		edge.To("subscription_reset_card_grants", SubscriptionResetCardGrant.Type),
+		edge.To("subscription_reset_card_usages", SubscriptionResetCardUsage.Type),
+		edge.To("subscription_reset_preferences", SubscriptionResetPreference.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.From("accounts", Account.Type).
 			Ref("groups").
 			Through("account_groups", AccountGroup.Type),

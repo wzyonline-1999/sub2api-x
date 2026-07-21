@@ -685,6 +685,63 @@ export default {
         "Are you sure you want to revoke the subscription for '{user}'? You can restore it later from the revoked list.",
       restoreConfirm:
         "Restore the subscription for '{user}'? If the original subscription has expired, it will be restored as expired.",
+      resetCards: {
+        grantAction: 'Grant Reset Cards',
+        grantShort: 'Grant Card',
+        grantTitle: 'Grant Subscription Quota Reset Cards',
+        recordsAction: 'Reset Card Records',
+        recordsTitle: 'Quota Reset Card Records',
+        grantHint:
+          'Reset cards only apply to the selected subscription group. They reset its daily, weekly, and monthly usage without extending the subscription expiration date.',
+        confirmGrant: 'Grant Cards',
+        granting: 'Granting...',
+        grantSuccess: 'Granted {count} quota reset card(s) to {user}',
+        grantFailed: 'Failed to grant quota reset cards',
+        loadGrantsFailed: 'Failed to load reset-card grants',
+        loadUsagesFailed: 'Failed to load reset-card usage records',
+        loadMore: 'Load more',
+        loadingMore: 'Loading...',
+        emptyGrants: 'No reset cards have been granted yet',
+        emptyUsages: 'No reset cards have been used yet',
+        invalidCount: 'The grant count must be an integer from 1 to 10000',
+        invalidExpiration: 'The expiration time must be in the future',
+        remainingLabel: 'Remaining / granted',
+        neverExpires: 'Never expires',
+        previousUsage: 'Daily ${daily} · weekly ${weekly} · monthly ${monthly}',
+        tabs: {
+          grants: 'Grant Records',
+          usages: 'Usage Records'
+        },
+        columns: {
+          user: 'User',
+          group: 'Plan Group',
+          inventory: 'Remaining / Granted',
+          expiresAt: 'Expiration',
+          status: 'Status',
+          grantedAt: 'Granted At',
+          mode: 'Method',
+          subscription: 'Subscription',
+          previousUsage: 'Usage Before Reset',
+          usedAt: 'Used At'
+        },
+        mode: {
+          manual: 'Manual',
+          auto: 'Automatic'
+        },
+        status: {
+          active: 'Available',
+          exhausted: 'Exhausted',
+          expired: 'Expired',
+          revoked: 'Revoked'
+        },
+        form: {
+          count: 'Number of cards',
+          expiresAt: 'Expiration',
+          expiresAtHint: 'Leave blank for no expiration',
+          notes: 'Notes',
+          notesPlaceholder: 'Optional: reason for this grant or campaign name'
+        }
+      },
       guide: {
         title: 'Subscription Management Guide',
         subtitle: 'Subscription mode lets you assign time-based usage quotas to users, with daily/weekly/monthly limits. Follow these steps to get started.',
