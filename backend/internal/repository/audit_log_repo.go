@@ -9,18 +9,38 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/lib/pq"
 )
 
 // auditLogRepository 审计日志仓储（raw SQL，append-only）。
 // 刻意不实现单条删除：审计日志只允许追加、按保留期批量清理、以及带 2FA 的全量清空。
 type auditLogRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	writeDB *sql.DB
 }
 
 // NewAuditLogRepository 创建审计日志仓储。
 func NewAuditLogRepository(db *sql.DB) service.AuditLogRepository {
-	return &auditLogRepository{db: db}
+	return &auditLogRepository{db: db, writeDB: db}
+}
+
+// ProvideAuditLogRepository keeps list/retention operations on the primary
+// pool and isolates append-only audit writes from authentication and billing.
+func ProvideAuditLogRepository(db *sql.DB, logDB *LogDB) service.AuditLogRepository {
+	writeDB := db
+	if logDB != nil && logDB.SQLDB() != nil {
+		writeDB = logDB.SQLDB()
+	}
+	return &auditLogRepository{db: db, writeDB: writeDB}
+}
+
+func (r *auditLogRepository) logWriteDB() *sql.DB {
+	if r == nil {
+		return nil
+	}
+	if r.writeDB != nil {
+		return r.writeDB
+	}
+	return r.db
 }
 
 const auditLogInsertColumns = `created_at, actor_user_id, actor_email, actor_role, auth_method,
@@ -59,57 +79,36 @@ func auditLogInsertValues(log *service.AuditLog) []any {
 }
 
 func (r *auditLogRepository) BatchInsert(ctx context.Context, logs []*service.AuditLog) (int64, error) {
-	if r == nil || r.db == nil {
+	writeDB := r.logWriteDB()
+	if writeDB == nil {
 		return 0, fmt.Errorf("nil audit log repository")
 	}
 	if len(logs) == 0 {
 		return 0, nil
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	stmt, err := tx.PrepareContext(ctx, pq.CopyIn(
-		"audit_logs",
-		"created_at", "actor_user_id", "actor_email", "actor_role", "auth_method",
-		"credential_masked", "action", "method", "path", "request_id", "client_ip", "user_agent",
-		"request_body", "status_code", "latency_ms", "extra",
-	))
-	if err != nil {
-		_ = tx.Rollback()
-		return 0, err
-	}
-
-	var inserted int64
+	rows := make([][]any, 0, len(logs))
 	for _, log := range logs {
 		if log == nil {
 			continue
 		}
-		if _, err := stmt.ExecContext(ctx, auditLogInsertValues(log)...); err != nil {
-			_ = stmt.Close()
-			_ = tx.Rollback()
-			return inserted, err
-		}
-		inserted++
+		rows = append(rows, auditLogInsertValues(log))
+	}
+	if len(rows) == 0 {
+		return 0, nil
 	}
 
-	if _, err := stmt.ExecContext(ctx); err != nil {
-		_ = stmt.Close()
-		_ = tx.Rollback()
-		return inserted, err
+	query, args := buildMultiRowInsertQuery("audit_logs", auditLogInsertColumns, rows)
+	if _, err := writeDB.ExecContext(ctx, query, args...); err != nil {
+		return 0, err
 	}
-	if err := stmt.Close(); err != nil {
-		_ = tx.Rollback()
-		return inserted, err
-	}
-	if err := tx.Commit(); err != nil {
-		return inserted, err
-	}
-	return inserted, nil
+	return int64(len(rows)), nil
 }
 
 func (r *auditLogRepository) Insert(ctx context.Context, log *service.AuditLog) error {
+	// Insert is reserved for the synchronous audit-log clear trace. Keep this
+	// critical management write on the primary pool so it is not queued behind
+	// best-effort asynchronous log batches.
 	if r == nil || r.db == nil {
 		return fmt.Errorf("nil audit log repository")
 	}

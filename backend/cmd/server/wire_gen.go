@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
@@ -22,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -96,7 +98,11 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageLogRepository := repository.NewUsageLogRepository(client, db)
 	usageService := service.NewUsageService(usageLogRepository, userRepository, client, apiKeyAuthCacheInvalidator)
-	opsRepository := repository.NewOpsRepository(db)
+	logDB, err := repository.ProvideLogDB(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	opsRepository := repository.ProvideOpsRepository(db, logDB)
 	usageBillingRepository := repository.NewUsageBillingRepository(client, db)
 	gatewayCache := repository.NewGatewayCache(redisClient)
 	schedulerOutboxRepository := repository.NewSchedulerOutboxRepository(db)
@@ -262,7 +268,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	promptAdminHandler := securityaudit.NewPromptAdminHandler(promptService)
 	paymentHandler := admin.NewPaymentHandler(paymentService, paymentConfigService)
 	affiliateHandler := admin.NewAffiliateHandler(affiliateService, adminService)
-	auditLogRepository := repository.NewAuditLogRepository(db)
+	auditLogRepository := repository.ProvideAuditLogRepository(db, logDB)
 	auditLogService := service.ProvideAuditLogService(auditLogRepository, settingService)
 	auditLogHandler := admin.NewAuditLogHandler(auditLogService, totpService)
 	upstreamBillingProbeService := service.ProvideUpstreamBillingProbeService(accountRepository, accountTestService, settingService, leaderLockCache, db)
@@ -316,7 +322,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, auditLogService, promptService)
+	v := provideCleanup(client, logDB, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, auditLogService, promptService)
 	application := &Application{
 		Server:      httpServer,
 		PromptAudit: promptService,
@@ -346,6 +352,7 @@ func provideServiceBuildInfo(buildInfo handler.BuildInfo) service.BuildInfo {
 
 func provideCleanup(
 	entClient *ent.Client,
+	logDB *repository.LogDB,
 	rdb *redis.Client,
 	opsMetricsCollector *service.OpsMetricsCollector,
 	opsAggregation *service.OpsAggregationService,
@@ -394,8 +401,16 @@ func provideCleanup(
 			name string
 			fn   func() error
 		}
+		var logWriterDrainFailures atomic.Int32
 
 		parallelSteps := []cleanupStep{
+			{"OpsErrorLogWorkers", func() error {
+				if !handler.StopOpsErrorLogWorkers() {
+					logWriterDrainFailures.Add(1)
+					return errors.New("ops error log workers did not drain before timeout")
+				}
+				return nil
+			}},
 			{"OpsIngressRejectAggregator", func() error {
 				if opsIngressReject != nil {
 					opsIngressReject.Stop()
@@ -439,14 +454,16 @@ func provideCleanup(
 				return nil
 			}},
 			{"OpsSystemLogSink", func() error {
-				if opsSystemLogSink != nil {
-					opsSystemLogSink.Stop()
+				if opsSystemLogSink != nil && !opsSystemLogSink.Stop() {
+					logWriterDrainFailures.Add(1)
+					return errors.New("ops system log sink did not drain before timeout")
 				}
 				return nil
 			}},
 			{"AuditLogService", func() error {
-				if auditLog != nil {
-					auditLog.Stop()
+				if auditLog != nil && !auditLog.Stop() {
+					logWriterDrainFailures.Add(1)
+					return errors.New("audit log service did not drain before timeout")
 				}
 				return nil
 			}},
@@ -605,6 +622,16 @@ func provideCleanup(
 		}
 
 		infraSteps := []cleanupStep{
+			{"LogDB", func() error {
+				if logDB == nil {
+					return nil
+				}
+				if failures := logWriterDrainFailures.Load(); failures > 0 {
+					log.Printf("[Cleanup] LogDB close skipped because %d log writer(s) are still draining", failures)
+					return nil
+				}
+				return logDB.Close()
+			}},
 			{"Redis", func() error {
 				if rdb == nil {
 					return nil

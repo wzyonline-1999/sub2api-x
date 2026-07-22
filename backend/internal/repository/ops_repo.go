@@ -13,7 +13,8 @@ import (
 )
 
 type opsRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	writeDB *sql.DB
 }
 
 const insertOpsErrorLogSQL = `
@@ -61,11 +62,35 @@ INSERT INTO ops_error_logs (
 )`
 
 func NewOpsRepository(db *sql.DB) service.OpsRepository {
-	return &opsRepository{db: db}
+	return &opsRepository{db: db, writeDB: db}
+}
+
+// ProvideOpsRepository keeps administrative reads and cleanup work on the
+// primary pool while routing best-effort log writes through the isolated log
+// pool. NewOpsRepository remains available for focused tests and integrations.
+func ProvideOpsRepository(db *sql.DB, logDB *LogDB) service.OpsRepository {
+	writeDB := db
+	if logDB != nil && logDB.SQLDB() != nil {
+		writeDB = logDB.SQLDB()
+	}
+	return &opsRepository{db: db, writeDB: writeDB}
+}
+
+func (r *opsRepository) logWriteDB() *sql.DB {
+	if r == nil {
+		return nil
+	}
+	if r.writeDB != nil {
+		return r.writeDB
+	}
+	// Preserve compatibility with repository tests that construct the concrete
+	// type directly with only db populated.
+	return r.db
 }
 
 func (r *opsRepository) InsertErrorLog(ctx context.Context, input *service.OpsInsertErrorLogInput) (int64, error) {
-	if r == nil || r.db == nil {
+	writeDB := r.logWriteDB()
+	if writeDB == nil {
 		return 0, fmt.Errorf("nil ops repository")
 	}
 	if input == nil {
@@ -73,7 +98,7 @@ func (r *opsRepository) InsertErrorLog(ctx context.Context, input *service.OpsIn
 	}
 
 	var id int64
-	err := r.db.QueryRowContext(
+	err := writeDB.QueryRowContext(
 		ctx,
 		insertOpsErrorLogSQL+" RETURNING id",
 		opsInsertErrorLogArgs(input)...,
@@ -85,14 +110,15 @@ func (r *opsRepository) InsertErrorLog(ctx context.Context, input *service.OpsIn
 }
 
 func (r *opsRepository) BatchInsertErrorLogs(ctx context.Context, inputs []*service.OpsInsertErrorLogInput) (int64, error) {
-	if r == nil || r.db == nil {
+	writeDB := r.logWriteDB()
+	if writeDB == nil {
 		return 0, fmt.Errorf("nil ops repository")
 	}
 	if len(inputs) == 0 {
 		return 0, nil
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := writeDB.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -634,96 +660,73 @@ WHERE id = $1`
 }
 
 func (r *opsRepository) BatchInsertSystemLogs(ctx context.Context, inputs []*service.OpsInsertSystemLogInput) (int64, error) {
-	if r == nil || r.db == nil {
+	writeDB := r.logWriteDB()
+	if writeDB == nil {
 		return 0, fmt.Errorf("nil ops repository")
 	}
 	if len(inputs) == 0 {
 		return 0, nil
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	stmt, err := tx.PrepareContext(ctx, pq.CopyIn(
-		"ops_system_logs",
-		"created_at",
-		"host",
-		"level",
-		"component",
-		"message",
-		"request_id",
-		"client_request_id",
-		"user_id",
-		"api_key_id",
-		"account_id",
-		"platform",
-		"model",
-		"extra",
-	))
-	if err != nil {
-		_ = tx.Rollback()
-		return 0, err
-	}
-
-	var inserted int64
+	rows := make([][]any, 0, len(inputs))
 	for _, input := range inputs {
-		if input == nil {
-			continue
+		values, ok := opsSystemLogInsertValues(input)
+		if ok {
+			rows = append(rows, values)
 		}
-		createdAt := input.CreatedAt
-		if createdAt.IsZero() {
-			createdAt = time.Now().UTC()
-		}
-		component := strings.TrimSpace(input.Component)
-		level := strings.ToLower(strings.TrimSpace(input.Level))
-		message := strings.TrimSpace(input.Message)
-		if level == "" || message == "" {
-			continue
-		}
-		if component == "" {
-			component = "app"
-		}
-		extra := strings.TrimSpace(input.ExtraJSON)
-		if extra == "" {
-			extra = "{}"
-		}
-		if _, err := stmt.ExecContext(
-			ctx,
-			createdAt.UTC(),
-			opsNullString(input.Host),
-			level,
-			component,
-			message,
-			opsNullString(input.RequestID),
-			opsNullString(input.ClientRequestID),
-			opsNullInt64(input.UserID),
-			opsNullInt64(input.APIKeyID),
-			opsNullInt64(input.AccountID),
-			opsNullString(input.Platform),
-			opsNullString(input.Model),
-			extra,
-		); err != nil {
-			_ = stmt.Close()
-			_ = tx.Rollback()
-			return inserted, err
-		}
-		inserted++
+	}
+	if len(rows) == 0 {
+		return 0, nil
 	}
 
-	if _, err := stmt.ExecContext(ctx); err != nil {
-		_ = stmt.Close()
-		_ = tx.Rollback()
-		return inserted, err
+	query, args := buildMultiRowInsertQuery("ops_system_logs", opsSystemLogInsertColumns, rows)
+	if _, err := writeDB.ExecContext(ctx, query, args...); err != nil {
+		return 0, err
 	}
-	if err := stmt.Close(); err != nil {
-		_ = tx.Rollback()
-		return inserted, err
+	return int64(len(rows)), nil
+}
+
+const opsSystemLogInsertColumns = `created_at, host, level, component, message, request_id,
+client_request_id, user_id, api_key_id, account_id, platform, model, extra`
+
+func opsSystemLogInsertValues(input *service.OpsInsertSystemLogInput) ([]any, bool) {
+	if input == nil {
+		return nil, false
 	}
-	if err := tx.Commit(); err != nil {
-		return inserted, err
+
+	createdAt := input.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
 	}
-	return inserted, nil
+	component := strings.TrimSpace(input.Component)
+	level := strings.ToLower(strings.TrimSpace(input.Level))
+	message := strings.TrimSpace(input.Message)
+	if level == "" || message == "" {
+		return nil, false
+	}
+	if component == "" {
+		component = "app"
+	}
+	extra := strings.TrimSpace(input.ExtraJSON)
+	if extra == "" {
+		extra = "{}"
+	}
+
+	return []any{
+		createdAt.UTC(),
+		opsNullString(input.Host),
+		level,
+		component,
+		message,
+		opsNullString(input.RequestID),
+		opsNullString(input.ClientRequestID),
+		opsNullInt64(input.UserID),
+		opsNullInt64(input.APIKeyID),
+		opsNullInt64(input.AccountID),
+		opsNullString(input.Platform),
+		opsNullString(input.Model),
+		extra,
+	}, true
 }
 
 func (r *opsRepository) ListSystemLogs(ctx context.Context, filter *service.OpsSystemLogFilter) (*service.OpsSystemLogList, error) {

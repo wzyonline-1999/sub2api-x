@@ -1,8 +1,12 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestOpsCleanupPlan(t *testing.T) {
@@ -56,6 +60,68 @@ func TestIsMissingRelationError(t *testing.T) {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestDeleteOldRowsByID_BatchesAndPauses(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error: %v", err)
+	}
+	defer db.Close()
+
+	query := `(?s)WITH batch AS \(.*ORDER BY created_at ASC, id ASC.*FOR UPDATE SKIP LOCKED.*DELETE FROM ops_system_logs`
+	mock.ExpectExec(query).
+		WithArgs(sqlmock.AnyArg(), 2).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectExec(query).
+		WithArgs(sqlmock.AnyArg(), 2).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	started := time.Now()
+	deleted, err := deleteOldRowsByID(
+		context.Background(), db, "ops_system_logs", "created_at",
+		time.Now().UTC(), 2, false, 20*time.Millisecond,
+	)
+	if err != nil {
+		t.Fatalf("deleteOldRowsByID() error: %v", err)
+	}
+	if deleted != 3 {
+		t.Fatalf("deleted = %d, want 3", deleted)
+	}
+	if elapsed := time.Since(started); elapsed < 15*time.Millisecond {
+		t.Fatalf("cleanup did not pause between full batches: %v", elapsed)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
+	}
+}
+
+func TestDeleteOldRowsByID_PauseHonorsContextCancellation(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectExec(`WITH batch AS \(`).
+		WithArgs(sqlmock.AnyArg(), 1).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	deleted, err := deleteOldRowsByID(
+		ctx, db, "ops_system_logs", "created_at",
+		time.Now().UTC(), 1, false, time.Second,
+	)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want context deadline exceeded", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("deleted = %d, want 1 before cancellation", deleted)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
 	}
 }
 

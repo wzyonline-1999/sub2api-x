@@ -165,11 +165,13 @@ func (s *OpsCleanupService) applyScheduleLocked(ctx context.Context) error {
 	c.Start()
 	s.cron = c
 	logger.LegacyPrintf("service.ops_cleanup",
-		"[OpsCleanup] scheduled (schedule=%q tz=%s retention_days=err:%d/min:%d/hour:%d)",
+		"[OpsCleanup] scheduled (schedule=%q tz=%s retention_days=err:%d/min:%d/hour:%d batch_size=%d batch_pause_ms=%d)",
 		schedule, loc.String(),
 		s.effective.ErrorLogRetentionDays,
 		s.effective.MinuteMetricsRetentionDays,
 		s.effective.HourlyMetricsRetentionDays,
+		s.effective.BatchSize,
+		s.effective.BatchPauseMilliseconds,
 	)
 	return nil
 }
@@ -296,6 +298,11 @@ func (s *OpsCleanupService) runCleanupOnce(ctx context.Context) (opsCleanupDelet
 
 	effective := s.snapshotEffective()
 	now := time.Now().UTC()
+	batchSize := effective.BatchSize
+	if batchSize <= 0 {
+		batchSize = opsCleanupBatchSize
+	}
+	batchPause := time.Duration(effective.BatchPauseMilliseconds) * time.Millisecond
 
 	targets := []opsCleanupTarget{
 		{effective.ErrorLogRetentionDays, "ops_error_logs", "created_at", false, &out.errorLogs},
@@ -313,7 +320,7 @@ func (s *OpsCleanupService) runCleanupOnce(ctx context.Context) (opsCleanupDelet
 		if !ok {
 			continue
 		}
-		n, err := opsCleanupRunOne(ctx, s.db, truncate, cutoff, t.table, t.timeCol, t.castDate, opsCleanupBatchSize)
+		n, err := opsCleanupRunOne(ctx, s.db, truncate, cutoff, t.table, t.timeCol, t.castDate, batchSize, batchPause)
 		if err != nil {
 			return out, err
 		}

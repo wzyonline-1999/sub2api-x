@@ -13,6 +13,8 @@ const (
 	auditLogQueueCapacity = 4096
 	auditLogBatchSize     = 100
 	auditLogFlushInterval = time.Second
+	auditLogWriteTimeout  = 10 * time.Second
+	auditLogShutdownWait  = 12 * time.Second
 
 	auditRetentionCheckInterval = 24 * time.Hour
 	auditRetentionStartupDelay  = 5 * time.Minute
@@ -31,6 +33,9 @@ type AuditLogService struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	// shutdownWaitTimeout prevents an unhealthy database from blocking process
+	// shutdown while the best-effort audit queue is being drained.
+	shutdownWaitTimeout time.Duration
 
 	droppedCount uint64
 	writeFailed  uint64
@@ -40,11 +45,12 @@ type AuditLogService struct {
 func NewAuditLogService(repo AuditLogRepository, settingService *SettingService) *AuditLogService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &AuditLogService{
-		repo:           repo,
-		settingService: settingService,
-		queue:          make(chan *AuditLog, auditLogQueueCapacity),
-		ctx:            ctx,
-		cancel:         cancel,
+		repo:                repo,
+		settingService:      settingService,
+		queue:               make(chan *AuditLog, auditLogQueueCapacity),
+		ctx:                 ctx,
+		cancel:              cancel,
+		shutdownWaitTimeout: auditLogShutdownWait,
 	}
 }
 
@@ -58,13 +64,29 @@ func (s *AuditLogService) Start() {
 	go s.runRetentionLoop()
 }
 
-// Stop 停止服务并尽量落盘队列中剩余记录。
-func (s *AuditLogService) Stop() {
+// Stop 停止服务并尽量落盘队列中剩余记录；返回值表示队列是否在时限内排空。
+func (s *AuditLogService) Stop() bool {
 	if s == nil {
-		return
+		return true
 	}
-	s.cancel()
-	s.wg.Wait()
+	if s.cancel != nil {
+		s.cancel()
+	}
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+	waitTimeout := s.shutdownWaitTimeout
+	if waitTimeout <= 0 {
+		waitTimeout = auditLogShutdownWait
+	}
+	select {
+	case <-done:
+		return true
+	case <-time.After(waitTimeout):
+		return false
+	}
 }
 
 // Record 非阻塞入队一条审计记录；队列打满时丢弃并计数（管理面流量下几乎不可能发生）。
@@ -138,7 +160,7 @@ func (s *AuditLogService) runWriter() {
 		if len(batch) == 0 {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), auditLogWriteTimeout)
 		inserted, err := s.repo.BatchInsert(ctx, batch)
 		cancel()
 		if err != nil {

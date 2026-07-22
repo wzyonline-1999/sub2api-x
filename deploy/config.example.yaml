@@ -948,6 +948,13 @@ ops:
   # Other detailed settings (cleanup, aggregation, etc.) are configured in ops settings dialog
   # 其他详细设置（数据清理、预聚合等）在运维监控设置对话框中配置
   enabled: true
+  cleanup:
+    # Maximum rows deleted in one transaction (1-5000).
+    # 单个事务最多删除的行数（1-5000）。
+    batch_size: 1500
+    # Pause after each full batch to reduce WAL and I/O pressure (0-10000 ms).
+    # 每个满批次后的暂停时间，用于降低 WAL 和 I/O 压力（0-10000 毫秒）。
+    batch_pause_milliseconds: 200
 
 # =============================================================================
 # JWT Configuration

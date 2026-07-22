@@ -904,3 +904,88 @@ func TestApiKeyAuthWithSubscriptionGoogle_SubscriptionLimitExceededReturns429(t 
 	require.Equal(t, "RESOURCE_EXHAUSTED", resp.Error.Status)
 	require.Contains(t, resp.Error.Message, "daily usage limit exceeded")
 }
+
+func TestAPIKeyAuthGoogleSubscriptionLookupErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	group := &service.Group{
+		ID:               77,
+		Name:             "gemini-subscription",
+		Status:           service.StatusActive,
+		Platform:         service.PlatformGemini,
+		Hydrated:         true,
+		SubscriptionType: service.SubscriptionTypeSubscription,
+	}
+	user := &service.User{
+		ID:          999,
+		Role:        service.RoleUser,
+		Status:      service.StatusActive,
+		Balance:     10,
+		Concurrency: 3,
+	}
+	apiKey := &service.APIKey{
+		ID:      501,
+		UserID:  user.ID,
+		Key:     "google-subscription-lookup-errors",
+		Status:  service.StatusActive,
+		User:    user,
+		GroupID: &group.ID,
+		Group:   group,
+	}
+
+	tests := []struct {
+		name        string
+		lookupErr   error
+		wantStatus  int
+		wantMessage string
+		wantGoogle  string
+	}{
+		{
+			name:        "missing subscription is forbidden",
+			lookupErr:   service.ErrSubscriptionNotFound,
+			wantStatus:  http.StatusForbidden,
+			wantMessage: "No active subscription found for this group",
+			wantGoogle:  "PERMISSION_DENIED",
+		},
+		{
+			name:        "repository failure is unavailable",
+			lookupErr:   errors.New("postgres connection secret detail"),
+			wantStatus:  http.StatusServiceUnavailable,
+			wantMessage: subscriptionServiceUnavailableMessage,
+			wantGoogle:  "UNAVAILABLE",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{RunMode: config.RunModeStandard}
+			apiKeyService := newTestAPIKeyService(fakeAPIKeyRepo{getByKey: func(context.Context, string) (*service.APIKey, error) {
+				clone := *apiKey
+				return &clone, nil
+			}})
+			subscriptionService := service.NewSubscriptionService(nil, fakeGoogleSubscriptionRepo{
+				getActive: func(context.Context, int64, int64) (*service.UserSubscription, error) {
+					return nil, tt.lookupErr
+				},
+			}, nil, nil, cfg)
+			t.Cleanup(subscriptionService.Stop)
+
+			router := gin.New()
+			router.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, subscriptionService, cfg))
+			router.GET("/v1beta/test", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+			req.Header.Set("x-goog-api-key", apiKey.Key)
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, tt.wantStatus, rec.Code)
+			var resp googleErrorResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+			require.Equal(t, tt.wantStatus, resp.Error.Code)
+			require.Equal(t, tt.wantMessage, resp.Error.Message)
+			require.Equal(t, tt.wantGoogle, resp.Error.Status)
+			require.NotContains(t, rec.Body.String(), "postgres connection secret detail")
+		})
+	}
+}

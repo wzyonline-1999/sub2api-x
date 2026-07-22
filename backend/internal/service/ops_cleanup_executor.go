@@ -10,7 +10,7 @@ import (
 
 const (
 	opsCleanupDefaultSchedule  = "0 2 * * *"
-	opsCleanupBatchSize        = 5000
+	opsCleanupBatchSize        = 1500
 	opsCleanupCronStopTimeout  = 3 * time.Second
 	opsCleanupRunTimeout       = 30 * time.Minute
 	opsCleanupHeartbeatTimeout = 2 * time.Second
@@ -71,11 +71,12 @@ func opsCleanupRunOne(
 	table, timeCol string,
 	castDate bool,
 	batchSize int,
+	batchPause time.Duration,
 ) (int64, error) {
 	if truncate {
 		return truncateOpsTable(ctx, db, table)
 	}
-	return deleteOldRowsByID(ctx, db, table, timeCol, cutoff, batchSize, castDate)
+	return deleteOldRowsByID(ctx, db, table, timeCol, cutoff, batchSize, castDate, batchPause)
 }
 
 func deleteOldRowsByID(
@@ -86,6 +87,7 @@ func deleteOldRowsByID(
 	cutoff time.Time,
 	batchSize int,
 	castCutoffToDate bool,
+	batchPause time.Duration,
 ) (int64, error) {
 	if db == nil {
 		return 0, nil
@@ -103,12 +105,13 @@ func deleteOldRowsByID(
 WITH batch AS (
   SELECT id FROM %s
   WHERE %s
-  ORDER BY id
+  ORDER BY %s ASC, id ASC
   LIMIT $2
+  FOR UPDATE SKIP LOCKED
 )
 DELETE FROM %s
 WHERE id IN (SELECT id FROM batch)
-`, table, where, table)
+`, table, where, timeColumn, table)
 
 	var total int64
 	for {
@@ -124,11 +127,28 @@ WHERE id IN (SELECT id FROM batch)
 			return total, err
 		}
 		total += affected
-		if affected == 0 {
+		if affected < int64(batchSize) {
 			break
+		}
+		if err := waitForOpsCleanupBatchPause(ctx, batchPause); err != nil {
+			return total, err
 		}
 	}
 	return total, nil
+}
+
+func waitForOpsCleanupBatchPause(ctx context.Context, pause time.Duration) error {
+	if pause <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(pause)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // truncateOpsTable 用 TRUNCATE TABLE 清空指定表，先 SELECT COUNT(*) 取得清空前行数用于 heartbeat。

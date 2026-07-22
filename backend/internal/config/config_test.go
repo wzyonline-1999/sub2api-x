@@ -1250,6 +1250,21 @@ func TestValidateOpsCleanupScheduleRequired(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultOpsCleanupBatchConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Ops.Cleanup.BatchSize != 1500 {
+		t.Fatalf("ops.cleanup.batch_size = %d, want 1500", cfg.Ops.Cleanup.BatchSize)
+	}
+	if cfg.Ops.Cleanup.BatchPauseMilliseconds != 200 {
+		t.Fatalf("ops.cleanup.batch_pause_milliseconds = %d, want 200", cfg.Ops.Cleanup.BatchPauseMilliseconds)
+	}
+}
+
 func TestValidateConcurrencyPingInterval(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
@@ -1987,6 +2002,26 @@ func TestValidateConfigErrors(t *testing.T) {
 			name:    "ops cleanup minute retention",
 			mutate:  func(c *Config) { c.Ops.Cleanup.MinuteMetricsRetentionDays = -1 },
 			wantErr: "ops.cleanup.minute_metrics_retention_days",
+		},
+		{
+			name:    "ops cleanup batch size zero",
+			mutate:  func(c *Config) { c.Ops.Cleanup.BatchSize = 0 },
+			wantErr: "ops.cleanup.batch_size",
+		},
+		{
+			name:    "ops cleanup batch size too large",
+			mutate:  func(c *Config) { c.Ops.Cleanup.BatchSize = 5001 },
+			wantErr: "ops.cleanup.batch_size",
+		},
+		{
+			name:    "ops cleanup batch pause negative",
+			mutate:  func(c *Config) { c.Ops.Cleanup.BatchPauseMilliseconds = -1 },
+			wantErr: "ops.cleanup.batch_pause_milliseconds",
+		},
+		{
+			name:    "ops cleanup batch pause too large",
+			mutate:  func(c *Config) { c.Ops.Cleanup.BatchPauseMilliseconds = 10001 },
+			wantErr: "ops.cleanup.batch_pause_milliseconds",
 		},
 	}
 

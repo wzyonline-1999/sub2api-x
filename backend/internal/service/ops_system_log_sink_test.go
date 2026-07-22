@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -79,6 +80,95 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 		if got := sink.shouldIndex(tc.event); got != tc.want {
 			t.Fatalf("%s: shouldIndex()=%v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestOpsSystemLogSink_SamplesOnlySuccessfulFastAccessLogs(t *testing.T) {
+	sink := &OpsSystemLogSink{
+		successAccessSampleRate:  0,
+		slowRequestThreshold:     5 * time.Second,
+		accessSamplingConfigured: true,
+	}
+
+	event := func(level string, statusCode int, latencyMS int64, requestID string) *logger.LogEvent {
+		fields := map[string]any{
+			"component":   "http.access",
+			"status_code": statusCode,
+			"latency_ms":  latencyMS,
+		}
+		if requestID != "" {
+			fields["request_id"] = requestID
+		}
+		return &logger.LogEvent{Level: level, Component: "http.access", Fields: fields}
+	}
+
+	if sink.shouldIndex(event("info", 200, 25, "req-success")) {
+		t.Fatalf("fast successful access log should be sampled out at rate=0")
+	}
+	if !sink.shouldIndex(event("info", 503, 25, "req-error")) {
+		t.Fatalf("5xx access log must be retained")
+	}
+	if !sink.shouldIndex(event("info", 404, 25, "req-not-found")) {
+		t.Fatalf("4xx access log must be retained")
+	}
+	if !sink.shouldIndex(event("info", 302, 25, "req-redirect")) {
+		t.Fatalf("3xx access log must be retained")
+	}
+	if !sink.shouldIndex(event("info", 200, 5000, "req-slow")) {
+		t.Fatalf("slow successful access log must be retained")
+	}
+	if !sink.shouldIndex(event("warn", 200, 25, "req-warn")) {
+		t.Fatalf("warn access log must be retained")
+	}
+	if !sink.shouldIndex(event("info", 200, 25, "")) {
+		t.Fatalf("access log without stable ID must be retained")
+	}
+}
+
+func TestDeterministicAccessSample_IsStableAndNearConfiguredRate(t *testing.T) {
+	const total = 10_000
+	kept := 0
+	for i := 0; i < total; i++ {
+		key := fmt.Sprintf("request_id:req-%d", i)
+		first := deterministicAccessSample(key, 0.10)
+		if second := deterministicAccessSample(key, 0.10); second != first {
+			t.Fatalf("sample decision changed for %q", key)
+		}
+		if first {
+			kept++
+		}
+	}
+	if kept < 850 || kept > 1150 {
+		t.Fatalf("kept %d/%d logs, want approximately 10%%", kept, total)
+	}
+	if deterministicAccessSample("request_id:req-1", 0) {
+		t.Fatalf("rate=0 must drop successful access log")
+	}
+	if !deterministicAccessSample("request_id:req-1", 1) {
+		t.Fatalf("rate=1 must retain successful access log")
+	}
+}
+
+func TestOpsSystemLogSink_SamplingEnvironmentConfig(t *testing.T) {
+	t.Setenv(successAccessSampleRateEnv, "0.25")
+	t.Setenv(slowRequestThresholdMSEnv, "1200")
+	sink := NewOpsSystemLogSink(nil)
+	defer sink.Stop()
+
+	if sink.successAccessSampleRate != 0.25 {
+		t.Fatalf("sample rate = %v, want 0.25", sink.successAccessSampleRate)
+	}
+	if sink.slowRequestThreshold != 1200*time.Millisecond {
+		t.Fatalf("slow threshold = %v, want 1200ms", sink.slowRequestThreshold)
+	}
+
+	t.Setenv(successAccessSampleRateEnv, "invalid")
+	t.Setenv(slowRequestThresholdMSEnv, "0")
+	if got := readSuccessAccessSampleRate(); got != defaultSuccessAccessSampleRate {
+		t.Fatalf("invalid sample rate fallback = %v, want %v", got, defaultSuccessAccessSampleRate)
+	}
+	if got := readSlowRequestThreshold(); got != defaultSlowRequestThreshold {
+		t.Fatalf("invalid slow threshold fallback = %v, want %v", got, defaultSlowRequestThreshold)
 	}
 }
 
@@ -287,6 +377,48 @@ func TestOpsSystemLogSink_StopFlushUsesActiveContextAndDrainsQueue(t *testing.T)
 	health := sink.Health()
 	if health.WrittenCount != 1 {
 		t.Fatalf("written_count = %d, want 1", health.WrittenCount)
+	}
+}
+
+func TestOpsSystemLogSink_StopIsBoundedWhenRepositoryHangs(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var startedOnce sync.Once
+	repo := &opsRepoMock{
+		BatchInsertSystemLogsFn: func(_ context.Context, inputs []*OpsInsertSystemLogInput) (int64, error) {
+			startedOnce.Do(func() { close(started) })
+			<-release // Simulate a driver that ignores context cancellation.
+			return int64(len(inputs)), nil
+		},
+	}
+
+	sink := NewOpsSystemLogSink(repo)
+	sink.batchSize = 1
+	sink.shutdownWaitTimeout = 25 * time.Millisecond
+	sink.Start()
+	sink.WriteLogEvent(&logger.LogEvent{
+		Time:      time.Now().UTC(),
+		Level:     "error",
+		Component: "app",
+		Message:   "blocked write",
+	})
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for blocked repository write")
+	}
+	startedAt := time.Now()
+	if sink.Stop() {
+		t.Fatal("Stop() reported a complete drain while the repository was blocked")
+	}
+	if elapsed := time.Since(startedAt); elapsed > 250*time.Millisecond {
+		t.Fatalf("Stop() exceeded its shutdown bound: %v", elapsed)
+	}
+
+	close(release)
+	if !sink.Stop() {
+		t.Fatal("Stop() should complete after the repository is released")
 	}
 }
 

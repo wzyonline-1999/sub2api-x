@@ -10,12 +10,18 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
-const maxAPIKeyAuthorizationHeaderBytes = service.MaxAPIKeyCredentialBytes + 128
+const (
+	maxAPIKeyAuthorizationHeaderBytes     = service.MaxAPIKeyCredentialBytes + 128
+	subscriptionServiceUnavailableCode    = "SUBSCRIPTION_SERVICE_UNAVAILABLE"
+	subscriptionServiceUnavailableMessage = "Subscription service is temporarily unavailable"
+)
 
 // NewAPIKeyAuthMiddleware 创建 API Key 认证中间件
 func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) APIKeyAuthMiddleware {
@@ -201,11 +207,18 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				apiKey.Group.ID,
 			)
 			if subErr != nil {
-				if !skipBilling {
-					AbortWithError(c, 403, "SUBSCRIPTION_NOT_FOUND", "No active subscription found for this group")
+				if errors.Is(subErr, service.ErrSubscriptionNotFound) {
+					if !skipBilling {
+						AbortWithError(c, 403, "SUBSCRIPTION_NOT_FOUND", "No active subscription found for this group")
+						return
+					}
+					// 鉴权后只读端点不执行计费；没有有效订阅时沿用原有放行语义，
+					// handler 可继续返回该 Key 自身可用的数据。
+				} else {
+					logSubscriptionLookupFailure(c, apiKey.User.ID, apiKey.Group.ID, subErr)
+					AbortWithError(c, http.StatusServiceUnavailable, subscriptionServiceUnavailableCode, subscriptionServiceUnavailableMessage)
 					return
 				}
-				// skipBilling: 订阅不存在也放行，handler 会返回可用的数据
 			} else {
 				subscription = sub
 			}
@@ -285,6 +298,15 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		c.Next()
 	}
+}
+
+func logSubscriptionLookupFailure(c *gin.Context, userID, groupID int64, err error) {
+	logger.FromContext(c.Request.Context()).Error(
+		"api_key_auth.subscription_lookup_failed",
+		zap.Int64("user_id", userID),
+		zap.Int64("group_id", groupID),
+		zap.Error(err),
+	)
 }
 
 func apiKeyHeadersTooLarge(c *gin.Context) bool {

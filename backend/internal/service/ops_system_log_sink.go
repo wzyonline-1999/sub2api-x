@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"strconv"
 	"strings"
@@ -34,9 +35,19 @@ type OpsSystemLogSink struct {
 	batchSize     int
 	flushInterval time.Duration
 
+	// Successful access logs are sampled before entering the queue. A stable
+	// request ID is hashed instead of using process-local randomness so the
+	// decision remains consistent across replicas and retries.
+	successAccessSampleRate  float64
+	slowRequestThreshold     time.Duration
+	accessSamplingConfigured bool
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	// shutdownWaitTimeout bounds graceful shutdown when a database driver does
+	// not return promptly even after its context is canceled.
+	shutdownWaitTimeout time.Duration
 
 	droppedCount uint64
 	writeFailed  uint64
@@ -46,19 +57,34 @@ type OpsSystemLogSink struct {
 	lastError atomic.Value
 }
 
-const maxSystemLogHostLength = 255
+const (
+	maxSystemLogHostLength = 255
+
+	defaultSuccessAccessSampleRate = 0.10
+	defaultSlowRequestThreshold    = 5 * time.Second
+	defaultSystemLogWriteTimeout   = 10 * time.Second
+	defaultSystemLogShutdownWait   = 12 * time.Second
+	accessSampleBuckets            = uint64(10_000)
+
+	successAccessSampleRateEnv = "OPS_SYSTEM_LOG_SUCCESS_ACCESS_SAMPLE_RATE"
+	slowRequestThresholdMSEnv  = "OPS_SYSTEM_LOG_SLOW_REQUEST_THRESHOLD_MS"
+)
 
 func NewOpsSystemLogSink(opsRepo OpsRepository) *OpsSystemLogSink {
 	ctx, cancel := context.WithCancel(context.Background())
 	rawHost, err := os.Hostname()
 	s := &OpsSystemLogSink{
-		opsRepo:       opsRepo,
-		host:          normalizeSystemLogHost(rawHost, err),
-		queue:         make(chan *logger.LogEvent, 5000),
-		batchSize:     200,
-		flushInterval: time.Second,
-		ctx:           ctx,
-		cancel:        cancel,
+		opsRepo:                  opsRepo,
+		host:                     normalizeSystemLogHost(rawHost, err),
+		queue:                    make(chan *logger.LogEvent, 5000),
+		batchSize:                200,
+		flushInterval:            time.Second,
+		successAccessSampleRate:  readSuccessAccessSampleRate(),
+		slowRequestThreshold:     readSlowRequestThreshold(),
+		accessSamplingConfigured: true,
+		ctx:                      ctx,
+		cancel:                   cancel,
+		shutdownWaitTimeout:      defaultSystemLogShutdownWait,
 	}
 	s.lastError.Store("")
 	return s
@@ -84,12 +110,31 @@ func (s *OpsSystemLogSink) Start() {
 	go s.run()
 }
 
-func (s *OpsSystemLogSink) Stop() {
+// Stop stops the sink and reports whether its queue drained within the
+// configured shutdown bound.
+func (s *OpsSystemLogSink) Stop() bool {
 	if s == nil {
-		return
+		return true
 	}
-	s.cancel()
-	s.wg.Wait()
+	if s.cancel != nil {
+		s.cancel()
+	}
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+	waitTimeout := s.shutdownWaitTimeout
+	if waitTimeout <= 0 {
+		waitTimeout = defaultSystemLogShutdownWait
+	}
+	select {
+	case <-done:
+		return true
+	case <-time.After(waitTimeout):
+		s.lastError.Store("system log shutdown drain timed out")
+		return false
+	}
 }
 
 func (s *OpsSystemLogSink) WriteLogEvent(event *logger.LogEvent) {
@@ -130,13 +175,104 @@ func (s *OpsSystemLogSink) shouldIndex(event *logger.LogEvent) bool {
 			component = fc
 		}
 	}
-	if strings.Contains(component, "http.access") {
-		return true
-	}
 	if strings.Contains(component, "audit") {
 		return true
 	}
+	if strings.Contains(component, "http.access") {
+		return s.shouldIndexAccess(event)
+	}
 	return false
+}
+
+func (s *OpsSystemLogSink) shouldIndexAccess(event *logger.LogEvent) bool {
+	if event == nil {
+		return false
+	}
+	fields := event.Fields
+	statusCode, ok := asInt64(fields["status_code"])
+	// Unknown status is retained: sampling must never hide a potentially failed
+	// request merely because a producer omitted or changed the field type.
+	if !ok || statusCode < 200 || statusCode >= 300 {
+		return true
+	}
+
+	threshold := s.slowRequestThreshold
+	if threshold <= 0 {
+		threshold = defaultSlowRequestThreshold
+	}
+	if latencyMS, ok := asInt64(fields["latency_ms"]); ok && latencyMS >= threshold.Milliseconds() {
+		return true
+	}
+
+	// Preserve the historical zero-value behavior for tests and callers that
+	// instantiate the sink directly. The production constructor always marks
+	// the sampling configuration as loaded.
+	if !s.accessSamplingConfigured {
+		return true
+	}
+	sampleKey := accessLogSampleKey(event)
+	// Stable IDs are expected on normal HTTP requests. If one is absent, retain
+	// the event rather than hashing endpoint/user cohorts and introducing bias.
+	if sampleKey == "" {
+		return true
+	}
+	rate := s.successAccessSampleRate
+	if rate >= 1 {
+		return true
+	}
+	if rate <= 0 {
+		return false
+	}
+	return deterministicAccessSample(sampleKey, rate)
+}
+
+func accessLogSampleKey(event *logger.LogEvent) string {
+	if event == nil || event.Fields == nil {
+		return ""
+	}
+	for _, key := range []string{"request_id", "client_request_id", "trace_id"} {
+		if value := asString(event.Fields[key]); value != "" {
+			return key + ":" + value
+		}
+	}
+	return ""
+}
+
+func deterministicAccessSample(key string, rate float64) bool {
+	if rate <= 0 || strings.TrimSpace(key) == "" {
+		return false
+	}
+	if rate >= 1 {
+		return true
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(key))
+	threshold := uint64(rate * float64(accessSampleBuckets))
+	return h.Sum64()%accessSampleBuckets < threshold
+}
+
+func readSuccessAccessSampleRate() float64 {
+	raw := strings.TrimSpace(os.Getenv(successAccessSampleRateEnv))
+	if raw == "" {
+		return defaultSuccessAccessSampleRate
+	}
+	rate, err := strconv.ParseFloat(raw, 64)
+	if err != nil || rate < 0 || rate > 1 {
+		return defaultSuccessAccessSampleRate
+	}
+	return rate
+}
+
+func readSlowRequestThreshold() time.Duration {
+	raw := strings.TrimSpace(os.Getenv(slowRequestThresholdMSEnv))
+	if raw == "" {
+		return defaultSlowRequestThreshold
+	}
+	milliseconds, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || milliseconds <= 0 {
+		return defaultSlowRequestThreshold
+	}
+	return time.Duration(milliseconds) * time.Millisecond
 }
 
 func (s *OpsSystemLogSink) run() {
@@ -263,7 +399,7 @@ func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.L
 	if baseCtx == nil || baseCtx.Err() != nil {
 		baseCtx = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(baseCtx, defaultSystemLogWriteTimeout)
 	defer cancel()
 	inserted, err := s.opsRepo.BatchInsertSystemLogs(ctx, inputs)
 	if err != nil {
@@ -314,6 +450,39 @@ func asString(v any) string {
 		return strings.TrimSpace(t.String())
 	default:
 		return ""
+	}
+}
+
+func asInt64(v any) (int64, bool) {
+	switch t := v.(type) {
+	case int:
+		return int64(t), true
+	case int8:
+		return int64(t), true
+	case int16:
+		return int64(t), true
+	case int32:
+		return int64(t), true
+	case int64:
+		return t, true
+	case uint:
+		return int64(t), true
+	case uint8:
+		return int64(t), true
+	case uint16:
+		return int64(t), true
+	case uint32:
+		return int64(t), true
+	case float64:
+		return int64(t), true
+	case json.Number:
+		n, err := t.Int64()
+		return n, err == nil
+	case string:
+		n, err := strconv.ParseInt(strings.TrimSpace(t), 10, 64)
+		return n, err == nil
+	default:
+		return 0, false
 	}
 }
 

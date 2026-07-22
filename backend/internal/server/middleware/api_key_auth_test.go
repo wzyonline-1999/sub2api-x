@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -268,6 +269,102 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 		require.Equal(t, http.StatusTooManyRequests, w.Code)
 		require.Contains(t, w.Body.String(), "USAGE_LIMIT_EXCEEDED")
 	})
+}
+
+func TestAPIKeyAuthSubscriptionLookupErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	group := &service.Group{
+		ID:               42,
+		Name:             "subscription",
+		Status:           service.StatusActive,
+		Hydrated:         true,
+		SubscriptionType: service.SubscriptionTypeSubscription,
+	}
+	user := &service.User{
+		ID:          7,
+		Role:        service.RoleUser,
+		Status:      service.StatusActive,
+		Balance:     10,
+		Concurrency: 3,
+	}
+	apiKey := &service.APIKey{
+		ID:      100,
+		UserID:  user.ID,
+		Key:     "subscription-lookup-errors",
+		Status:  service.StatusActive,
+		User:    user,
+		GroupID: &group.ID,
+		Group:   group,
+	}
+
+	tests := []struct {
+		name        string
+		path        string
+		lookupErr   error
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name:        "missing subscription is forbidden",
+			path:        "/t",
+			lookupErr:   fmt.Errorf("lookup active subscription: %w", service.ErrSubscriptionNotFound),
+			wantStatus:  http.StatusForbidden,
+			wantCode:    "SUBSCRIPTION_NOT_FOUND",
+			wantMessage: "No active subscription found for this group",
+		},
+		{
+			name:        "repository failure is unavailable",
+			path:        "/t",
+			lookupErr:   errors.New("postgres connection secret detail"),
+			wantStatus:  http.StatusServiceUnavailable,
+			wantCode:    subscriptionServiceUnavailableCode,
+			wantMessage: subscriptionServiceUnavailableMessage,
+		},
+		{
+			name:       "usage endpoint still allows missing subscription",
+			path:       "/v1/usage",
+			lookupErr:  service.ErrSubscriptionNotFound,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:        "usage endpoint does not hide repository failure",
+			path:        "/v1/usage",
+			lookupErr:   errors.New("postgres connection secret detail"),
+			wantStatus:  http.StatusServiceUnavailable,
+			wantCode:    subscriptionServiceUnavailableCode,
+			wantMessage: subscriptionServiceUnavailableMessage,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{RunMode: config.RunModeStandard}
+			apiKeyRepo := &stubApiKeyRepo{getByKey: func(context.Context, string) (*service.APIKey, error) {
+				clone := *apiKey
+				return &clone, nil
+			}}
+			subscriptionRepo := &stubUserSubscriptionRepo{getActive: func(context.Context, int64, int64) (*service.UserSubscription, error) {
+				return nil, tt.lookupErr
+			}}
+			apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+			subscriptionService := service.NewSubscriptionService(nil, subscriptionRepo, nil, nil, cfg)
+			t.Cleanup(subscriptionService.Stop)
+			router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req.Header.Set("x-api-key", apiKey.Key)
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantCode != "" {
+				requireAPIKeyAuthError(t, w, tt.wantCode, tt.wantMessage)
+			}
+			require.NotContains(t, w.Body.String(), "postgres connection secret detail")
+		})
+	}
 }
 
 func TestAPIKeyAuthSetsGroupContext(t *testing.T) {

@@ -1477,8 +1477,15 @@ type OpsConfig struct {
 type OpsCleanupConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
 	Schedule string `mapstructure:"schedule"`
+	// BatchSize limits rows deleted by each transaction. Keeping batches small
+	// reduces WAL and lock pressure while pruning a large backlog.
+	BatchSize int `mapstructure:"batch_size"`
+	// BatchPauseMilliseconds adds a context-aware pause between full delete
+	// batches so cleanup does not monopolize database I/O.
+	BatchPauseMilliseconds int `mapstructure:"batch_pause_milliseconds"`
 
-	// Retention days (0 disables that cleanup target).
+	// Retention days (0 truncates the target on each cleanup run; use Enabled
+	// to disable cleanup entirely).
 	//
 	// vNext requirement: default 30 days across ops datasets.
 	ErrorLogRetentionDays      int `mapstructure:"error_log_retention_days"`
@@ -2091,6 +2098,8 @@ func setDefaults() {
 	viper.SetDefault("ops.use_preaggregated_tables", true)
 	viper.SetDefault("ops.cleanup.enabled", true)
 	viper.SetDefault("ops.cleanup.schedule", "0 2 * * *")
+	viper.SetDefault("ops.cleanup.batch_size", 1500)
+	viper.SetDefault("ops.cleanup.batch_pause_milliseconds", 200)
 	// Retention days: vNext defaults to 30 days across ops datasets.
 	viper.SetDefault("ops.cleanup.error_log_retention_days", 30)
 	viper.SetDefault("ops.cleanup.minute_metrics_retention_days", 30)
@@ -3424,6 +3433,18 @@ func (c *Config) Validate() error {
 	}
 	if c.Ops.Cleanup.HourlyMetricsRetentionDays < 0 {
 		return fmt.Errorf("ops.cleanup.hourly_metrics_retention_days must be non-negative")
+	}
+	if c.Ops.Cleanup.BatchSize <= 0 {
+		return fmt.Errorf("ops.cleanup.batch_size must be positive")
+	}
+	if c.Ops.Cleanup.BatchSize > 5000 {
+		return fmt.Errorf("ops.cleanup.batch_size must not exceed 5000")
+	}
+	if c.Ops.Cleanup.BatchPauseMilliseconds < 0 {
+		return fmt.Errorf("ops.cleanup.batch_pause_milliseconds must be non-negative")
+	}
+	if c.Ops.Cleanup.BatchPauseMilliseconds > 10000 {
+		return fmt.Errorf("ops.cleanup.batch_pause_milliseconds must not exceed 10000")
 	}
 	if c.Ops.Cleanup.Enabled && strings.TrimSpace(c.Ops.Cleanup.Schedule) == "" {
 		return fmt.Errorf("ops.cleanup.schedule is required when ops.cleanup.enabled=true")

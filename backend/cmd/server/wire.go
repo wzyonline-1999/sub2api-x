@@ -5,9 +5,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/ent"
@@ -74,6 +76,7 @@ func provideServiceBuildInfo(buildInfo handler.BuildInfo) service.BuildInfo {
 
 func provideCleanup(
 	entClient *ent.Client,
+	logDB *repository.LogDB,
 	rdb *redis.Client,
 	opsMetricsCollector *service.OpsMetricsCollector,
 	opsAggregation *service.OpsAggregationService,
@@ -122,9 +125,17 @@ func provideCleanup(
 			name string
 			fn   func() error
 		}
+		var logWriterDrainFailures atomic.Int32
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{"OpsErrorLogWorkers", func() error {
+				if !handler.StopOpsErrorLogWorkers() {
+					logWriterDrainFailures.Add(1)
+					return errors.New("ops error log workers did not drain before timeout")
+				}
+				return nil
+			}},
 			{"OpsIngressRejectAggregator", func() error {
 				if opsIngressReject != nil {
 					opsIngressReject.Stop()
@@ -168,14 +179,16 @@ func provideCleanup(
 				return nil
 			}},
 			{"OpsSystemLogSink", func() error {
-				if opsSystemLogSink != nil {
-					opsSystemLogSink.Stop()
+				if opsSystemLogSink != nil && !opsSystemLogSink.Stop() {
+					logWriterDrainFailures.Add(1)
+					return errors.New("ops system log sink did not drain before timeout")
 				}
 				return nil
 			}},
 			{"AuditLogService", func() error {
-				if auditLog != nil {
-					auditLog.Stop()
+				if auditLog != nil && !auditLog.Stop() {
+					logWriterDrainFailures.Add(1)
+					return errors.New("audit log service did not drain before timeout")
 				}
 				return nil
 			}},
@@ -334,6 +347,16 @@ func provideCleanup(
 		}
 
 		infraSteps := []cleanupStep{
+			{"LogDB", func() error {
+				if logDB == nil {
+					return nil
+				}
+				if failures := logWriterDrainFailures.Load(); failures > 0 {
+					log.Printf("[Cleanup] LogDB close skipped because %d log writer(s) are still draining", failures)
+					return nil
+				}
+				return logDB.Close()
+			}},
 			{"Redis", func() error {
 				if rdb == nil {
 					return nil

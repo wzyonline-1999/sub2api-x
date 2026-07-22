@@ -65,6 +65,12 @@ services:
       - DATABASE_CONN_MAX_LIFETIME_MINUTES=${DATABASE_CONN_MAX_LIFETIME_MINUTES:-30}
       - DATABASE_CONN_MAX_IDLE_TIME_MINUTES=${DATABASE_CONN_MAX_IDLE_TIME_MINUTES:-5}
 
+      # Ops log pressure controls
+      - OPS_SYSTEM_LOG_SUCCESS_ACCESS_SAMPLE_RATE=${OPS_SYSTEM_LOG_SUCCESS_ACCESS_SAMPLE_RATE:-0.10}
+      - OPS_SYSTEM_LOG_SLOW_REQUEST_THRESHOLD_MS=${OPS_SYSTEM_LOG_SLOW_REQUEST_THRESHOLD_MS:-5000}
+      - OPS_CLEANUP_BATCH_SIZE=${OPS_CLEANUP_BATCH_SIZE:-1500}
+      - OPS_CLEANUP_BATCH_PAUSE_MILLISECONDS=${OPS_CLEANUP_BATCH_PAUSE_MILLISECONDS:-200}
+
       # =======================================================================
       # Redis Configuration
       # =======================================================================

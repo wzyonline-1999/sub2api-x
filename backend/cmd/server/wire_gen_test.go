@@ -51,6 +51,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 
 	cleanup := provideCleanup(
 		nil, // entClient
+		nil, // logDB
 		nil, // redis
 		&service.OpsMetricsCollector{},
 		&service.OpsAggregationService{},
