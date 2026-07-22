@@ -15,18 +15,12 @@ import (
 )
 
 const (
-	billingBalanceKeyPrefix = "billing:balance:"
-	// v2 adds per-window generations and version-aware snapshot writes. Keeping
-	// it separate from v1 prevents an old blue/green slot from overwriting the
-	// new cache shape during a rolling deployment; v1 keys expire naturally.
-	billingSubLegacyKeyPrefix = "billing:sub:"
-	billingSubKeyPrefix       = "billing:sub:v2:"
-	billingSubRevisionPrefix  = "billing:sub:v2:revision:"
+	billingBalanceKeyPrefix   = "billing:balance:"
+	billingSubKeyPrefix       = "billing:sub:"
 	billingRateLimitKeyPrefix = "apikey:rate:"
 	subCacheInvalidateChannel = "subscription:cache:invalidate"
 	billingCacheTTL           = 5 * time.Minute
 	billingCacheJitter        = 30 * time.Second
-	billingSubRevisionTTL     = time.Hour
 	rateLimitCacheTTL         = 7 * 24 * time.Hour // 7 days matches the longest window
 
 	// Rate limit window durations — must match service.RateLimitWindow* constants.
@@ -55,27 +49,13 @@ func billingSubKey(userID, groupID int64) string {
 	return fmt.Sprintf("%s%d:%d", billingSubKeyPrefix, userID, groupID)
 }
 
-func billingSubLegacyKey(userID, groupID int64) string {
-	return fmt.Sprintf("%s%d:%d", billingSubLegacyKeyPrefix, userID, groupID)
-}
-
-// billingSubRevisionKey tracks mutations that can race a database snapshot
-// load. It intentionally lives outside the snapshot hash so invalidation can
-// delete the hash without losing the compare-and-set generation.
-func billingSubRevisionKey(userID, groupID int64) string {
-	return fmt.Sprintf("%s%d:%d", billingSubRevisionPrefix, userID, groupID)
-}
-
 const (
-	subFieldStatus               = "status"
-	subFieldExpiresAt            = "expires_at"
-	subFieldDailyUsage           = "daily_usage"
-	subFieldWeeklyUsage          = "weekly_usage"
-	subFieldMonthlyUsage         = "monthly_usage"
-	subFieldVersion              = "version"
-	subFieldDailyWindowVersion   = "daily_window_version"
-	subFieldWeeklyWindowVersion  = "weekly_window_version"
-	subFieldMonthlyWindowVersion = "monthly_window_version"
+	subFieldStatus       = "status"
+	subFieldExpiresAt    = "expires_at"
+	subFieldDailyUsage   = "daily_usage"
+	subFieldWeeklyUsage  = "weekly_usage"
+	subFieldMonthlyUsage = "monthly_usage"
+	subFieldVersion      = "version"
 )
 
 // billingRateLimitKey generates the Redis key for API key rate limit cache.
@@ -104,88 +84,17 @@ var (
 		return 1
 	`)
 
-	setSubCacheScript = redis.NewScript(`
-		local expected_revision = tonumber(ARGV[11])
-		if expected_revision >= 0 then
-			local current_revision = tonumber(redis.call('GET', KEYS[2]) or 0)
-			if current_revision ~= expected_revision then
-				return 0
-			end
-		end
-
-		local exists = redis.call('EXISTS', KEYS[1])
-		if exists == 1 then
-			local current_daily_version = tonumber(redis.call('HGET', KEYS[1], 'daily_window_version') or 0)
-			local current_weekly_version = tonumber(redis.call('HGET', KEYS[1], 'weekly_window_version') or 0)
-			local current_monthly_version = tonumber(redis.call('HGET', KEYS[1], 'monthly_window_version') or 0)
-			local incoming_daily_version = tonumber(ARGV[7])
-			local incoming_weekly_version = tonumber(ARGV[8])
-			local incoming_monthly_version = tonumber(ARGV[9])
-
-			if incoming_daily_version < current_daily_version
-				or incoming_weekly_version < current_weekly_version
-				or incoming_monthly_version < current_monthly_version then
-				return 0
-			end
-
-			if incoming_daily_version == current_daily_version
-				and incoming_weekly_version == current_weekly_version
-				and incoming_monthly_version == current_monthly_version then
-				local current_version = tonumber(redis.call('HGET', KEYS[1], 'version') or 0)
-				-- Equal snapshot versions are also rejected. A cache usage increment
-				-- does not change the database snapshot version; accepting an equal
-				-- delayed fill could therefore erase a newer HINCRBYFLOAT result.
-				if tonumber(ARGV[6]) <= current_version then
-					return 0
-				end
-			end
-		end
-
-		redis.call('HSET', KEYS[1],
-			'status', ARGV[1],
-			'expires_at', ARGV[2],
-			'daily_usage', ARGV[3],
-			'weekly_usage', ARGV[4],
-			'monthly_usage', ARGV[5],
-			'version', ARGV[6],
-			'daily_window_version', ARGV[7],
-			'weekly_window_version', ARGV[8],
-			'monthly_window_version', ARGV[9])
-		redis.call('EXPIRE', KEYS[1], ARGV[10])
-		if expected_revision >= 0 then
-			redis.call('SET', KEYS[2], expected_revision, 'EX', ARGV[12])
-		end
-		return 1
-	`)
-
 	updateSubUsageScript = redis.NewScript(`
-		redis.call('INCR', KEYS[2])
-		redis.call('EXPIRE', KEYS[2], ARGV[6])
-		-- Keep rollback to a legacy blue/green slot safe. The old slot will
-		-- refill this key from PostgreSQL instead of reading a frozen v1 snapshot.
-		redis.call('DEL', KEYS[3])
 		local exists = redis.call('EXISTS', KEYS[1])
 		if exists == 0 then
 			return 0
 		end
 		local cost = tonumber(ARGV[1])
-		local function update_window(usage_field, version_field, expected_version)
-			local current_version = tonumber(redis.call('HGET', KEYS[1], version_field) or 0)
-			if tonumber(expected_version) < 0 or current_version == tonumber(expected_version) then
-				redis.call('HINCRBYFLOAT', KEYS[1], usage_field, cost)
-			end
-		end
-		update_window('daily_usage', 'daily_window_version', ARGV[3])
-		update_window('weekly_usage', 'weekly_window_version', ARGV[4])
-		update_window('monthly_usage', 'monthly_window_version', ARGV[5])
+		redis.call('HINCRBYFLOAT', KEYS[1], 'daily_usage', cost)
+		redis.call('HINCRBYFLOAT', KEYS[1], 'weekly_usage', cost)
+		redis.call('HINCRBYFLOAT', KEYS[1], 'monthly_usage', cost)
 		redis.call('EXPIRE', KEYS[1], ARGV[2])
 		return 1
-	`)
-
-	invalidateSubCacheScript = redis.NewScript(`
-		redis.call('INCR', KEYS[2])
-		redis.call('EXPIRE', KEYS[2], ARGV[1])
-		return redis.call('DEL', KEYS[1], KEYS[3])
 	`)
 
 	// updateRateLimitUsageScript atomically increments all three rate limit usage counters
@@ -306,82 +215,36 @@ func (c *billingCache) parseSubscriptionCache(data map[string]string) (*service.
 	if versionStr, ok := data[subFieldVersion]; ok {
 		result.Version, _ = strconv.ParseInt(versionStr, 10, 64)
 	}
-	if value, ok := data[subFieldDailyWindowVersion]; ok {
-		result.DailyWindowVersion, _ = strconv.ParseInt(value, 10, 64)
-	}
-	if value, ok := data[subFieldWeeklyWindowVersion]; ok {
-		result.WeeklyWindowVersion, _ = strconv.ParseInt(value, 10, 64)
-	}
-	if value, ok := data[subFieldMonthlyWindowVersion]; ok {
-		result.MonthlyWindowVersion, _ = strconv.ParseInt(value, 10, 64)
-	}
 
 	return result, nil
 }
 
 func (c *billingCache) SetSubscriptionCache(ctx context.Context, userID, groupID int64, data *service.SubscriptionCacheData) error {
-	_, err := c.setSubscriptionCache(ctx, userID, groupID, -1, data)
+	if data == nil {
+		return nil
+	}
+
+	key := billingSubKey(userID, groupID)
+
+	fields := map[string]any{
+		subFieldStatus:       data.Status,
+		subFieldExpiresAt:    data.ExpiresAt.Unix(),
+		subFieldDailyUsage:   data.DailyUsage,
+		subFieldWeeklyUsage:  data.WeeklyUsage,
+		subFieldMonthlyUsage: data.MonthlyUsage,
+		subFieldVersion:      data.Version,
+	}
+
+	pipe := c.rdb.Pipeline()
+	pipe.HSet(ctx, key, fields)
+	pipe.Expire(ctx, key, jitteredTTL())
+	_, err := pipe.Exec(ctx)
 	return err
 }
 
-// GetSubscriptionCacheRevision returns the mutation generation used to guard a
-// database snapshot load. A missing key is generation zero.
-func (c *billingCache) GetSubscriptionCacheRevision(ctx context.Context, userID, groupID int64) (int64, error) {
-	value, err := c.rdb.Get(ctx, billingSubRevisionKey(userID, groupID)).Int64()
-	if errors.Is(err, redis.Nil) {
-		return 0, nil
-	}
-	return value, err
-}
-
-// SetSubscriptionCacheIfRevision installs a database snapshot only if no
-// subscription-cache mutation happened after the caller read expectedRevision.
-func (c *billingCache) SetSubscriptionCacheIfRevision(ctx context.Context, userID, groupID, expectedRevision int64, data *service.SubscriptionCacheData) (bool, error) {
-	return c.setSubscriptionCache(ctx, userID, groupID, expectedRevision, data)
-}
-
-func (c *billingCache) setSubscriptionCache(ctx context.Context, userID, groupID, expectedRevision int64, data *service.SubscriptionCacheData) (bool, error) {
-	if data == nil {
-		return false, nil
-	}
-
-	key := billingSubKey(userID, groupID)
-	revisionKey := billingSubRevisionKey(userID, groupID)
-
-	result, err := setSubCacheScript.Run(ctx, c.rdb, []string{key, revisionKey},
-		data.Status,
-		data.ExpiresAt.Unix(),
-		data.DailyUsage,
-		data.WeeklyUsage,
-		data.MonthlyUsage,
-		data.Version,
-		data.DailyWindowVersion,
-		data.WeeklyWindowVersion,
-		data.MonthlyWindowVersion,
-		int(jitteredTTL().Seconds()),
-		expectedRevision,
-		int(billingSubRevisionTTL.Seconds()),
-	).Result()
-	if err != nil {
-		return false, err
-	}
-	written, ok := result.(int64)
-	return ok && written == 1, nil
-}
-
 func (c *billingCache) UpdateSubscriptionUsage(ctx context.Context, userID, groupID int64, cost float64) error {
-	return c.updateSubscriptionUsageForWindows(ctx, userID, groupID, cost, -1, -1, -1)
-}
-
-func (c *billingCache) UpdateSubscriptionUsageForWindows(ctx context.Context, userID, groupID int64, cost float64, dailyVersion, weeklyVersion, monthlyVersion int64) error {
-	return c.updateSubscriptionUsageForWindows(ctx, userID, groupID, cost, dailyVersion, weeklyVersion, monthlyVersion)
-}
-
-func (c *billingCache) updateSubscriptionUsageForWindows(ctx context.Context, userID, groupID int64, cost float64, dailyVersion, weeklyVersion, monthlyVersion int64) error {
 	key := billingSubKey(userID, groupID)
-	revisionKey := billingSubRevisionKey(userID, groupID)
-	legacyKey := billingSubLegacyKey(userID, groupID)
-	_, err := updateSubUsageScript.Run(ctx, c.rdb, []string{key, revisionKey, legacyKey}, cost, int(jitteredTTL().Seconds()), dailyVersion, weeklyVersion, monthlyVersion, int(billingSubRevisionTTL.Seconds())).Result()
+	_, err := updateSubUsageScript.Run(ctx, c.rdb, []string{key}, cost, int(jitteredTTL().Seconds())).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		log.Printf("Warning: update subscription usage cache failed for user %d group %d: %v", userID, groupID, err)
 		return err
@@ -391,9 +254,7 @@ func (c *billingCache) updateSubscriptionUsageForWindows(ctx context.Context, us
 
 func (c *billingCache) InvalidateSubscriptionCache(ctx context.Context, userID, groupID int64) error {
 	key := billingSubKey(userID, groupID)
-	revisionKey := billingSubRevisionKey(userID, groupID)
-	legacyKey := billingSubLegacyKey(userID, groupID)
-	return invalidateSubCacheScript.Run(ctx, c.rdb, []string{key, revisionKey, legacyKey}, int(billingSubRevisionTTL.Seconds())).Err()
+	return c.rdb.Del(ctx, key).Err()
 }
 
 func (c *billingCache) PublishSubscriptionCacheInvalidation(ctx context.Context, cacheKey string) error {

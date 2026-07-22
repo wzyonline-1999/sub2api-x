@@ -47,12 +47,6 @@ type UserSubscription struct {
 	WeeklyUsageUsd float64 `json:"weekly_usage_usd,omitempty"`
 	// MonthlyUsageUsd holds the value of the "monthly_usage_usd" field.
 	MonthlyUsageUsd float64 `json:"monthly_usage_usd,omitempty"`
-	// DailyWindowVersion holds the value of the "daily_window_version" field.
-	DailyWindowVersion int64 `json:"daily_window_version,omitempty"`
-	// WeeklyWindowVersion holds the value of the "weekly_window_version" field.
-	WeeklyWindowVersion int64 `json:"weekly_window_version,omitempty"`
-	// MonthlyWindowVersion holds the value of the "monthly_window_version" field.
-	MonthlyWindowVersion int64 `json:"monthly_window_version,omitempty"`
 	// AssignedBy holds the value of the "assigned_by" field.
 	AssignedBy *int64 `json:"assigned_by,omitempty"`
 	// AssignedAt holds the value of the "assigned_at" field.
@@ -75,11 +69,9 @@ type UserSubscriptionEdges struct {
 	AssignedByUser *User `json:"assigned_by_user,omitempty"`
 	// UsageLogs holds the value of the usage_logs edge.
 	UsageLogs []*UsageLog `json:"usage_logs,omitempty"`
-	// SubscriptionResetCardUsages holds the value of the subscription_reset_card_usages edge.
-	SubscriptionResetCardUsages []*SubscriptionResetCardUsage `json:"subscription_reset_card_usages,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [5]bool
+	loadedTypes [4]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -124,15 +116,6 @@ func (e UserSubscriptionEdges) UsageLogsOrErr() ([]*UsageLog, error) {
 	return nil, &NotLoadedError{edge: "usage_logs"}
 }
 
-// SubscriptionResetCardUsagesOrErr returns the SubscriptionResetCardUsages value or an error if the edge
-// was not loaded in eager-loading.
-func (e UserSubscriptionEdges) SubscriptionResetCardUsagesOrErr() ([]*SubscriptionResetCardUsage, error) {
-	if e.loadedTypes[4] {
-		return e.SubscriptionResetCardUsages, nil
-	}
-	return nil, &NotLoadedError{edge: "subscription_reset_card_usages"}
-}
-
 // scanValues returns the types for scanning values from sql.Rows.
 func (*UserSubscription) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -140,7 +123,7 @@ func (*UserSubscription) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case usersubscription.FieldDailyUsageUsd, usersubscription.FieldWeeklyUsageUsd, usersubscription.FieldMonthlyUsageUsd:
 			values[i] = new(sql.NullFloat64)
-		case usersubscription.FieldID, usersubscription.FieldUserID, usersubscription.FieldGroupID, usersubscription.FieldDailyWindowVersion, usersubscription.FieldWeeklyWindowVersion, usersubscription.FieldMonthlyWindowVersion, usersubscription.FieldAssignedBy:
+		case usersubscription.FieldID, usersubscription.FieldUserID, usersubscription.FieldGroupID, usersubscription.FieldAssignedBy:
 			values[i] = new(sql.NullInt64)
 		case usersubscription.FieldStatus, usersubscription.FieldNotes:
 			values[i] = new(sql.NullString)
@@ -255,24 +238,6 @@ func (_m *UserSubscription) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.MonthlyUsageUsd = value.Float64
 			}
-		case usersubscription.FieldDailyWindowVersion:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field daily_window_version", values[i])
-			} else if value.Valid {
-				_m.DailyWindowVersion = value.Int64
-			}
-		case usersubscription.FieldWeeklyWindowVersion:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field weekly_window_version", values[i])
-			} else if value.Valid {
-				_m.WeeklyWindowVersion = value.Int64
-			}
-		case usersubscription.FieldMonthlyWindowVersion:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field monthly_window_version", values[i])
-			} else if value.Valid {
-				_m.MonthlyWindowVersion = value.Int64
-			}
 		case usersubscription.FieldAssignedBy:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field assigned_by", values[i])
@@ -324,11 +289,6 @@ func (_m *UserSubscription) QueryAssignedByUser() *UserQuery {
 // QueryUsageLogs queries the "usage_logs" edge of the UserSubscription entity.
 func (_m *UserSubscription) QueryUsageLogs() *UsageLogQuery {
 	return NewUserSubscriptionClient(_m.config).QueryUsageLogs(_m)
-}
-
-// QuerySubscriptionResetCardUsages queries the "subscription_reset_card_usages" edge of the UserSubscription entity.
-func (_m *UserSubscription) QuerySubscriptionResetCardUsages() *SubscriptionResetCardUsageQuery {
-	return NewUserSubscriptionClient(_m.config).QuerySubscriptionResetCardUsages(_m)
 }
 
 // Update returns a builder for updating this UserSubscription.
@@ -403,15 +363,6 @@ func (_m *UserSubscription) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("monthly_usage_usd=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MonthlyUsageUsd))
-	builder.WriteString(", ")
-	builder.WriteString("daily_window_version=")
-	builder.WriteString(fmt.Sprintf("%v", _m.DailyWindowVersion))
-	builder.WriteString(", ")
-	builder.WriteString("weekly_window_version=")
-	builder.WriteString(fmt.Sprintf("%v", _m.WeeklyWindowVersion))
-	builder.WriteString(", ")
-	builder.WriteString("monthly_window_version=")
-	builder.WriteString(fmt.Sprintf("%v", _m.MonthlyWindowVersion))
 	builder.WriteString(", ")
 	if v := _m.AssignedBy; v != nil {
 		builder.WriteString("assigned_by=")

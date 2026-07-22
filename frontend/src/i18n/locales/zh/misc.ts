@@ -132,45 +132,7 @@ export default {
     resetIn: '{time} 后重置',
     quotaEndsIn: '额度将在 {time} 后结束',
     windowNotActive: '等待首次使用',
-    usageOf: '已用 {used} / {limit}',
-    resetCards: {
-      title: '套餐额度重置卡',
-      description: '手动重置订阅额度，或在额度用完后自动使用',
-      totalAvailable: '共 {count} 张可用',
-      remaining: '可用',
-      nextExpires: '最近过期',
-      noExpiration: '永不过期',
-      autoUse: '自动使用',
-      autoUseHint: '额度用完后',
-      useNow: '立即重置',
-      confirmTitle: '使用额度重置卡',
-      confirmMessage:
-        '确定为「{group}」使用一张重置卡吗？日、周、月已用额度将归零并从现在重新计算，订阅有效期不会延长。',
-      confirmUse: '确认使用',
-      useSuccess: '额度已重置，并消耗了一张重置卡',
-      useFailed: '使用重置卡失败',
-      failedToLoad: '重置卡数据加载失败，订阅信息仍可正常查看',
-      refreshFailed: '额度已重置，但部分页面数据刷新失败，请稍后刷新页面',
-      autoUseEnabled: '已开启自动使用重置卡',
-      autoUseDisabled: '已关闭自动使用重置卡',
-      autoUseFailed: '自动使用设置更新失败',
-      recentUsage: '最近使用记录',
-      previousUsage: '重置前：日 ${daily} · 周 ${weekly} · 月 ${monthly}',
-      mode: {
-        manual: '手动使用',
-        auto: '自动使用'
-      },
-      unavailableReasons: {
-        unavailable: '当前不可使用',
-        noAvailableCards: '暂无可用的重置卡',
-        noActiveSubscription: '没有匹配的有效订阅',
-        subscriptionNotActive: '匹配的订阅当前不可用',
-        subscriptionHasNoLimits: '该订阅没有需要重置的额度',
-        nothingToReset: '当前没有已用额度，无需重置',
-        oneTimeDailyQuota: '一次性日额度订阅暂不支持自动重置',
-        autoUseNotAvailable: '该套餐暂不支持自动使用'
-      }
-    }
+    usageOf: '已用 {used} / {limit}'
   },
 
   // Onboarding Tour

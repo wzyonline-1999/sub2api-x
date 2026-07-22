@@ -15,7 +15,6 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
-	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardusage"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
@@ -24,16 +23,15 @@ import (
 // UserSubscriptionQuery is the builder for querying UserSubscription entities.
 type UserSubscriptionQuery struct {
 	config
-	ctx                             *QueryContext
-	order                           []usersubscription.OrderOption
-	inters                          []Interceptor
-	predicates                      []predicate.UserSubscription
-	withUser                        *UserQuery
-	withGroup                       *GroupQuery
-	withAssignedByUser              *UserQuery
-	withUsageLogs                   *UsageLogQuery
-	withSubscriptionResetCardUsages *SubscriptionResetCardUsageQuery
-	modifiers                       []func(*sql.Selector)
+	ctx                *QueryContext
+	order              []usersubscription.OrderOption
+	inters             []Interceptor
+	predicates         []predicate.UserSubscription
+	withUser           *UserQuery
+	withGroup          *GroupQuery
+	withAssignedByUser *UserQuery
+	withUsageLogs      *UsageLogQuery
+	modifiers          []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -151,28 +149,6 @@ func (_q *UserSubscriptionQuery) QueryUsageLogs() *UsageLogQuery {
 			sqlgraph.From(usersubscription.Table, usersubscription.FieldID, selector),
 			sqlgraph.To(usagelog.Table, usagelog.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, usersubscription.UsageLogsTable, usersubscription.UsageLogsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QuerySubscriptionResetCardUsages chains the current query on the "subscription_reset_card_usages" edge.
-func (_q *UserSubscriptionQuery) QuerySubscriptionResetCardUsages() *SubscriptionResetCardUsageQuery {
-	query := (&SubscriptionResetCardUsageClient{config: _q.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
-		if err := _q.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := _q.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(usersubscription.Table, usersubscription.FieldID, selector),
-			sqlgraph.To(subscriptionresetcardusage.Table, subscriptionresetcardusage.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, usersubscription.SubscriptionResetCardUsagesTable, usersubscription.SubscriptionResetCardUsagesColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -367,16 +343,15 @@ func (_q *UserSubscriptionQuery) Clone() *UserSubscriptionQuery {
 		return nil
 	}
 	return &UserSubscriptionQuery{
-		config:                          _q.config,
-		ctx:                             _q.ctx.Clone(),
-		order:                           append([]usersubscription.OrderOption{}, _q.order...),
-		inters:                          append([]Interceptor{}, _q.inters...),
-		predicates:                      append([]predicate.UserSubscription{}, _q.predicates...),
-		withUser:                        _q.withUser.Clone(),
-		withGroup:                       _q.withGroup.Clone(),
-		withAssignedByUser:              _q.withAssignedByUser.Clone(),
-		withUsageLogs:                   _q.withUsageLogs.Clone(),
-		withSubscriptionResetCardUsages: _q.withSubscriptionResetCardUsages.Clone(),
+		config:             _q.config,
+		ctx:                _q.ctx.Clone(),
+		order:              append([]usersubscription.OrderOption{}, _q.order...),
+		inters:             append([]Interceptor{}, _q.inters...),
+		predicates:         append([]predicate.UserSubscription{}, _q.predicates...),
+		withUser:           _q.withUser.Clone(),
+		withGroup:          _q.withGroup.Clone(),
+		withAssignedByUser: _q.withAssignedByUser.Clone(),
+		withUsageLogs:      _q.withUsageLogs.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -424,17 +399,6 @@ func (_q *UserSubscriptionQuery) WithUsageLogs(opts ...func(*UsageLogQuery)) *Us
 		opt(query)
 	}
 	_q.withUsageLogs = query
-	return _q
-}
-
-// WithSubscriptionResetCardUsages tells the query-builder to eager-load the nodes that are connected to
-// the "subscription_reset_card_usages" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *UserSubscriptionQuery) WithSubscriptionResetCardUsages(opts ...func(*SubscriptionResetCardUsageQuery)) *UserSubscriptionQuery {
-	query := (&SubscriptionResetCardUsageClient{config: _q.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	_q.withSubscriptionResetCardUsages = query
 	return _q
 }
 
@@ -516,12 +480,11 @@ func (_q *UserSubscriptionQuery) sqlAll(ctx context.Context, hooks ...queryHook)
 	var (
 		nodes       = []*UserSubscription{}
 		_spec       = _q.querySpec()
-		loadedTypes = [5]bool{
+		loadedTypes = [4]bool{
 			_q.withUser != nil,
 			_q.withGroup != nil,
 			_q.withAssignedByUser != nil,
 			_q.withUsageLogs != nil,
-			_q.withSubscriptionResetCardUsages != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -567,15 +530,6 @@ func (_q *UserSubscriptionQuery) sqlAll(ctx context.Context, hooks ...queryHook)
 		if err := _q.loadUsageLogs(ctx, query, nodes,
 			func(n *UserSubscription) { n.Edges.UsageLogs = []*UsageLog{} },
 			func(n *UserSubscription, e *UsageLog) { n.Edges.UsageLogs = append(n.Edges.UsageLogs, e) }); err != nil {
-			return nil, err
-		}
-	}
-	if query := _q.withSubscriptionResetCardUsages; query != nil {
-		if err := _q.loadSubscriptionResetCardUsages(ctx, query, nodes,
-			func(n *UserSubscription) { n.Edges.SubscriptionResetCardUsages = []*SubscriptionResetCardUsage{} },
-			func(n *UserSubscription, e *SubscriptionResetCardUsage) {
-				n.Edges.SubscriptionResetCardUsages = append(n.Edges.SubscriptionResetCardUsages, e)
-			}); err != nil {
 			return nil, err
 		}
 	}
@@ -700,36 +654,6 @@ func (_q *UserSubscriptionQuery) loadUsageLogs(ctx context.Context, query *Usage
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "subscription_id" returned %v for node %v`, *fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
-}
-func (_q *UserSubscriptionQuery) loadSubscriptionResetCardUsages(ctx context.Context, query *SubscriptionResetCardUsageQuery, nodes []*UserSubscription, init func(*UserSubscription), assign func(*UserSubscription, *SubscriptionResetCardUsage)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int64]*UserSubscription)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(subscriptionresetcardusage.FieldSubscriptionID)
-	}
-	query.Where(predicate.SubscriptionResetCardUsage(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(usersubscription.SubscriptionResetCardUsagesColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.SubscriptionID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "subscription_id" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

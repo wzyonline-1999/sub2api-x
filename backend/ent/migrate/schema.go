@@ -1484,201 +1484,6 @@ var (
 			},
 		},
 	}
-	// SubscriptionResetCardGrantsColumns holds the columns for the "subscription_reset_card_grants" table.
-	SubscriptionResetCardGrantsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "issued_count", Type: field.TypeInt},
-		{Name: "remaining_count", Type: field.TypeInt},
-		{Name: "expires_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
-		{Name: "source", Type: field.TypeString, Size: 30, Default: "admin_grant"},
-		{Name: "request_id", Type: field.TypeString, Nullable: true, Size: 64},
-		{Name: "notes", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
-		{Name: "group_id", Type: field.TypeInt64},
-		{Name: "user_id", Type: field.TypeInt64},
-		{Name: "issued_by", Type: field.TypeInt64, Nullable: true},
-	}
-	// SubscriptionResetCardGrantsTable holds the schema information for the "subscription_reset_card_grants" table.
-	SubscriptionResetCardGrantsTable = &schema.Table{
-		Name:       "subscription_reset_card_grants",
-		Columns:    SubscriptionResetCardGrantsColumns,
-		PrimaryKey: []*schema.Column{SubscriptionResetCardGrantsColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "subscription_reset_card_grants_groups_subscription_reset_card_grants",
-				Columns:    []*schema.Column{SubscriptionResetCardGrantsColumns[10]},
-				RefColumns: []*schema.Column{GroupsColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-			{
-				Symbol:     "subscription_reset_card_grants_users_subscription_reset_card_grants",
-				Columns:    []*schema.Column{SubscriptionResetCardGrantsColumns[11]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-			{
-				Symbol:     "subscription_reset_card_grants_users_issued_subscription_reset_card_grants",
-				Columns:    []*schema.Column{SubscriptionResetCardGrantsColumns[12]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.SetNull,
-			},
-		},
-		Indexes: []*schema.Index{
-			{
-				Name:    "subscriptionresetcardgrant_user_id",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardGrantsColumns[11]},
-			},
-			{
-				Name:    "subscriptionresetcardgrant_group_id",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardGrantsColumns[10]},
-			},
-			{
-				Name:    "subscriptionresetcardgrant_status",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardGrantsColumns[6]},
-			},
-			{
-				Name:    "subscriptionresetcardgrant_expires_at",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardGrantsColumns[5]},
-			},
-			{
-				Name:    "idx_subscription_reset_card_grants_request",
-				Unique:  true,
-				Columns: []*schema.Column{SubscriptionResetCardGrantsColumns[8]},
-				Annotation: &entsql.IndexAnnotation{
-					Where: "request_id IS NOT NULL",
-				},
-			},
-			{
-				Name:    "subscriptionresetcardgrant_user_id_group_id_status_expires_at",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardGrantsColumns[11], SubscriptionResetCardGrantsColumns[10], SubscriptionResetCardGrantsColumns[6], SubscriptionResetCardGrantsColumns[5]},
-				Annotation: &entsql.IndexAnnotation{
-					Where: "remaining_count > 0",
-				},
-			},
-		},
-	}
-	// SubscriptionResetCardUsagesColumns holds the columns for the "subscription_reset_card_usages" table.
-	SubscriptionResetCardUsagesColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "mode", Type: field.TypeString, Size: 10},
-		{Name: "request_id", Type: field.TypeString, Nullable: true, Size: 128},
-		{Name: "previous_daily_usage_usd", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
-		{Name: "previous_weekly_usage_usd", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
-		{Name: "previous_monthly_usage_usd", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
-		{Name: "previous_daily_window_start", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "previous_weekly_window_start", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "previous_monthly_window_start", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "used_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "group_id", Type: field.TypeInt64},
-		{Name: "grant_id", Type: field.TypeInt64},
-		{Name: "user_id", Type: field.TypeInt64},
-		{Name: "subscription_id", Type: field.TypeInt64},
-	}
-	// SubscriptionResetCardUsagesTable holds the schema information for the "subscription_reset_card_usages" table.
-	SubscriptionResetCardUsagesTable = &schema.Table{
-		Name:       "subscription_reset_card_usages",
-		Columns:    SubscriptionResetCardUsagesColumns,
-		PrimaryKey: []*schema.Column{SubscriptionResetCardUsagesColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "subscription_reset_card_usages_groups_subscription_reset_card_usages",
-				Columns:    []*schema.Column{SubscriptionResetCardUsagesColumns[10]},
-				RefColumns: []*schema.Column{GroupsColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-			{
-				Symbol:     "subscription_reset_card_usages_subscription_reset_card_grants_usages",
-				Columns:    []*schema.Column{SubscriptionResetCardUsagesColumns[11]},
-				RefColumns: []*schema.Column{SubscriptionResetCardGrantsColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-			{
-				Symbol:     "subscription_reset_card_usages_users_subscription_reset_card_usages",
-				Columns:    []*schema.Column{SubscriptionResetCardUsagesColumns[12]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-			{
-				Symbol:     "subscription_reset_card_usages_user_subscriptions_subscription_reset_card_usages",
-				Columns:    []*schema.Column{SubscriptionResetCardUsagesColumns[13]},
-				RefColumns: []*schema.Column{UserSubscriptionsColumns[0]},
-				OnDelete:   schema.NoAction,
-			},
-		},
-		Indexes: []*schema.Index{
-			{
-				Name:    "subscriptionresetcardusage_grant_id",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardUsagesColumns[11]},
-			},
-			{
-				Name:    "subscriptionresetcardusage_subscription_id",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardUsagesColumns[13]},
-			},
-			{
-				Name:    "subscriptionresetcardusage_user_id_used_at",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardUsagesColumns[12], SubscriptionResetCardUsagesColumns[9]},
-			},
-			{
-				Name:    "subscriptionresetcardusage_group_id_used_at",
-				Unique:  false,
-				Columns: []*schema.Column{SubscriptionResetCardUsagesColumns[10], SubscriptionResetCardUsagesColumns[9]},
-			},
-			{
-				Name:    "subscriptionresetcardusage_request_id",
-				Unique:  true,
-				Columns: []*schema.Column{SubscriptionResetCardUsagesColumns[2]},
-				Annotation: &entsql.IndexAnnotation{
-					Where: "request_id IS NOT NULL",
-				},
-			},
-		},
-	}
-	// SubscriptionResetPreferencesColumns holds the columns for the "subscription_reset_preferences" table.
-	SubscriptionResetPreferencesColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "auto_use_enabled", Type: field.TypeBool, Default: false},
-		{Name: "group_id", Type: field.TypeInt64},
-		{Name: "user_id", Type: field.TypeInt64},
-	}
-	// SubscriptionResetPreferencesTable holds the schema information for the "subscription_reset_preferences" table.
-	SubscriptionResetPreferencesTable = &schema.Table{
-		Name:       "subscription_reset_preferences",
-		Columns:    SubscriptionResetPreferencesColumns,
-		PrimaryKey: []*schema.Column{SubscriptionResetPreferencesColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "subscription_reset_preferences_groups_subscription_reset_preferences",
-				Columns:    []*schema.Column{SubscriptionResetPreferencesColumns[4]},
-				RefColumns: []*schema.Column{GroupsColumns[0]},
-				OnDelete:   schema.Cascade,
-			},
-			{
-				Symbol:     "subscription_reset_preferences_users_subscription_reset_preferences",
-				Columns:    []*schema.Column{SubscriptionResetPreferencesColumns[5]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.Cascade,
-			},
-		},
-		Indexes: []*schema.Index{
-			{
-				Name:    "subscriptionresetpreference_user_id_group_id",
-				Unique:  true,
-				Columns: []*schema.Column{SubscriptionResetPreferencesColumns[5], SubscriptionResetPreferencesColumns[4]},
-			},
-		},
-	}
 	// TLSFingerprintProfilesColumns holds the columns for the "tls_fingerprint_profiles" table.
 	TLSFingerprintProfilesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2121,9 +1926,6 @@ var (
 		{Name: "daily_usage_usd", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
 		{Name: "weekly_usage_usd", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
 		{Name: "monthly_usage_usd", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
-		{Name: "daily_window_version", Type: field.TypeInt64, Default: 0},
-		{Name: "weekly_window_version", Type: field.TypeInt64, Default: 0},
-		{Name: "monthly_window_version", Type: field.TypeInt64, Default: 0},
 		{Name: "assigned_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "notes", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "group_id", Type: field.TypeInt64},
@@ -2138,19 +1940,19 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "user_subscriptions_groups_subscriptions",
-				Columns:    []*schema.Column{UserSubscriptionsColumns[18]},
+				Columns:    []*schema.Column{UserSubscriptionsColumns[15]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "user_subscriptions_users_subscriptions",
-				Columns:    []*schema.Column{UserSubscriptionsColumns[19]},
+				Columns:    []*schema.Column{UserSubscriptionsColumns[16]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "user_subscriptions_users_assigned_subscriptions",
-				Columns:    []*schema.Column{UserSubscriptionsColumns[20]},
+				Columns:    []*schema.Column{UserSubscriptionsColumns[17]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -2159,12 +1961,12 @@ var (
 			{
 				Name:    "usersubscription_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{UserSubscriptionsColumns[19]},
+				Columns: []*schema.Column{UserSubscriptionsColumns[16]},
 			},
 			{
 				Name:    "usersubscription_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{UserSubscriptionsColumns[18]},
+				Columns: []*schema.Column{UserSubscriptionsColumns[15]},
 			},
 			{
 				Name:    "usersubscription_status",
@@ -2179,17 +1981,17 @@ var (
 			{
 				Name:    "usersubscription_user_id_status_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UserSubscriptionsColumns[19], UserSubscriptionsColumns[6], UserSubscriptionsColumns[5]},
+				Columns: []*schema.Column{UserSubscriptionsColumns[16], UserSubscriptionsColumns[6], UserSubscriptionsColumns[5]},
 			},
 			{
 				Name:    "usersubscription_assigned_by",
 				Unique:  false,
-				Columns: []*schema.Column{UserSubscriptionsColumns[20]},
+				Columns: []*schema.Column{UserSubscriptionsColumns[17]},
 			},
 			{
 				Name:    "usersubscription_user_id_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{UserSubscriptionsColumns[19], UserSubscriptionsColumns[18]},
+				Columns: []*schema.Column{UserSubscriptionsColumns[16], UserSubscriptionsColumns[15]},
 			},
 			{
 				Name:    "usersubscription_deleted_at",
@@ -2229,9 +2031,6 @@ var (
 		SecuritySecretsTable,
 		SettingsTable,
 		SubscriptionPlansTable,
-		SubscriptionResetCardGrantsTable,
-		SubscriptionResetCardUsagesTable,
-		SubscriptionResetPreferencesTable,
 		TLSFingerprintProfilesTable,
 		UsageCleanupTasksTable,
 		UsageLogsTable,
@@ -2353,24 +2152,6 @@ func init() {
 	}
 	SubscriptionPlansTable.Annotation = &entsql.Annotation{
 		Table: "subscription_plans",
-	}
-	SubscriptionResetCardGrantsTable.ForeignKeys[0].RefTable = GroupsTable
-	SubscriptionResetCardGrantsTable.ForeignKeys[1].RefTable = UsersTable
-	SubscriptionResetCardGrantsTable.ForeignKeys[2].RefTable = UsersTable
-	SubscriptionResetCardGrantsTable.Annotation = &entsql.Annotation{
-		Table: "subscription_reset_card_grants",
-	}
-	SubscriptionResetCardUsagesTable.ForeignKeys[0].RefTable = GroupsTable
-	SubscriptionResetCardUsagesTable.ForeignKeys[1].RefTable = SubscriptionResetCardGrantsTable
-	SubscriptionResetCardUsagesTable.ForeignKeys[2].RefTable = UsersTable
-	SubscriptionResetCardUsagesTable.ForeignKeys[3].RefTable = UserSubscriptionsTable
-	SubscriptionResetCardUsagesTable.Annotation = &entsql.Annotation{
-		Table: "subscription_reset_card_usages",
-	}
-	SubscriptionResetPreferencesTable.ForeignKeys[0].RefTable = GroupsTable
-	SubscriptionResetPreferencesTable.ForeignKeys[1].RefTable = UsersTable
-	SubscriptionResetPreferencesTable.Annotation = &entsql.Annotation{
-		Table: "subscription_reset_preferences",
 	}
 	TLSFingerprintProfilesTable.Annotation = &entsql.Annotation{
 		Table: "tls_fingerprint_profiles",

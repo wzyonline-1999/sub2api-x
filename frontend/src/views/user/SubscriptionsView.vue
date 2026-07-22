@@ -8,145 +8,8 @@
         ></div>
       </div>
 
-      <template v-else>
-        <!-- Reset Card Wallet -->
-        <section
-          v-if="resetCardInventory.length > 0"
-          class="card overflow-hidden"
-          data-testid="reset-card-wallet"
-        >
-          <div
-            class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300"
-              >
-                <Icon name="gift" size="md" />
-              </div>
-              <div>
-                <h2 class="font-semibold text-gray-900 dark:text-white">
-                  {{ t('userSubscriptions.resetCards.title') }}
-                </h2>
-                <p class="text-xs text-gray-500 dark:text-dark-400">
-                  {{ t('userSubscriptions.resetCards.description') }}
-                </p>
-              </div>
-            </div>
-            <span
-              class="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
-            >
-              {{
-                t('userSubscriptions.resetCards.totalAvailable', {
-                  count: totalResetCardCount
-                })
-              }}
-            </span>
-          </div>
-
-          <div class="divide-y divide-gray-100 dark:divide-dark-700">
-            <div
-              v-for="item in resetCardInventory"
-              :key="item.group_id"
-              class="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
-              :data-testid="`reset-card-inventory-${item.group_id}`"
-            >
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span
-                    :class="[
-                      'h-2 w-2 shrink-0 rounded-full',
-                      platformAccentDotClass(item.platform)
-                    ]"
-                  ></span>
-                  <h3 class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                    {{ item.group_name }}
-                  </h3>
-                  <span
-                    :class="[
-                      'rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      platformBadgeClass(item.platform)
-                    ]"
-                  >
-                    {{ platformLabel(item.platform) }}
-                  </span>
-                </div>
-                <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
-                  <span>
-                    {{ t('userSubscriptions.resetCards.remaining') }}
-                    <strong class="ml-1 text-base text-violet-600 dark:text-violet-300">
-                      {{ item.remaining_count }}
-                    </strong>
-                  </span>
-                  <span>
-                    {{ t('userSubscriptions.resetCards.nextExpires') }}:
-                    <span class="font-medium text-gray-700 dark:text-gray-300">
-                      {{ formatResetCardExpiration(item.next_expires_at) }}
-                    </span>
-                  </span>
-                </div>
-                <p
-                  v-if="!item.can_use && item.unavailable_reason"
-                  class="mt-1.5 text-xs text-amber-600 dark:text-amber-400"
-                >
-                  {{ formatResetCardUnavailableReason(item.unavailable_reason) }}
-                </p>
-              </div>
-
-              <div class="flex flex-wrap items-center gap-4 lg:justify-end">
-                <div class="flex items-center gap-2">
-                  <div class="text-right">
-                    <p class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                      {{ t('userSubscriptions.resetCards.autoUse') }}
-                    </p>
-                    <p class="text-[11px] text-gray-400 dark:text-gray-500">
-                      {{ t('userSubscriptions.resetCards.autoUseHint') }}
-                    </p>
-                  </div>
-                  <Toggle
-                    :model-value="item.auto_use_enabled"
-                    :disabled="
-                      updatingAutoUseGroupId !== null ||
-                      (!item.auto_use_available && !item.auto_use_enabled)
-                    "
-                    :data-testid="`reset-card-auto-${item.group_id}`"
-                    :aria-label="`${t('userSubscriptions.resetCards.autoUse')}：${item.group_name}`"
-                    :title="
-                      item.auto_use_available || item.auto_use_enabled
-                        ? t('userSubscriptions.resetCards.autoUseHint')
-                        : t('userSubscriptions.resetCards.unavailableReasons.autoUseNotAvailable')
-                    "
-                    class="disabled:cursor-not-allowed disabled:opacity-50"
-                    @update:model-value="(enabled) => handleAutoUseChange(item, enabled)"
-                  />
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  :data-testid="`reset-card-use-${item.group_id}`"
-                  :disabled="!item.can_use || usingResetCard"
-                  :title="
-                    item.can_use
-                      ? t('userSubscriptions.resetCards.useNow')
-                      : formatResetCardUnavailableReason(item.unavailable_reason)
-                  "
-                  @click="openUseResetCardConfirm(item)"
-                >
-                  <Icon
-                    name="refresh"
-                    size="sm"
-                    class="mr-1.5"
-                    :class="usingResetCard && useResetCardTarget?.group_id === item.group_id ? 'animate-spin' : ''"
-                  />
-                  {{ t('userSubscriptions.resetCards.useNow') }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
       <!-- Empty State -->
-      <div v-if="subscriptions.length === 0" class="card p-12 text-center">
+      <div v-else-if="subscriptions.length === 0" class="card p-12 text-center">
         <div
           class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700"
         >
@@ -380,91 +243,18 @@
           </div>
         </div>
       </div>
-
-      <!-- Recent reset-card usage -->
-      <section
-        v-if="resetCardUsages.length > 0"
-        class="card overflow-hidden"
-        data-testid="reset-card-usages"
-      >
-        <div class="border-b border-gray-100 px-5 py-4 dark:border-dark-700">
-          <h2 class="font-semibold text-gray-900 dark:text-white">
-            {{ t('userSubscriptions.resetCards.recentUsage') }}
-          </h2>
-        </div>
-        <div class="divide-y divide-gray-100 dark:divide-dark-700">
-          <div
-            v-for="usage in resetCardUsages"
-            :key="usage.id"
-            class="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div class="flex min-w-0 items-center gap-3">
-              <div
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-300"
-              >
-                <Icon name="refresh" size="sm" />
-              </div>
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="truncate text-sm font-medium text-gray-900 dark:text-white">
-                    {{ usage.group_name }}
-                  </p>
-                  <span
-                    class="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                    :class="
-                      usage.mode === 'auto'
-                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
-                        : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'
-                    "
-                  >
-                    {{ t(`userSubscriptions.resetCards.mode.${usage.mode}`) }}
-                  </span>
-                </div>
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
-                  {{ formatResetCardPreviousUsage(usage) }}
-                </p>
-              </div>
-            </div>
-            <time class="shrink-0 text-xs text-gray-400 dark:text-gray-500">
-              {{ formatDateTimeToMinute(usage.used_at) }}
-            </time>
-          </div>
-        </div>
-      </section>
-      </template>
     </div>
-
-    <ConfirmDialog
-      :show="!!useResetCardTarget"
-      :title="t('userSubscriptions.resetCards.confirmTitle')"
-      :message="
-        t('userSubscriptions.resetCards.confirmMessage', {
-          group: useResetCardTarget?.group_name || ''
-        })
-      "
-      :confirm-text="t('userSubscriptions.resetCards.confirmUse')"
-      :cancel-text="t('common.cancel')"
-      @confirm="confirmUseResetCard"
-      @cancel="closeUseResetCardConfirm"
-    />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import subscriptionsAPI from '@/api/subscriptions'
-import subscriptionResetCardsAPI from '@/api/subscriptionResetCards'
-import type {
-  SubscriptionResetCardInventoryItem,
-  SubscriptionResetCardUsage,
-  UserSubscription
-} from '@/types'
+import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
@@ -486,22 +276,7 @@ const router = useRouter()
 const appStore = useAppStore()
 
 const subscriptions = ref<UserSubscription[]>([])
-const resetCardInventory = ref<SubscriptionResetCardInventoryItem[]>([])
-const resetCardUsages = ref<SubscriptionResetCardUsage[]>([])
 const loading = ref(true)
-const usingResetCard = ref(false)
-const useResetCardTarget = ref<SubscriptionResetCardInventoryItem | null>(null)
-const useResetCardIdempotencyKey = ref('')
-const updatingAutoUseGroupId = ref<number | null>(null)
-let resetCardInventoryGeneration = 0
-
-const totalResetCardCount = computed(() =>
-  resetCardInventory.value.reduce((total, item) => total + item.remaining_count, 0)
-)
-
-function resetCardErrorMessage(error: any, fallback: string): string {
-  return error?.response?.data?.detail || error?.message || fallback
-}
 
 function subscriptionHasPeakRate(subscription: UserSubscription): boolean {
   return hasPeakRate(subscription.group)
@@ -512,193 +287,15 @@ function subscriptionPeakRateLabel(subscription: UserSubscription): string {
 }
 
 async function loadSubscriptions() {
-  loading.value = true
-
-  // Reset-card data is supplementary. Load it in the background so a slow or
-  // unavailable add-on endpoint never delays the core subscription page.
-  void loadSubscriptionResetCardData()
   try {
+    loading.value = true
     subscriptions.value = await subscriptionsAPI.getMySubscriptions()
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to load subscriptions:', error)
-    appStore.showError(resetCardErrorMessage(error, t('userSubscriptions.failedToLoad')))
+    appStore.showError(t('userSubscriptions.failedToLoad'))
   } finally {
     loading.value = false
   }
-}
-
-async function loadSubscriptionResetCardData() {
-  const inventoryGeneration = resetCardInventoryGeneration
-  const [inventoryResult, usageResult] = await Promise.allSettled([
-    subscriptionResetCardsAPI.getInventory(),
-    subscriptionResetCardsAPI.getUsages(20)
-  ])
-
-  let resetCardDataFailed = false
-  if (inventoryResult.status === 'fulfilled') {
-    if (inventoryGeneration === resetCardInventoryGeneration) {
-      resetCardInventory.value = inventoryResult.value
-    }
-  } else if (inventoryGeneration === resetCardInventoryGeneration) {
-    resetCardInventory.value = []
-    resetCardDataFailed = true
-    console.error('Failed to load reset-card inventory:', inventoryResult.reason)
-  }
-  if (usageResult.status === 'fulfilled') {
-    resetCardUsages.value = usageResult.value
-  } else {
-    resetCardUsages.value = []
-    resetCardDataFailed = true
-    console.error('Failed to load reset-card usage:', usageResult.reason)
-  }
-  if (resetCardDataFailed) {
-    appStore.showError(t('userSubscriptions.resetCards.failedToLoad'))
-  }
-}
-
-async function refreshSubscriptionResetCardData() {
-  const inventoryGeneration = resetCardInventoryGeneration
-  const [subscriptionResult, inventoryResult, usageResult] = await Promise.allSettled([
-    subscriptionsAPI.getMySubscriptions(),
-    subscriptionResetCardsAPI.getInventory(),
-    subscriptionResetCardsAPI.getUsages(20)
-  ])
-  if (subscriptionResult.status === 'fulfilled') {
-    subscriptions.value = subscriptionResult.value
-  }
-  if (
-    inventoryResult.status === 'fulfilled' &&
-    inventoryGeneration === resetCardInventoryGeneration
-  ) {
-    resetCardInventory.value = inventoryResult.value
-  }
-  if (usageResult.status === 'fulfilled') {
-    resetCardUsages.value = usageResult.value
-  }
-  if (
-    subscriptionResult.status === 'rejected' ||
-    inventoryResult.status === 'rejected' ||
-    usageResult.status === 'rejected'
-  ) {
-    appStore.showError(t('userSubscriptions.resetCards.refreshFailed'))
-  }
-}
-
-function createResetCardIdempotencyKey(scope: string): string {
-  const requestID =
-    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  return `subscription-reset-card-${scope}-${requestID}`
-}
-
-function openUseResetCardConfirm(item: SubscriptionResetCardInventoryItem) {
-  if (!item.can_use || !item.eligible_subscription_id || usingResetCard.value) return
-  useResetCardTarget.value = item
-  useResetCardIdempotencyKey.value = createResetCardIdempotencyKey(
-    `use-${item.eligible_subscription_id}`
-  )
-}
-
-function closeUseResetCardConfirm() {
-  if (usingResetCard.value) return
-  useResetCardTarget.value = null
-  useResetCardIdempotencyKey.value = ''
-}
-
-async function confirmUseResetCard() {
-  const item = useResetCardTarget.value
-  if (!item?.eligible_subscription_id || usingResetCard.value) return
-
-  usingResetCard.value = true
-  try {
-    await subscriptionResetCardsAPI.useCard(
-      item.eligible_subscription_id,
-      useResetCardIdempotencyKey.value
-    )
-    resetCardInventoryGeneration++
-    await refreshSubscriptionResetCardData()
-    appStore.showSuccess(t('userSubscriptions.resetCards.useSuccess'))
-    useResetCardTarget.value = null
-    useResetCardIdempotencyKey.value = ''
-  } catch (error: any) {
-    appStore.showError(resetCardErrorMessage(error, t('userSubscriptions.resetCards.useFailed')))
-  } finally {
-    usingResetCard.value = false
-  }
-}
-
-async function handleAutoUseChange(
-  item: SubscriptionResetCardInventoryItem,
-  enabled: boolean
-) {
-  if (
-    (enabled && !item.auto_use_available) ||
-    updatingAutoUseGroupId.value !== null
-  ) {
-    return
-  }
-
-  updatingAutoUseGroupId.value = item.group_id
-  try {
-    const updated = await subscriptionResetCardsAPI.updateAutoUsePreference(
-      item.group_id,
-      enabled
-    )
-    resetCardInventoryGeneration++
-    const index = resetCardInventory.value.findIndex(
-      (inventoryItem) => inventoryItem.group_id === item.group_id
-    )
-    if (index >= 0) {
-      resetCardInventory.value[index] = updated
-    }
-    appStore.showSuccess(
-      t(
-        enabled
-          ? 'userSubscriptions.resetCards.autoUseEnabled'
-          : 'userSubscriptions.resetCards.autoUseDisabled'
-      )
-    )
-  } catch (error: any) {
-    appStore.showError(
-      resetCardErrorMessage(error, t('userSubscriptions.resetCards.autoUseFailed'))
-    )
-  } finally {
-    updatingAutoUseGroupId.value = null
-  }
-}
-
-function formatResetCardExpiration(expiresAt: string | null): string {
-  return expiresAt
-    ? formatDateTimeToMinute(expiresAt)
-    : t('userSubscriptions.resetCards.noExpiration')
-}
-
-function formatResetCardUnavailableReason(reason: string | null | undefined): string {
-  if (!reason) return t('userSubscriptions.resetCards.unavailableReasons.unavailable')
-  const reasonKey = reason.trim().toLowerCase().replace(/[ -]+/g, '_')
-  const knownReasons: Record<string, string> = {
-    no_available_cards: 'noAvailableCards',
-    no_cards: 'noAvailableCards',
-    no_active_subscription: 'noActiveSubscription',
-    subscription_not_active: 'subscriptionNotActive',
-    subscription_has_no_limits: 'subscriptionHasNoLimits',
-    no_usage_limits: 'subscriptionHasNoLimits',
-    no_configured_quota: 'subscriptionHasNoLimits',
-    nothing_to_reset: 'nothingToReset',
-    one_time_daily_quota: 'oneTimeDailyQuota',
-    auto_use_not_available: 'autoUseNotAvailable'
-  }
-  const localeKey = knownReasons[reasonKey]
-  return localeKey
-    ? t(`userSubscriptions.resetCards.unavailableReasons.${localeKey}`)
-    : reason
-}
-
-function formatResetCardPreviousUsage(usage: SubscriptionResetCardUsage): string {
-  return t('userSubscriptions.resetCards.previousUsage', {
-    daily: usage.previous_daily_usage_usd.toFixed(2),
-    weekly: usage.previous_weekly_usage_usd.toFixed(2),
-    monthly: usage.previous_monthly_usage_usd.toFixed(2)
-  })
 }
 
 function getProgressWidth(used: number | undefined, limit: number | null | undefined): string {

@@ -131,22 +131,7 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 		// Subscription usage tracked by ActualCost so group rate multiplier
 		// consumes the quota at the expected speed.
 		if cost.ActualCost > 0 {
-			var err error
-			if repo, ok := deps.userSubRepo.(interface {
-				IncrementUsageForWindows(context.Context, int64, float64, int64, int64, int64) error
-			}); ok {
-				err = repo.IncrementUsageForWindows(
-					billingCtx,
-					p.Subscription.ID,
-					cost.ActualCost,
-					p.Subscription.DailyWindowVersion,
-					p.Subscription.WeeklyWindowVersion,
-					p.Subscription.MonthlyWindowVersion,
-				)
-			} else {
-				err = deps.userSubRepo.IncrementUsage(billingCtx, p.Subscription.ID, cost.ActualCost)
-			}
-			if err != nil {
+			if err := deps.userSubRepo.IncrementUsage(billingCtx, p.Subscription.ID, cost.ActualCost); err != nil {
 				slog.Error("increment subscription usage failed", "subscription_id", p.Subscription.ID, "error", err)
 			}
 		}
@@ -276,9 +261,6 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
 		cmd.SubscriptionID = &p.Subscription.ID
 		cmd.SubscriptionCost = p.Cost.ActualCost
-		cmd.SubscriptionDailyWindowVersion = p.Subscription.DailyWindowVersion
-		cmd.SubscriptionWeeklyWindowVersion = p.Subscription.WeeklyWindowVersion
-		cmd.SubscriptionMonthlyWindowVersion = p.Subscription.MonthlyWindowVersion
 	} else if p.Cost.ActualCost > 0 {
 		cmd.BalanceCost = p.Cost.ActualCost
 	}
@@ -338,18 +320,7 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 
 	if p.IsSubscriptionBill {
 		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
-			if p.Subscription != nil {
-				deps.billingCacheService.QueueUpdateSubscriptionUsageForWindows(
-					p.User.ID,
-					*p.APIKey.GroupID,
-					p.Cost.ActualCost,
-					p.Subscription.DailyWindowVersion,
-					p.Subscription.WeeklyWindowVersion,
-					p.Subscription.MonthlyWindowVersion,
-				)
-			} else {
-				deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
-			}
+			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
 		}
 	} else if p.Cost.ActualCost > 0 && p.User != nil {
 		syncBalanceCacheAfterDeduction(ctx, p, deps, result)

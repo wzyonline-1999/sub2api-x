@@ -133,12 +133,6 @@ type GroupEdges struct {
 	Subscriptions []*UserSubscription `json:"subscriptions,omitempty"`
 	// UsageLogs holds the value of the usage_logs edge.
 	UsageLogs []*UsageLog `json:"usage_logs,omitempty"`
-	// SubscriptionResetCardGrants holds the value of the subscription_reset_card_grants edge.
-	SubscriptionResetCardGrants []*SubscriptionResetCardGrant `json:"subscription_reset_card_grants,omitempty"`
-	// SubscriptionResetCardUsages holds the value of the subscription_reset_card_usages edge.
-	SubscriptionResetCardUsages []*SubscriptionResetCardUsage `json:"subscription_reset_card_usages,omitempty"`
-	// SubscriptionResetPreferences holds the value of the subscription_reset_preferences edge.
-	SubscriptionResetPreferences []*SubscriptionResetPreference `json:"subscription_reset_preferences,omitempty"`
 	// Accounts holds the value of the accounts edge.
 	Accounts []*Account `json:"accounts,omitempty"`
 	// AllowedUsers holds the value of the allowed_users edge.
@@ -149,7 +143,7 @@ type GroupEdges struct {
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [11]bool
+	loadedTypes [8]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -188,37 +182,10 @@ func (e GroupEdges) UsageLogsOrErr() ([]*UsageLog, error) {
 	return nil, &NotLoadedError{edge: "usage_logs"}
 }
 
-// SubscriptionResetCardGrantsOrErr returns the SubscriptionResetCardGrants value or an error if the edge
-// was not loaded in eager-loading.
-func (e GroupEdges) SubscriptionResetCardGrantsOrErr() ([]*SubscriptionResetCardGrant, error) {
-	if e.loadedTypes[4] {
-		return e.SubscriptionResetCardGrants, nil
-	}
-	return nil, &NotLoadedError{edge: "subscription_reset_card_grants"}
-}
-
-// SubscriptionResetCardUsagesOrErr returns the SubscriptionResetCardUsages value or an error if the edge
-// was not loaded in eager-loading.
-func (e GroupEdges) SubscriptionResetCardUsagesOrErr() ([]*SubscriptionResetCardUsage, error) {
-	if e.loadedTypes[5] {
-		return e.SubscriptionResetCardUsages, nil
-	}
-	return nil, &NotLoadedError{edge: "subscription_reset_card_usages"}
-}
-
-// SubscriptionResetPreferencesOrErr returns the SubscriptionResetPreferences value or an error if the edge
-// was not loaded in eager-loading.
-func (e GroupEdges) SubscriptionResetPreferencesOrErr() ([]*SubscriptionResetPreference, error) {
-	if e.loadedTypes[6] {
-		return e.SubscriptionResetPreferences, nil
-	}
-	return nil, &NotLoadedError{edge: "subscription_reset_preferences"}
-}
-
 // AccountsOrErr returns the Accounts value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AccountsOrErr() ([]*Account, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[4] {
 		return e.Accounts, nil
 	}
 	return nil, &NotLoadedError{edge: "accounts"}
@@ -227,7 +194,7 @@ func (e GroupEdges) AccountsOrErr() ([]*Account, error) {
 // AllowedUsersOrErr returns the AllowedUsers value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AllowedUsersOrErr() ([]*User, error) {
-	if e.loadedTypes[8] {
+	if e.loadedTypes[5] {
 		return e.AllowedUsers, nil
 	}
 	return nil, &NotLoadedError{edge: "allowed_users"}
@@ -236,7 +203,7 @@ func (e GroupEdges) AllowedUsersOrErr() ([]*User, error) {
 // AccountGroupsOrErr returns the AccountGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
-	if e.loadedTypes[9] {
+	if e.loadedTypes[6] {
 		return e.AccountGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "account_groups"}
@@ -245,7 +212,7 @@ func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[10] {
+	if e.loadedTypes[7] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -637,21 +604,6 @@ func (_m *Group) QuerySubscriptions() *UserSubscriptionQuery {
 // QueryUsageLogs queries the "usage_logs" edge of the Group entity.
 func (_m *Group) QueryUsageLogs() *UsageLogQuery {
 	return NewGroupClient(_m.config).QueryUsageLogs(_m)
-}
-
-// QuerySubscriptionResetCardGrants queries the "subscription_reset_card_grants" edge of the Group entity.
-func (_m *Group) QuerySubscriptionResetCardGrants() *SubscriptionResetCardGrantQuery {
-	return NewGroupClient(_m.config).QuerySubscriptionResetCardGrants(_m)
-}
-
-// QuerySubscriptionResetCardUsages queries the "subscription_reset_card_usages" edge of the Group entity.
-func (_m *Group) QuerySubscriptionResetCardUsages() *SubscriptionResetCardUsageQuery {
-	return NewGroupClient(_m.config).QuerySubscriptionResetCardUsages(_m)
-}
-
-// QuerySubscriptionResetPreferences queries the "subscription_reset_preferences" edge of the Group entity.
-func (_m *Group) QuerySubscriptionResetPreferences() *SubscriptionResetPreferenceQuery {
-	return NewGroupClient(_m.config).QuerySubscriptionResetPreferences(_m)
 }
 
 // QueryAccounts queries the "accounts" edge of the Group entity.

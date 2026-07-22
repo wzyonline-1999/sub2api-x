@@ -127,14 +127,6 @@ func RegisterUserRoutes(
 			subscriptions.GET("/active", h.Subscription.GetActive)
 			subscriptions.GET("/progress", h.Subscription.GetProgress)
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
-			subscriptions.POST("/:id/reset-card/use", h.Subscription.UseResetCard)
-		}
-
-		resetCards := authenticated.Group("/subscription-reset-cards")
-		{
-			resetCards.GET("", h.Subscription.ListResetCards)
-			resetCards.GET("/usages", h.Subscription.ListResetCardUsages)
-			resetCards.PUT("/preferences/:group_id", h.Subscription.UpdateResetCardPreference)
 		}
 
 		// 渠道监控（用户只读）

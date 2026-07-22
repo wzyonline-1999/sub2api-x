@@ -13,7 +13,6 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
-	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardusage"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
@@ -251,69 +250,6 @@ func (_u *UserSubscriptionUpdate) AddMonthlyUsageUsd(v float64) *UserSubscriptio
 	return _u
 }
 
-// SetDailyWindowVersion sets the "daily_window_version" field.
-func (_u *UserSubscriptionUpdate) SetDailyWindowVersion(v int64) *UserSubscriptionUpdate {
-	_u.mutation.ResetDailyWindowVersion()
-	_u.mutation.SetDailyWindowVersion(v)
-	return _u
-}
-
-// SetNillableDailyWindowVersion sets the "daily_window_version" field if the given value is not nil.
-func (_u *UserSubscriptionUpdate) SetNillableDailyWindowVersion(v *int64) *UserSubscriptionUpdate {
-	if v != nil {
-		_u.SetDailyWindowVersion(*v)
-	}
-	return _u
-}
-
-// AddDailyWindowVersion adds value to the "daily_window_version" field.
-func (_u *UserSubscriptionUpdate) AddDailyWindowVersion(v int64) *UserSubscriptionUpdate {
-	_u.mutation.AddDailyWindowVersion(v)
-	return _u
-}
-
-// SetWeeklyWindowVersion sets the "weekly_window_version" field.
-func (_u *UserSubscriptionUpdate) SetWeeklyWindowVersion(v int64) *UserSubscriptionUpdate {
-	_u.mutation.ResetWeeklyWindowVersion()
-	_u.mutation.SetWeeklyWindowVersion(v)
-	return _u
-}
-
-// SetNillableWeeklyWindowVersion sets the "weekly_window_version" field if the given value is not nil.
-func (_u *UserSubscriptionUpdate) SetNillableWeeklyWindowVersion(v *int64) *UserSubscriptionUpdate {
-	if v != nil {
-		_u.SetWeeklyWindowVersion(*v)
-	}
-	return _u
-}
-
-// AddWeeklyWindowVersion adds value to the "weekly_window_version" field.
-func (_u *UserSubscriptionUpdate) AddWeeklyWindowVersion(v int64) *UserSubscriptionUpdate {
-	_u.mutation.AddWeeklyWindowVersion(v)
-	return _u
-}
-
-// SetMonthlyWindowVersion sets the "monthly_window_version" field.
-func (_u *UserSubscriptionUpdate) SetMonthlyWindowVersion(v int64) *UserSubscriptionUpdate {
-	_u.mutation.ResetMonthlyWindowVersion()
-	_u.mutation.SetMonthlyWindowVersion(v)
-	return _u
-}
-
-// SetNillableMonthlyWindowVersion sets the "monthly_window_version" field if the given value is not nil.
-func (_u *UserSubscriptionUpdate) SetNillableMonthlyWindowVersion(v *int64) *UserSubscriptionUpdate {
-	if v != nil {
-		_u.SetMonthlyWindowVersion(*v)
-	}
-	return _u
-}
-
-// AddMonthlyWindowVersion adds value to the "monthly_window_version" field.
-func (_u *UserSubscriptionUpdate) AddMonthlyWindowVersion(v int64) *UserSubscriptionUpdate {
-	_u.mutation.AddMonthlyWindowVersion(v)
-	return _u
-}
-
 // SetAssignedBy sets the "assigned_by" field.
 func (_u *UserSubscriptionUpdate) SetAssignedBy(v int64) *UserSubscriptionUpdate {
 	_u.mutation.SetAssignedBy(v)
@@ -412,21 +348,6 @@ func (_u *UserSubscriptionUpdate) AddUsageLogs(v ...*UsageLog) *UserSubscription
 	return _u.AddUsageLogIDs(ids...)
 }
 
-// AddSubscriptionResetCardUsageIDs adds the "subscription_reset_card_usages" edge to the SubscriptionResetCardUsage entity by IDs.
-func (_u *UserSubscriptionUpdate) AddSubscriptionResetCardUsageIDs(ids ...int64) *UserSubscriptionUpdate {
-	_u.mutation.AddSubscriptionResetCardUsageIDs(ids...)
-	return _u
-}
-
-// AddSubscriptionResetCardUsages adds the "subscription_reset_card_usages" edges to the SubscriptionResetCardUsage entity.
-func (_u *UserSubscriptionUpdate) AddSubscriptionResetCardUsages(v ...*SubscriptionResetCardUsage) *UserSubscriptionUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddSubscriptionResetCardUsageIDs(ids...)
-}
-
 // Mutation returns the UserSubscriptionMutation object of the builder.
 func (_u *UserSubscriptionUpdate) Mutation() *UserSubscriptionMutation {
 	return _u.mutation
@@ -469,27 +390,6 @@ func (_u *UserSubscriptionUpdate) RemoveUsageLogs(v ...*UsageLog) *UserSubscript
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveUsageLogIDs(ids...)
-}
-
-// ClearSubscriptionResetCardUsages clears all "subscription_reset_card_usages" edges to the SubscriptionResetCardUsage entity.
-func (_u *UserSubscriptionUpdate) ClearSubscriptionResetCardUsages() *UserSubscriptionUpdate {
-	_u.mutation.ClearSubscriptionResetCardUsages()
-	return _u
-}
-
-// RemoveSubscriptionResetCardUsageIDs removes the "subscription_reset_card_usages" edge to SubscriptionResetCardUsage entities by IDs.
-func (_u *UserSubscriptionUpdate) RemoveSubscriptionResetCardUsageIDs(ids ...int64) *UserSubscriptionUpdate {
-	_u.mutation.RemoveSubscriptionResetCardUsageIDs(ids...)
-	return _u
-}
-
-// RemoveSubscriptionResetCardUsages removes "subscription_reset_card_usages" edges to SubscriptionResetCardUsage entities.
-func (_u *UserSubscriptionUpdate) RemoveSubscriptionResetCardUsages(v ...*SubscriptionResetCardUsage) *UserSubscriptionUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveSubscriptionResetCardUsageIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -615,24 +515,6 @@ func (_u *UserSubscriptionUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if value, ok := _u.mutation.AddedMonthlyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.DailyWindowVersion(); ok {
-		_spec.SetField(usersubscription.FieldDailyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedDailyWindowVersion(); ok {
-		_spec.AddField(usersubscription.FieldDailyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.WeeklyWindowVersion(); ok {
-		_spec.SetField(usersubscription.FieldWeeklyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedWeeklyWindowVersion(); ok {
-		_spec.AddField(usersubscription.FieldWeeklyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.MonthlyWindowVersion(); ok {
-		_spec.SetField(usersubscription.FieldMonthlyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedMonthlyWindowVersion(); ok {
-		_spec.AddField(usersubscription.FieldMonthlyWindowVersion, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AssignedAt(); ok {
 		_spec.SetField(usersubscription.FieldAssignedAt, field.TypeTime, value)
@@ -768,51 +650,6 @@ func (_u *UserSubscriptionUpdate) sqlSave(ctx context.Context) (_node int, err e
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.SubscriptionResetCardUsagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   usersubscription.SubscriptionResetCardUsagesTable,
-			Columns: []string{usersubscription.SubscriptionResetCardUsagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedSubscriptionResetCardUsagesIDs(); len(nodes) > 0 && !_u.mutation.SubscriptionResetCardUsagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   usersubscription.SubscriptionResetCardUsagesTable,
-			Columns: []string{usersubscription.SubscriptionResetCardUsagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.SubscriptionResetCardUsagesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   usersubscription.SubscriptionResetCardUsagesTable,
-			Columns: []string{usersubscription.SubscriptionResetCardUsagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1059,69 +896,6 @@ func (_u *UserSubscriptionUpdateOne) AddMonthlyUsageUsd(v float64) *UserSubscrip
 	return _u
 }
 
-// SetDailyWindowVersion sets the "daily_window_version" field.
-func (_u *UserSubscriptionUpdateOne) SetDailyWindowVersion(v int64) *UserSubscriptionUpdateOne {
-	_u.mutation.ResetDailyWindowVersion()
-	_u.mutation.SetDailyWindowVersion(v)
-	return _u
-}
-
-// SetNillableDailyWindowVersion sets the "daily_window_version" field if the given value is not nil.
-func (_u *UserSubscriptionUpdateOne) SetNillableDailyWindowVersion(v *int64) *UserSubscriptionUpdateOne {
-	if v != nil {
-		_u.SetDailyWindowVersion(*v)
-	}
-	return _u
-}
-
-// AddDailyWindowVersion adds value to the "daily_window_version" field.
-func (_u *UserSubscriptionUpdateOne) AddDailyWindowVersion(v int64) *UserSubscriptionUpdateOne {
-	_u.mutation.AddDailyWindowVersion(v)
-	return _u
-}
-
-// SetWeeklyWindowVersion sets the "weekly_window_version" field.
-func (_u *UserSubscriptionUpdateOne) SetWeeklyWindowVersion(v int64) *UserSubscriptionUpdateOne {
-	_u.mutation.ResetWeeklyWindowVersion()
-	_u.mutation.SetWeeklyWindowVersion(v)
-	return _u
-}
-
-// SetNillableWeeklyWindowVersion sets the "weekly_window_version" field if the given value is not nil.
-func (_u *UserSubscriptionUpdateOne) SetNillableWeeklyWindowVersion(v *int64) *UserSubscriptionUpdateOne {
-	if v != nil {
-		_u.SetWeeklyWindowVersion(*v)
-	}
-	return _u
-}
-
-// AddWeeklyWindowVersion adds value to the "weekly_window_version" field.
-func (_u *UserSubscriptionUpdateOne) AddWeeklyWindowVersion(v int64) *UserSubscriptionUpdateOne {
-	_u.mutation.AddWeeklyWindowVersion(v)
-	return _u
-}
-
-// SetMonthlyWindowVersion sets the "monthly_window_version" field.
-func (_u *UserSubscriptionUpdateOne) SetMonthlyWindowVersion(v int64) *UserSubscriptionUpdateOne {
-	_u.mutation.ResetMonthlyWindowVersion()
-	_u.mutation.SetMonthlyWindowVersion(v)
-	return _u
-}
-
-// SetNillableMonthlyWindowVersion sets the "monthly_window_version" field if the given value is not nil.
-func (_u *UserSubscriptionUpdateOne) SetNillableMonthlyWindowVersion(v *int64) *UserSubscriptionUpdateOne {
-	if v != nil {
-		_u.SetMonthlyWindowVersion(*v)
-	}
-	return _u
-}
-
-// AddMonthlyWindowVersion adds value to the "monthly_window_version" field.
-func (_u *UserSubscriptionUpdateOne) AddMonthlyWindowVersion(v int64) *UserSubscriptionUpdateOne {
-	_u.mutation.AddMonthlyWindowVersion(v)
-	return _u
-}
-
 // SetAssignedBy sets the "assigned_by" field.
 func (_u *UserSubscriptionUpdateOne) SetAssignedBy(v int64) *UserSubscriptionUpdateOne {
 	_u.mutation.SetAssignedBy(v)
@@ -1220,21 +994,6 @@ func (_u *UserSubscriptionUpdateOne) AddUsageLogs(v ...*UsageLog) *UserSubscript
 	return _u.AddUsageLogIDs(ids...)
 }
 
-// AddSubscriptionResetCardUsageIDs adds the "subscription_reset_card_usages" edge to the SubscriptionResetCardUsage entity by IDs.
-func (_u *UserSubscriptionUpdateOne) AddSubscriptionResetCardUsageIDs(ids ...int64) *UserSubscriptionUpdateOne {
-	_u.mutation.AddSubscriptionResetCardUsageIDs(ids...)
-	return _u
-}
-
-// AddSubscriptionResetCardUsages adds the "subscription_reset_card_usages" edges to the SubscriptionResetCardUsage entity.
-func (_u *UserSubscriptionUpdateOne) AddSubscriptionResetCardUsages(v ...*SubscriptionResetCardUsage) *UserSubscriptionUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddSubscriptionResetCardUsageIDs(ids...)
-}
-
 // Mutation returns the UserSubscriptionMutation object of the builder.
 func (_u *UserSubscriptionUpdateOne) Mutation() *UserSubscriptionMutation {
 	return _u.mutation
@@ -1277,27 +1036,6 @@ func (_u *UserSubscriptionUpdateOne) RemoveUsageLogs(v ...*UsageLog) *UserSubscr
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveUsageLogIDs(ids...)
-}
-
-// ClearSubscriptionResetCardUsages clears all "subscription_reset_card_usages" edges to the SubscriptionResetCardUsage entity.
-func (_u *UserSubscriptionUpdateOne) ClearSubscriptionResetCardUsages() *UserSubscriptionUpdateOne {
-	_u.mutation.ClearSubscriptionResetCardUsages()
-	return _u
-}
-
-// RemoveSubscriptionResetCardUsageIDs removes the "subscription_reset_card_usages" edge to SubscriptionResetCardUsage entities by IDs.
-func (_u *UserSubscriptionUpdateOne) RemoveSubscriptionResetCardUsageIDs(ids ...int64) *UserSubscriptionUpdateOne {
-	_u.mutation.RemoveSubscriptionResetCardUsageIDs(ids...)
-	return _u
-}
-
-// RemoveSubscriptionResetCardUsages removes "subscription_reset_card_usages" edges to SubscriptionResetCardUsage entities.
-func (_u *UserSubscriptionUpdateOne) RemoveSubscriptionResetCardUsages(v ...*SubscriptionResetCardUsage) *UserSubscriptionUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveSubscriptionResetCardUsageIDs(ids...)
 }
 
 // Where appends a list predicates to the UserSubscriptionUpdate builder.
@@ -1454,24 +1192,6 @@ func (_u *UserSubscriptionUpdateOne) sqlSave(ctx context.Context) (_node *UserSu
 	if value, ok := _u.mutation.AddedMonthlyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.DailyWindowVersion(); ok {
-		_spec.SetField(usersubscription.FieldDailyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedDailyWindowVersion(); ok {
-		_spec.AddField(usersubscription.FieldDailyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.WeeklyWindowVersion(); ok {
-		_spec.SetField(usersubscription.FieldWeeklyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedWeeklyWindowVersion(); ok {
-		_spec.AddField(usersubscription.FieldWeeklyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.MonthlyWindowVersion(); ok {
-		_spec.SetField(usersubscription.FieldMonthlyWindowVersion, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedMonthlyWindowVersion(); ok {
-		_spec.AddField(usersubscription.FieldMonthlyWindowVersion, field.TypeInt64, value)
-	}
 	if value, ok := _u.mutation.AssignedAt(); ok {
 		_spec.SetField(usersubscription.FieldAssignedAt, field.TypeTime, value)
 	}
@@ -1606,51 +1326,6 @@ func (_u *UserSubscriptionUpdateOne) sqlSave(ctx context.Context) (_node *UserSu
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.SubscriptionResetCardUsagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   usersubscription.SubscriptionResetCardUsagesTable,
-			Columns: []string{usersubscription.SubscriptionResetCardUsagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedSubscriptionResetCardUsagesIDs(); len(nodes) > 0 && !_u.mutation.SubscriptionResetCardUsagesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   usersubscription.SubscriptionResetCardUsagesTable,
-			Columns: []string{usersubscription.SubscriptionResetCardUsagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.SubscriptionResetCardUsagesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   usersubscription.SubscriptionResetCardUsagesTable,
-			Columns: []string{usersubscription.SubscriptionResetCardUsagesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(subscriptionresetcardusage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

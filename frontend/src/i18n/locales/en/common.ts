@@ -15,8 +15,6 @@ export default {
     update: 'Update',
     confirm: 'Confirm',
     reset: 'Reset',
-    clear: 'Clear',
-    retry: 'Retry',
     search: 'Search',
     filter: 'Filter',
     export: 'Export',

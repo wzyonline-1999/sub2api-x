@@ -135,47 +135,7 @@ export default {
     resetIn: 'Resets in {time}',
     quotaEndsIn: 'Quota ends in {time}',
     windowNotActive: 'Awaiting first use',
-    usageOf: '{used} of {limit}',
-    resetCards: {
-      title: 'Subscription Quota Reset Cards',
-      description:
-        'Reset subscription usage manually or use a card automatically when quota runs out',
-      totalAvailable: '{count} available',
-      remaining: 'Available',
-      nextExpires: 'Next expiration',
-      noExpiration: 'Never expires',
-      autoUse: 'Auto use',
-      autoUseHint: 'When quota runs out',
-      useNow: 'Reset now',
-      confirmTitle: 'Use a quota reset card',
-      confirmMessage:
-        'Use one reset card for “{group}”? Daily, weekly, and monthly usage will be cleared and their windows will restart now. The subscription expiration date will not change.',
-      confirmUse: 'Use card',
-      useSuccess: 'Quota reset successfully and one reset card was used',
-      useFailed: 'Failed to use reset card',
-      failedToLoad: 'Reset-card data could not be loaded. Subscription details remain available.',
-      refreshFailed: 'Quota was reset, but some page data could not be refreshed. Refresh the page later.',
-      autoUseEnabled: 'Automatic reset-card use enabled',
-      autoUseDisabled: 'Automatic reset-card use disabled',
-      autoUseFailed: 'Failed to update automatic reset-card use',
-      recentUsage: 'Recent reset-card activity',
-      previousUsage: 'Before reset: daily ${daily} · weekly ${weekly} · monthly ${monthly}',
-      mode: {
-        manual: 'Manual',
-        auto: 'Automatic'
-      },
-      unavailableReasons: {
-        unavailable: 'Currently unavailable',
-        noAvailableCards: 'No reset cards are available',
-        noActiveSubscription: 'No matching active subscription',
-        subscriptionNotActive: 'The matching subscription is unavailable',
-        subscriptionHasNoLimits: 'This subscription has no quota to reset',
-        nothingToReset: 'There is no used quota to reset yet',
-        oneTimeDailyQuota:
-          'Automatic reset is unavailable for one-time daily quota subscriptions',
-        autoUseNotAvailable: 'Automatic use is unavailable for this plan'
-      }
-    }
+    usageOf: '{used} of {limit}'
   },
 
   // Onboarding Tour

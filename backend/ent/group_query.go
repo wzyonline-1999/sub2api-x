@@ -19,9 +19,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
-	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardgrant"
-	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetcardusage"
-	"github.com/Wei-Shaw/sub2api/ent/subscriptionresetpreference"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
@@ -31,22 +28,19 @@ import (
 // GroupQuery is the builder for querying Group entities.
 type GroupQuery struct {
 	config
-	ctx                              *QueryContext
-	order                            []group.OrderOption
-	inters                           []Interceptor
-	predicates                       []predicate.Group
-	withAPIKeys                      *APIKeyQuery
-	withRedeemCodes                  *RedeemCodeQuery
-	withSubscriptions                *UserSubscriptionQuery
-	withUsageLogs                    *UsageLogQuery
-	withSubscriptionResetCardGrants  *SubscriptionResetCardGrantQuery
-	withSubscriptionResetCardUsages  *SubscriptionResetCardUsageQuery
-	withSubscriptionResetPreferences *SubscriptionResetPreferenceQuery
-	withAccounts                     *AccountQuery
-	withAllowedUsers                 *UserQuery
-	withAccountGroups                *AccountGroupQuery
-	withUserAllowedGroups            *UserAllowedGroupQuery
-	modifiers                        []func(*sql.Selector)
+	ctx                   *QueryContext
+	order                 []group.OrderOption
+	inters                []Interceptor
+	predicates            []predicate.Group
+	withAPIKeys           *APIKeyQuery
+	withRedeemCodes       *RedeemCodeQuery
+	withSubscriptions     *UserSubscriptionQuery
+	withUsageLogs         *UsageLogQuery
+	withAccounts          *AccountQuery
+	withAllowedUsers      *UserQuery
+	withAccountGroups     *AccountGroupQuery
+	withUserAllowedGroups *UserAllowedGroupQuery
+	modifiers             []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -164,72 +158,6 @@ func (_q *GroupQuery) QueryUsageLogs() *UsageLogQuery {
 			sqlgraph.From(group.Table, group.FieldID, selector),
 			sqlgraph.To(usagelog.Table, usagelog.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, group.UsageLogsTable, group.UsageLogsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QuerySubscriptionResetCardGrants chains the current query on the "subscription_reset_card_grants" edge.
-func (_q *GroupQuery) QuerySubscriptionResetCardGrants() *SubscriptionResetCardGrantQuery {
-	query := (&SubscriptionResetCardGrantClient{config: _q.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
-		if err := _q.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := _q.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(group.Table, group.FieldID, selector),
-			sqlgraph.To(subscriptionresetcardgrant.Table, subscriptionresetcardgrant.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, group.SubscriptionResetCardGrantsTable, group.SubscriptionResetCardGrantsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QuerySubscriptionResetCardUsages chains the current query on the "subscription_reset_card_usages" edge.
-func (_q *GroupQuery) QuerySubscriptionResetCardUsages() *SubscriptionResetCardUsageQuery {
-	query := (&SubscriptionResetCardUsageClient{config: _q.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
-		if err := _q.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := _q.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(group.Table, group.FieldID, selector),
-			sqlgraph.To(subscriptionresetcardusage.Table, subscriptionresetcardusage.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, group.SubscriptionResetCardUsagesTable, group.SubscriptionResetCardUsagesColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QuerySubscriptionResetPreferences chains the current query on the "subscription_reset_preferences" edge.
-func (_q *GroupQuery) QuerySubscriptionResetPreferences() *SubscriptionResetPreferenceQuery {
-	query := (&SubscriptionResetPreferenceClient{config: _q.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
-		if err := _q.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := _q.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(group.Table, group.FieldID, selector),
-			sqlgraph.To(subscriptionresetpreference.Table, subscriptionresetpreference.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, group.SubscriptionResetPreferencesTable, group.SubscriptionResetPreferencesColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -512,22 +440,19 @@ func (_q *GroupQuery) Clone() *GroupQuery {
 		return nil
 	}
 	return &GroupQuery{
-		config:                           _q.config,
-		ctx:                              _q.ctx.Clone(),
-		order:                            append([]group.OrderOption{}, _q.order...),
-		inters:                           append([]Interceptor{}, _q.inters...),
-		predicates:                       append([]predicate.Group{}, _q.predicates...),
-		withAPIKeys:                      _q.withAPIKeys.Clone(),
-		withRedeemCodes:                  _q.withRedeemCodes.Clone(),
-		withSubscriptions:                _q.withSubscriptions.Clone(),
-		withUsageLogs:                    _q.withUsageLogs.Clone(),
-		withSubscriptionResetCardGrants:  _q.withSubscriptionResetCardGrants.Clone(),
-		withSubscriptionResetCardUsages:  _q.withSubscriptionResetCardUsages.Clone(),
-		withSubscriptionResetPreferences: _q.withSubscriptionResetPreferences.Clone(),
-		withAccounts:                     _q.withAccounts.Clone(),
-		withAllowedUsers:                 _q.withAllowedUsers.Clone(),
-		withAccountGroups:                _q.withAccountGroups.Clone(),
-		withUserAllowedGroups:            _q.withUserAllowedGroups.Clone(),
+		config:                _q.config,
+		ctx:                   _q.ctx.Clone(),
+		order:                 append([]group.OrderOption{}, _q.order...),
+		inters:                append([]Interceptor{}, _q.inters...),
+		predicates:            append([]predicate.Group{}, _q.predicates...),
+		withAPIKeys:           _q.withAPIKeys.Clone(),
+		withRedeemCodes:       _q.withRedeemCodes.Clone(),
+		withSubscriptions:     _q.withSubscriptions.Clone(),
+		withUsageLogs:         _q.withUsageLogs.Clone(),
+		withAccounts:          _q.withAccounts.Clone(),
+		withAllowedUsers:      _q.withAllowedUsers.Clone(),
+		withAccountGroups:     _q.withAccountGroups.Clone(),
+		withUserAllowedGroups: _q.withUserAllowedGroups.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -575,39 +500,6 @@ func (_q *GroupQuery) WithUsageLogs(opts ...func(*UsageLogQuery)) *GroupQuery {
 		opt(query)
 	}
 	_q.withUsageLogs = query
-	return _q
-}
-
-// WithSubscriptionResetCardGrants tells the query-builder to eager-load the nodes that are connected to
-// the "subscription_reset_card_grants" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *GroupQuery) WithSubscriptionResetCardGrants(opts ...func(*SubscriptionResetCardGrantQuery)) *GroupQuery {
-	query := (&SubscriptionResetCardGrantClient{config: _q.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	_q.withSubscriptionResetCardGrants = query
-	return _q
-}
-
-// WithSubscriptionResetCardUsages tells the query-builder to eager-load the nodes that are connected to
-// the "subscription_reset_card_usages" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *GroupQuery) WithSubscriptionResetCardUsages(opts ...func(*SubscriptionResetCardUsageQuery)) *GroupQuery {
-	query := (&SubscriptionResetCardUsageClient{config: _q.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	_q.withSubscriptionResetCardUsages = query
-	return _q
-}
-
-// WithSubscriptionResetPreferences tells the query-builder to eager-load the nodes that are connected to
-// the "subscription_reset_preferences" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *GroupQuery) WithSubscriptionResetPreferences(opts ...func(*SubscriptionResetPreferenceQuery)) *GroupQuery {
-	query := (&SubscriptionResetPreferenceClient{config: _q.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	_q.withSubscriptionResetPreferences = query
 	return _q
 }
 
@@ -733,14 +625,11 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 	var (
 		nodes       = []*Group{}
 		_spec       = _q.querySpec()
-		loadedTypes = [11]bool{
+		loadedTypes = [8]bool{
 			_q.withAPIKeys != nil,
 			_q.withRedeemCodes != nil,
 			_q.withSubscriptions != nil,
 			_q.withUsageLogs != nil,
-			_q.withSubscriptionResetCardGrants != nil,
-			_q.withSubscriptionResetCardUsages != nil,
-			_q.withSubscriptionResetPreferences != nil,
 			_q.withAccounts != nil,
 			_q.withAllowedUsers != nil,
 			_q.withAccountGroups != nil,
@@ -793,33 +682,6 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 		if err := _q.loadUsageLogs(ctx, query, nodes,
 			func(n *Group) { n.Edges.UsageLogs = []*UsageLog{} },
 			func(n *Group, e *UsageLog) { n.Edges.UsageLogs = append(n.Edges.UsageLogs, e) }); err != nil {
-			return nil, err
-		}
-	}
-	if query := _q.withSubscriptionResetCardGrants; query != nil {
-		if err := _q.loadSubscriptionResetCardGrants(ctx, query, nodes,
-			func(n *Group) { n.Edges.SubscriptionResetCardGrants = []*SubscriptionResetCardGrant{} },
-			func(n *Group, e *SubscriptionResetCardGrant) {
-				n.Edges.SubscriptionResetCardGrants = append(n.Edges.SubscriptionResetCardGrants, e)
-			}); err != nil {
-			return nil, err
-		}
-	}
-	if query := _q.withSubscriptionResetCardUsages; query != nil {
-		if err := _q.loadSubscriptionResetCardUsages(ctx, query, nodes,
-			func(n *Group) { n.Edges.SubscriptionResetCardUsages = []*SubscriptionResetCardUsage{} },
-			func(n *Group, e *SubscriptionResetCardUsage) {
-				n.Edges.SubscriptionResetCardUsages = append(n.Edges.SubscriptionResetCardUsages, e)
-			}); err != nil {
-			return nil, err
-		}
-	}
-	if query := _q.withSubscriptionResetPreferences; query != nil {
-		if err := _q.loadSubscriptionResetPreferences(ctx, query, nodes,
-			func(n *Group) { n.Edges.SubscriptionResetPreferences = []*SubscriptionResetPreference{} },
-			func(n *Group, e *SubscriptionResetPreference) {
-				n.Edges.SubscriptionResetPreferences = append(n.Edges.SubscriptionResetPreferences, e)
-			}); err != nil {
 			return nil, err
 		}
 	}
@@ -978,96 +840,6 @@ func (_q *GroupQuery) loadUsageLogs(ctx context.Context, query *UsageLogQuery, n
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, *fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
-}
-func (_q *GroupQuery) loadSubscriptionResetCardGrants(ctx context.Context, query *SubscriptionResetCardGrantQuery, nodes []*Group, init func(*Group), assign func(*Group, *SubscriptionResetCardGrant)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int64]*Group)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(subscriptionresetcardgrant.FieldGroupID)
-	}
-	query.Where(predicate.SubscriptionResetCardGrant(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(group.SubscriptionResetCardGrantsColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.GroupID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
-}
-func (_q *GroupQuery) loadSubscriptionResetCardUsages(ctx context.Context, query *SubscriptionResetCardUsageQuery, nodes []*Group, init func(*Group), assign func(*Group, *SubscriptionResetCardUsage)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int64]*Group)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(subscriptionresetcardusage.FieldGroupID)
-	}
-	query.Where(predicate.SubscriptionResetCardUsage(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(group.SubscriptionResetCardUsagesColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.GroupID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
-}
-func (_q *GroupQuery) loadSubscriptionResetPreferences(ctx context.Context, query *SubscriptionResetPreferenceQuery, nodes []*Group, init func(*Group), assign func(*Group, *SubscriptionResetPreference)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int64]*Group)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(subscriptionresetpreference.FieldGroupID)
-	}
-	query.Where(predicate.SubscriptionResetPreference(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(group.SubscriptionResetPreferencesColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.GroupID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

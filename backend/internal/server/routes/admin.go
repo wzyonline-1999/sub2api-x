@@ -622,13 +622,6 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 
 	// 用户下的订阅列表
 	admin.GET("/users/:id/subscriptions", h.Admin.Subscription.ListByUser)
-
-	resetCards := admin.Group("/subscription-reset-cards")
-	{
-		resetCards.GET("/grants", h.Admin.Subscription.ListResetCardGrants)
-		resetCards.POST("/grants", h.Admin.Subscription.GrantResetCards)
-		resetCards.GET("/usages", h.Admin.Subscription.ListResetCardUsages)
-	}
 }
 
 func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {

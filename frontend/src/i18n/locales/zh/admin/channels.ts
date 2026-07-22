@@ -683,63 +683,6 @@ export default {
       validityDaysRequired: '请输入有效的天数（至少1天）',
       revokeConfirm: "确定要撤销 '{user}' 的订阅吗？可稍后在已撤销列表中恢复。",
       restoreConfirm: "确定要恢复 '{user}' 的订阅吗？如果原订阅已过期，恢复后将显示为已过期。",
-      resetCards: {
-        grantAction: '发放重置卡',
-        grantShort: '发卡',
-        grantTitle: '发放套餐额度重置卡',
-        recordsAction: '重置卡记录',
-        recordsTitle: '额度重置卡记录',
-        grantHint:
-          '重置卡只适用于所选订阅分组。使用后会重置该套餐的日、周、月额度，但不会延长订阅有效期。',
-        confirmGrant: '确认发放',
-        granting: '发放中...',
-        grantSuccess: '已向 {user} 发放 {count} 张额度重置卡',
-        grantFailed: '发放额度重置卡失败',
-        loadGrantsFailed: '加载发放记录失败',
-        loadUsagesFailed: '加载使用流水失败',
-        loadMore: '加载更多',
-        loadingMore: '加载中...',
-        emptyGrants: '暂无重置卡发放记录',
-        emptyUsages: '暂无重置卡使用流水',
-        invalidCount: '发放数量必须是 1 到 10000 之间的整数',
-        invalidExpiration: '过期时间必须晚于当前时间',
-        remainingLabel: '剩余 / 发放',
-        neverExpires: '永不过期',
-        previousUsage: '日 ${daily} · 周 ${weekly} · 月 ${monthly}',
-        tabs: {
-          grants: '发放记录',
-          usages: '使用流水'
-        },
-        columns: {
-          user: '用户',
-          group: '套餐组',
-          inventory: '剩余 / 发放',
-          expiresAt: '过期时间',
-          status: '状态',
-          grantedAt: '发放时间',
-          mode: '使用方式',
-          subscription: '订阅',
-          previousUsage: '使用前额度',
-          usedAt: '使用时间'
-        },
-        mode: {
-          manual: '手动使用',
-          auto: '自动使用'
-        },
-        status: {
-          active: '可用',
-          exhausted: '已用完',
-          expired: '已过期',
-          revoked: '已撤销'
-        },
-        form: {
-          count: '发放数量',
-          expiresAt: '过期时间',
-          expiresAtHint: '不填写表示永不过期',
-          notes: '备注',
-          notesPlaceholder: '选填：说明发放原因或活动名称'
-        }
-      },
       guide: {
         title: '订阅管理教程',
         subtitle: '订阅模式允许你按时间周期为用户分配使用额度，支持日/周/月配额限制。按照以下步骤即可完成配置。',

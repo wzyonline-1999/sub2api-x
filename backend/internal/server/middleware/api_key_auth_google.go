@@ -3,11 +3,9 @@ package middleware
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -188,18 +186,6 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 				}
 				subscription = refreshed
 				_, err = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-			}
-			if err != nil && (errors.Is(err, service.ErrDailyLimitExceeded) ||
-				errors.Is(err, service.ErrWeeklyLimitExceeded) ||
-				errors.Is(err, service.ErrMonthlyLimitExceeded)) {
-				requestKey, _ := c.Request.Context().Value(ctxkey.RequestID).(string)
-				refreshed, used, autoErr := subscriptionService.TryAutoUseSubscriptionResetCard(c.Request.Context(), subscription, err, requestKey)
-				if autoErr != nil {
-					log.Printf("Warning: automatic Google subscription reset failed: user=%d group=%d error=%v", subscription.UserID, subscription.GroupID, autoErr)
-				} else if used {
-					subscription = refreshed
-					_, err = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-				}
 			}
 			if err != nil {
 				status := 403

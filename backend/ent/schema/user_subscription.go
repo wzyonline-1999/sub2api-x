@@ -68,12 +68,6 @@ func (UserSubscription) Fields() []ent.Field {
 		field.Float("monthly_usage_usd").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).
 			Default(0),
-		field.Int64("daily_window_version").
-			Default(0),
-		field.Int64("weekly_window_version").
-			Default(0),
-		field.Int64("monthly_window_version").
-			Default(0),
 
 		field.Int64("assigned_by").
 			Optional().
@@ -105,7 +99,6 @@ func (UserSubscription) Edges() []ent.Edge {
 			Field("assigned_by").
 			Unique(),
 		edge.To("usage_logs", UsageLog.Type),
-		edge.To("subscription_reset_card_usages", SubscriptionResetCardUsage.Type),
 	}
 }
 

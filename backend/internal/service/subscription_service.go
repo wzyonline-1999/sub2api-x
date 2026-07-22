@@ -2,13 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"math/rand/v2"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -55,13 +53,6 @@ type SubscriptionService struct {
 	subCacheGroup  singleflight.Group
 	subCacheTTL    time.Duration
 	subCacheJitter int // 抖动百分比
-	// subCacheGeneration changes before every invalidation. A database load
-	// records the generation before it starts and may populate L1 only while
-	// that generation is still current. The mutex also serializes the final
-	// SetWithTTL with Del+Wait, so an invalidation that has returned cannot be
-	// undone by an older loader finishing late.
-	subCacheMu         sync.RWMutex
-	subCacheGeneration uint64
 
 	maintenanceQueue *SubscriptionMaintenanceQueue
 }
@@ -76,9 +67,6 @@ func NewSubscriptionService(groupRepo GroupRepository, userSubRepo UserSubscript
 	}
 	svc.initSubCache(cfg)
 	svc.initMaintenanceQueue(cfg)
-	if billingCacheService != nil {
-		billingCacheService.SetSubscriptionAutoResetter(svc)
-	}
 	svc.StartSubCacheInvalidationSubscriber(context.Background())
 	return svc
 }
@@ -151,14 +139,10 @@ func (s *SubscriptionService) jitteredTTL(ttl time.Duration) time.Duration {
 
 // InvalidateSubCache 失效指定用户+分组的订阅 L1 缓存
 func (s *SubscriptionService) InvalidateSubCache(userID, groupID int64) {
-	s.subCacheMu.Lock()
-	s.subCacheGeneration++
-	key := subCacheKey(userID, groupID)
-	s.subCacheGroup.Forget(key)
-	if s.subCacheL1 != nil {
-		s.subCacheL1.Del(key)
+	if s.subCacheL1 == nil {
+		return
 	}
-	s.subCacheMu.Unlock()
+	s.subCacheL1.Del(subCacheKey(userID, groupID))
 }
 
 // InvalidateSubCacheSync 失效订阅 L1 缓存并等待 Ristretto 删除操作生效。
@@ -167,32 +151,11 @@ func (s *SubscriptionService) InvalidateSubCacheSync(userID, groupID int64) {
 }
 
 func (s *SubscriptionService) invalidateSubCacheKeySync(key string) {
-	s.subCacheMu.Lock()
-	defer s.subCacheMu.Unlock()
-	s.subCacheGeneration++
-	s.subCacheGroup.Forget(key)
-	if s.subCacheL1 != nil {
-		s.subCacheL1.Del(key)
-		s.subCacheL1.Wait()
-	}
-}
-
-func (s *SubscriptionService) subCacheLoadGeneration() uint64 {
-	s.subCacheMu.RLock()
-	defer s.subCacheMu.RUnlock()
-	return s.subCacheGeneration
-}
-
-func (s *SubscriptionService) setSubCacheIfGeneration(key string, sub *UserSubscription, generation uint64) {
-	if s.subCacheL1 == nil || sub == nil {
+	if s.subCacheL1 == nil {
 		return
 	}
-	s.subCacheMu.RLock()
-	defer s.subCacheMu.RUnlock()
-	if s.subCacheGeneration != generation {
-		return
-	}
-	_ = s.subCacheL1.SetWithTTL(key, sub, 1, s.jitteredTTL(s.subCacheTTL))
+	s.subCacheL1.Del(key)
+	s.subCacheL1.Wait()
 }
 
 // StartSubCacheInvalidationSubscriber 启动跨实例订阅 L1 缓存失效订阅。
@@ -215,14 +178,13 @@ func (s *SubscriptionService) invalidateSubscriptionCaches(userID, groupID int64
 
 	cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	var cacheErrors []error
 	if err := s.billingCacheService.InvalidateSubscription(cacheCtx, userID, groupID); err != nil {
-		cacheErrors = append(cacheErrors, fmt.Errorf("invalidate billing subscription cache: %w", err))
+		return fmt.Errorf("invalidate billing subscription cache: %w", err)
 	}
 	if err := s.billingCacheService.PublishSubscriptionCacheInvalidation(cacheCtx, subCacheKey(userID, groupID)); err != nil {
-		cacheErrors = append(cacheErrors, fmt.Errorf("publish subscription cache invalidation: %w", err))
+		return fmt.Errorf("publish subscription cache invalidation: %w", err)
 	}
-	return errors.Join(cacheErrors...)
+	return nil
 }
 
 // AssignSubscriptionInput 分配订阅输入
@@ -250,10 +212,7 @@ func (s *SubscriptionService) AssignSubscription(ctx context.Context, input *Ass
 //
 // 如果没有订阅：创建新订阅
 func (s *SubscriptionService) AssignOrExtendSubscription(ctx context.Context, input *AssignSubscriptionInput) (*UserSubscription, bool, error) {
-	// When an outer transaction owns the commit (currently redeem-code
-	// fulfillment), cache invalidation must happen after that commit. Publishing
-	// here would let another slot reload the pre-commit quota generation.
-	return s.assignOrExtendSubscription(ctx, input, dbent.TxFromContext(ctx) != nil)
+	return s.assignOrExtendSubscription(ctx, input, false)
 }
 
 func (s *SubscriptionService) assignOrExtendSubscription(ctx context.Context, input *AssignSubscriptionInput, deferCacheInvalidation bool) (*UserSubscription, bool, error) {
@@ -332,11 +291,13 @@ func (s *SubscriptionService) maybeInvalidateAssignmentCaches(userID, groupID in
 		return
 	}
 
-	if err := s.invalidateSubscriptionCaches(userID, groupID); err != nil {
-		// The subscription mutation is already committed at this point. Keep the
-		// historical best-effort cache semantics while making every successful
-		// invalidation broadcast to the other blue/green slot.
-		log.Printf("Warning: failed to invalidate subscription assignment caches: user=%d group=%d error=%v", userID, groupID, err)
+	s.InvalidateSubCache(userID, groupID)
+	if s.billingCacheService != nil {
+		go func() {
+			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, groupID)
+		}()
 	}
 }
 
@@ -350,20 +311,6 @@ func (s *SubscriptionService) updateExistingSubscriptionTerm(
 ) error {
 	return s.withSubscriptionUpdateTx(ctx, func(txCtx context.Context) error {
 		if isExpired {
-			if renewer, ok := s.userSubRepo.(interface {
-				RenewExpiredTerm(context.Context, int64, time.Time, time.Time, string) error
-			}); ok {
-				if err := renewer.RenewExpiredTerm(
-					txCtx,
-					existingSub.ID,
-					startsAt,
-					newExpiresAt,
-					appendSubscriptionNotes(existingSub.Notes, notes),
-				); err != nil {
-					return fmt.Errorf("renew expired subscription: %w", err)
-				}
-				return nil
-			}
 			renewed := renewedSubscriptionTerm(existingSub, notes, startsAt, newExpiresAt)
 			if err := s.userSubRepo.Update(txCtx, renewed); err != nil {
 				return fmt.Errorf("renew expired subscription: %w", err)
@@ -431,9 +378,6 @@ func renewedSubscriptionTerm(existingSub *UserSubscription, notes string, starts
 	renewed.DailyUsageUSD = 0
 	renewed.WeeklyUsageUSD = 0
 	renewed.MonthlyUsageUSD = 0
-	renewed.DailyWindowVersion++
-	renewed.WeeklyWindowVersion++
-	renewed.MonthlyWindowVersion++
 	renewed.Notes = appendSubscriptionNotes(existingSub.Notes, notes)
 	return &renewed
 }
@@ -789,15 +733,14 @@ func (s *SubscriptionService) GetActiveSubscription(ctx context.Context, userID,
 
 	// singleflight 防止并发击穿
 	value, err, _ := s.subCacheGroup.Do(key, func() (any, error) {
-		generation := s.subCacheLoadGeneration()
 		sub, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, userID, groupID)
 		if err != nil {
 			return nil, err // 直接透传 repo 已翻译的错误（NotFound → ErrSubscriptionNotFound，其他错误原样返回）
 		}
-		// Only cache the snapshot if no invalidation happened while the DB load
-		// was in flight. The current caller can still use the snapshot it read;
-		// the next request will reload after a conflicting invalidation.
-		s.setSubCacheIfGeneration(key, sub, generation)
+		// 写入 L1 缓存
+		if s.subCacheL1 != nil {
+			_ = s.subCacheL1.SetWithTTL(key, sub, 1, s.jitteredTTL(s.subCacheTTL))
+		}
 		return sub, nil
 	})
 	if err != nil {
@@ -922,10 +865,12 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 	if err := s.userSubRepo.ResetUsageWindows(ctx, sub.ID, resetDaily, resetWeekly, resetMonthly, windowStart); err != nil {
 		return nil, err
 	}
-	if err := s.invalidateSubscriptionCaches(sub.UserID, sub.GroupID); err != nil {
-		// ResetUsageWindows already committed. Preserve the previous best-effort
-		// cache behavior while still attempting a cross-instance broadcast.
-		log.Printf("Warning: failed to invalidate admin-reset subscription caches: user=%d group=%d error=%v", sub.UserID, sub.GroupID, err)
+	// Invalidate L1 ristretto cache. Ristretto's Del() is asynchronous by design,
+	// so call Wait() immediately after to flush pending operations and guarantee
+	// the deleted key is not returned on the very next Get() call.
+	s.InvalidateSubCacheSync(sub.UserID, sub.GroupID)
+	if s.billingCacheService != nil {
+		_ = s.billingCacheService.InvalidateSubscription(ctx, sub.UserID, sub.GroupID)
 	}
 	// Return the refreshed subscription from DB
 	return s.userSubRepo.GetByID(ctx, subscriptionID)
@@ -972,10 +917,9 @@ func (s *SubscriptionService) CheckAndResetWindows(ctx context.Context, sub *Use
 
 	// 如果有窗口被重置，失效缓存以保持一致性
 	if needsInvalidateCache {
-		if err := s.invalidateSubscriptionCaches(sub.UserID, sub.GroupID); err != nil {
-			// A conditional window reset may already have committed (or another
-			// request may have won it), so cache invalidation remains best effort.
-			log.Printf("Warning: failed to invalidate natural-reset subscription caches: user=%d group=%d error=%v", sub.UserID, sub.GroupID, err)
+		s.InvalidateSubCache(sub.UserID, sub.GroupID)
+		if s.billingCacheService != nil {
+			_ = s.billingCacheService.InvalidateSubscription(ctx, sub.UserID, sub.GroupID)
 		}
 	}
 
