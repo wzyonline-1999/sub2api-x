@@ -1,6 +1,7 @@
 import type { GroupPlatform } from '@/types'
 
 export const OPENAI_CC_SWITCH_CODEX_MODEL = 'gpt-5.5'
+export const GROK_CC_SWITCH_MODEL = 'grok-4.5'
 
 export type CcSwitchClientType = 'claude' | 'gemini'
 
@@ -21,6 +22,11 @@ export interface CcSwitchImportDeeplinkInput {
 
 function normalizeCcSwitchBaseRoot(baseUrl: string): string {
   return baseUrl.replace(/\/(?:v1|v1beta)\/?$/, '').replace(/\/+$/, '')
+}
+
+function withV1Endpoint(baseRoot: string): string {
+  const normalizedBaseRoot = baseRoot.replace(/\/+$/, '')
+  return normalizedBaseRoot.endsWith('/v1') ? normalizedBaseRoot : `${normalizedBaseRoot}/v1`
 }
 
 export function resolveCcSwitchImportConfig(
@@ -44,6 +50,12 @@ export function resolveCcSwitchImportConfig(
       return {
         app: 'gemini',
         endpoint: baseRoot
+      }
+    case 'grok':
+      return {
+        app: 'grokbuild',
+        endpoint: withV1Endpoint(baseRoot),
+        model: GROK_CC_SWITCH_MODEL
       }
     default:
       return {

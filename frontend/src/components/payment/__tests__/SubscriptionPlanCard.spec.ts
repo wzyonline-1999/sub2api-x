@@ -6,8 +6,11 @@ import SubscriptionPlanCard from "../SubscriptionPlanCard.vue";
 
 const translations = vi.hoisted<Record<string, string>>(() => ({
   "payment.days": "days",
+  "payment.weeks": "weeks",
+  "payment.months": "months",
   "payment.perMonth": "month",
   "payment.perYear": "year",
+  "payment.models": "Models",
   "payment.renewNow": "Renew now",
   "payment.subscribeNow": "Subscribe now",
   "payment.planCard.dailyLimit": "Daily limit",
@@ -67,6 +70,15 @@ describe("SubscriptionPlanCard", () => {
     expect(text).toContain("Claude");
     expect(text).toContain("Gemini");
     expect(text).toContain("Imagen");
+  });
+
+  // #4607：管理端保存的单位是复数（months/weeks），此前用户侧只匹配单数
+  // 'month'，「1 个月」的套餐卡片被显示成「1天」。
+  it("renders plural admin-form validity units instead of mislabeled days (#4607)", () => {
+    expect(mountPlanCard("openai", { validity_days: 1, validity_unit: "months" }).text()).toContain("/ month");
+    expect(mountPlanCard("openai", { validity_days: 3, validity_unit: "months" }).text()).toContain("/ 3months");
+    expect(mountPlanCard("openai", { validity_days: 2, validity_unit: "weeks" }).text()).toContain("/ 2weeks");
+    expect(mountPlanCard("openai", { validity_days: 30, validity_unit: "day" }).text()).toContain("/ 30days");
   });
 
   it("uses the configured currency symbol while preserving USD for legacy plans", () => {

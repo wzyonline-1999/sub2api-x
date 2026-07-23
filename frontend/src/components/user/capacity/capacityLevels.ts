@@ -34,6 +34,7 @@ export function platformLabel(platform: string): string {
     grok: 'Grok',
     xai: 'Grok',
     antigravity: 'Antigravity',
+    composite: 'Composite',
   }
   return known[normalized] ?? (platform.trim() || 'Unknown')
 }
