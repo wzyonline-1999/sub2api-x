@@ -356,7 +356,7 @@ func TestOpenAIGatewayServiceRecordUsage_PersistsSessionMetadata(t *testing.T) {
 		Account:       &Account{ID: 3001, Type: AccountTypeAPIKey},
 		APIKeyService: quotaSvc,
 		SessionMetadata: OpenAISessionMetadata{
-			SessionID:       strings.Repeat("s", 1100),
+			SessionID:       strings.Repeat("s", UsageLogSessionIDMaxLength),
 			SessionIDSource: "header_session_id",
 			SessionHash:     "0123456789abcdef",
 			SessionExplicit: true,
@@ -374,6 +374,59 @@ func TestOpenAIGatewayServiceRecordUsage_PersistsSessionMetadata(t *testing.T) {
 	require.Equal(t, "0123456789abcdef", *usageRepo.lastLog.SessionHash)
 	require.NotNil(t, usageRepo.lastLog.SessionExplicit)
 	require.True(t, *usageRepo.lastLog.SessionExplicit)
+}
+
+func TestApplyOpenAISessionMetadataToUsageLog_RejectsUnsafeSessionID(t *testing.T) {
+	for _, sessionID := range []string{
+		"unsafe\nsession",
+		strings.Repeat("s", UsageLogSessionIDMaxLength+1),
+	} {
+		t.Run(sessionID[:6], func(t *testing.T) {
+			log := &UsageLog{}
+			applyOpenAISessionMetadataToUsageLog(log, OpenAISessionMetadata{
+				SessionID:       sessionID,
+				SessionIDSource: "header_session_id",
+				SessionHash:     "0123456789abcdef",
+				SessionExplicit: true,
+			})
+
+			require.Nil(t, log.SessionID)
+			require.Equal(t, "header_session_id", *log.SessionIDSource)
+			require.Equal(t, "0123456789abcdef", *log.SessionHash)
+			require.True(t, *log.SessionExplicit)
+		})
+	}
+}
+
+func TestApplyPersistedClientSessionIDToUsageLog_KeepsRoutingHashCoherent(t *testing.T) {
+	metadataSessionID := "prompt-cache-session"
+	metadataSource := "prompt_cache_key"
+	routingHash := "0123456789abcdef"
+	explicit := true
+	log := &UsageLog{
+		SessionID:       &metadataSessionID,
+		SessionIDSource: &metadataSource,
+		SessionHash:     &routingHash,
+		SessionExplicit: &explicit,
+	}
+
+	applyPersistedClientSessionIDToUsageLog(log, "claude-native-session")
+
+	require.Equal(t, "claude-native-session", *log.SessionID)
+	require.Equal(t, "header_client_session", *log.SessionIDSource)
+	require.Equal(t, routingHash, *log.SessionHash)
+	require.True(t, *log.SessionExplicit)
+}
+
+func TestApplyPersistedClientSessionIDToUsageLog_EmptyDoesNotEraseMetadata(t *testing.T) {
+	sessionID := "prompt-cache-session"
+	source := "prompt_cache_key"
+	log := &UsageLog{SessionID: &sessionID, SessionIDSource: &source}
+
+	applyPersistedClientSessionIDToUsageLog(log, "")
+
+	require.Equal(t, sessionID, *log.SessionID)
+	require.Equal(t, source, *log.SessionIDSource)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_MissingPricingRecordsZeroCostUsageLog(t *testing.T) {
@@ -1385,6 +1438,71 @@ func TestOpenAIGatewayServiceRecordUsage_UsesRequestedModelAndUpstreamModelMetad
 	require.NotNil(t, usageRepo.lastLog.GroupID)
 	require.Equal(t, int64(11), *usageRepo.lastLog.GroupID)
 	require.Equal(t, 1, userRepo.deductCalls)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:     "openai_channel_mapping_models",
+			Model:         "gpt-5.6-terra",
+			UpstreamModel: "gpt-5.6-terra",
+			Usage: OpenAIUsage{
+				InputTokens:  20,
+				OutputTokens: 10,
+			},
+			Duration: time.Second,
+		},
+		APIKey:  &APIKey{ID: 10},
+		User:    &User{ID: 20},
+		Account: &Account{ID: 30},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-5.6-sol",
+			ChannelMappedModel: "gpt-5.6-terra",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "gpt-5.6-sol", usageRepo.lastLog.RequestedModel)
+	require.Equal(t, "gpt-5.6-terra", usageRepo.lastLog.Model)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
+	require.Equal(t, "gpt-5.6-terra", *usageRepo.lastLog.UpstreamModel)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstreamModel(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:     "openai_looped_mapping_models",
+			Model:         "gpt-5.6-terra",
+			UpstreamModel: "gpt-5.6-sol",
+			Usage:         OpenAIUsage{InputTokens: 20, OutputTokens: 10},
+			Duration:      time.Second,
+		},
+		APIKey:  &APIKey{ID: 10},
+		User:    &User{ID: 20},
+		Account: &Account{ID: 30},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-5.6-sol",
+			ChannelMappedModel: "gpt-5.6-terra",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "gpt-5.6-sol", usageRepo.lastLog.RequestedModel)
+	require.Equal(t, "gpt-5.6-terra", usageRepo.lastLog.Model)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
+	require.Equal(t, "gpt-5.6-sol", *usageRepo.lastLog.UpstreamModel)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_BillsMappedRequestsUsingRequestedModel(t *testing.T) {

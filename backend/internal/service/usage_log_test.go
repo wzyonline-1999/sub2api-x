@@ -21,14 +21,16 @@ func TestParseUsageRequestType(t *testing.T) {
 		{name: "sync", input: "sync", want: RequestTypeSync},
 		{name: "stream", input: "stream", want: RequestTypeStream},
 		{name: "ws_v2", input: "ws_v2", want: RequestTypeWSV2},
+		{name: "live", input: "live", want: RequestTypeLive},
 		{name: "numeric_unknown", input: "0", want: RequestTypeUnknown},
 		{name: "numeric_sync", input: "1", want: RequestTypeSync},
 		{name: "numeric_stream", input: "2", want: RequestTypeStream},
 		{name: "numeric_ws_v2", input: "3", want: RequestTypeWSV2},
 		{name: "numeric_cyber", input: "4", want: RequestTypeCyberBlocked},
+		{name: "numeric_live", input: "5", want: RequestTypeLive},
 		{name: "case_insensitive", input: "WS_V2", want: RequestTypeWSV2},
 		{name: "trim_spaces", input: "  stream  ", want: RequestTypeStream},
-		{name: "numeric_out_of_range", input: "5", wantErr: true},
+		{name: "numeric_out_of_range", input: "6", wantErr: true},
 		{name: "invalid", input: "xxx", wantErr: true},
 	}
 
@@ -55,6 +57,7 @@ func TestRequestTypeNormalizeAndString(t *testing.T) {
 	require.Equal(t, "sync", RequestTypeSync.String())
 	require.Equal(t, "stream", RequestTypeStream.String())
 	require.Equal(t, "ws_v2", RequestTypeWSV2.String())
+	require.Equal(t, "live", RequestTypeLive.String())
 }
 
 func TestRequestTypeFromLegacy(t *testing.T) {

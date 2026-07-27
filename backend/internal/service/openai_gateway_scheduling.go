@@ -26,6 +26,15 @@ const (
 	codeBuddyConversationHeader   = "X-Conversation-ID"
 )
 
+var explicitOpenAIHeaderSessionNames = []string{
+	"session_id",
+	"conversation_id",
+	openCodeSessionAffinityHeader,
+	openCodeSessionIDHeader,
+	openCodeNativeSessionHeader,
+	codeBuddyConversationHeader,
+}
+
 // explicitOpenAIHeaderSessionID resolves stable conversation identifiers sent
 // by OpenAI-compatible clients. Keep this list limited to session-scoped
 // fields: request/message IDs rotate every turn and would defeat sticky routing
@@ -35,22 +44,31 @@ func explicitOpenAIHeaderSessionIDWithSource(c *gin.Context) (string, string) {
 		return "", ""
 	}
 
-	for _, candidate := range []struct {
-		header string
-		source string
-	}{
-		{header: "session_id", source: "header_session_id"},
-		{header: "conversation_id", source: "header_conversation_id"},
-		{header: openCodeSessionAffinityHeader, source: "header_x_session_affinity"},
-		{header: openCodeSessionIDHeader, source: "header_x_session_id"},
-		{header: openCodeNativeSessionHeader, source: "header_x_opencode_session"},
-		{header: codeBuddyConversationHeader, source: "header_x_conversation_id"},
-	} {
-		if sessionID := strings.TrimSpace(c.GetHeader(candidate.header)); sessionID != "" {
-			return sessionID, candidate.source
+	for _, header := range explicitOpenAIHeaderSessionNames {
+		if sessionID := strings.TrimSpace(c.GetHeader(header)); sessionID != "" {
+			return sessionID, explicitOpenAIHeaderSessionSource(header)
 		}
 	}
 	return "", ""
+}
+
+func explicitOpenAIHeaderSessionSource(header string) string {
+	switch header {
+	case "session_id":
+		return "header_session_id"
+	case "conversation_id":
+		return "header_conversation_id"
+	case openCodeSessionAffinityHeader:
+		return "header_x_session_affinity"
+	case openCodeSessionIDHeader:
+		return "header_x_session_id"
+	case openCodeNativeSessionHeader:
+		return "header_x_opencode_session"
+	case codeBuddyConversationHeader:
+		return "header_x_conversation_id"
+	default:
+		return "header_session"
+	}
 }
 
 func explicitOpenAIHeaderSessionID(c *gin.Context) string {

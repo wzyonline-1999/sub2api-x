@@ -20,11 +20,12 @@ const (
 	RequestTypeStream       RequestType = 2
 	RequestTypeWSV2         RequestType = 3
 	RequestTypeCyberBlocked RequestType = 4 // cyber_policy 命中（透传但被上游安全策略拒绝）
+	RequestTypeLive         RequestType = 5
 )
 
 func (t RequestType) IsValid() bool {
 	switch t {
-	case RequestTypeUnknown, RequestTypeSync, RequestTypeStream, RequestTypeWSV2, RequestTypeCyberBlocked:
+	case RequestTypeUnknown, RequestTypeSync, RequestTypeStream, RequestTypeWSV2, RequestTypeCyberBlocked, RequestTypeLive:
 		return true
 	default:
 		return false
@@ -48,6 +49,8 @@ func (t RequestType) String() string {
 		return "ws_v2"
 	case RequestTypeCyberBlocked:
 		return "cyber"
+	case RequestTypeLive:
+		return "live"
 	default:
 		return "unknown"
 	}
@@ -70,6 +73,8 @@ func ParseUsageRequestType(value string) (RequestType, error) {
 		return RequestTypeWSV2, nil
 	case "cyber":
 		return RequestTypeCyberBlocked, nil
+	case "live":
+		return RequestTypeLive, nil
 	}
 
 	if numeric, err := strconv.ParseInt(normalized, 10, 16); err == nil {
@@ -79,7 +84,7 @@ func ParseUsageRequestType(value string) (RequestType, error) {
 		}
 	}
 
-	return RequestTypeUnknown, fmt.Errorf("invalid request_type, allowed values: unknown, sync, stream, ws_v2, cyber, or numeric 0-4")
+	return RequestTypeUnknown, fmt.Errorf("invalid request_type, allowed values: unknown, sync, stream, ws_v2, cyber, live, or numeric 0-5")
 }
 
 func RequestTypeFromLegacy(stream bool, openAIWSMode bool) RequestType {
@@ -116,9 +121,10 @@ type UsageLog struct {
 	// (session_id, conversation_id, or prompt_cache_key). Content-derived
 	// fallback seeds are intentionally not stored here.
 	SessionID *string
-	// SessionIDSource describes where SessionID/SessionHash came from, e.g.
-	// header_session_id, header_conversation_id, prompt_cache_key,
-	// content_fallback, or ws_fallback.
+	// SessionIDSource describes where SessionID came from when present. When
+	// SessionID is absent it describes the fallback used for SessionHash, e.g.
+	// content_fallback or ws_fallback. SessionHash independently records the
+	// sticky-routing hash and does not always derive from the persisted SessionID.
 	SessionIDSource *string
 	// SessionHash is the sticky-session hash used for OpenAI account routing.
 	SessionHash *string
@@ -213,7 +219,9 @@ type UsageLog struct {
 	Subscription *UserSubscription
 }
 
-const UsageLogSessionIDMaxLength = 1024
+// Keep customized session metadata within the official persisted column bound
+// so databases that applied migration 187 before migration 159 remain writable.
+const UsageLogSessionIDMaxLength = maxPersistedSessionIDLength
 
 func TruncateUsageLogSessionID(sessionID string) string {
 	if len(sessionID) <= UsageLogSessionIDMaxLength {
