@@ -288,18 +288,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/capacity',
-    name: 'Capacity',
-    component: () => import('@/views/user/CapacityView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Channel Resources',
-      titleKey: 'capacity.title',
-      descriptionKey: 'capacity.description'
-    }
-  },
-  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),

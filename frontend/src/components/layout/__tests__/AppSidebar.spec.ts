@@ -61,12 +61,3 @@ describe('AppSidebar ranking navigation icon', () => {
     expect(componentSource).toContain("{ path: '/rankings', label: t('nav.rankings'), icon: TrophyIcon")
   })
 })
-
-describe('AppSidebar channel resources navigation', () => {
-  it('uses a resource-specific server icon and shares the page between user menus', () => {
-    expect(componentSource).toContain("{ path: '/capacity', label: t('nav.resourceStatus'), icon: ServerIcon }")
-    expect(componentSource).not.toContain("{ path: '/capacity', label: t('nav.resourceStatus'), icon: ChartIcon }")
-    expect(componentSource).toContain('finalizeNav(buildSelfNavItems(true))')
-    expect(componentSource).toContain('finalizeNav(buildSelfNavItems(false))')
-  })
-})
