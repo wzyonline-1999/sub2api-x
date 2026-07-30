@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import ModelWhitelistSelector from '../ModelWhitelistSelector.vue'
 import { accountsAPI } from '@/api/admin/accounts'
 
 const showError = vi.hoisted(() => vi.fn())
+const copyToClipboard = vi.hoisted(() => vi.fn().mockResolvedValue(true))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -20,12 +21,19 @@ vi.mock('@/api/admin/accounts', () => ({
   }
 }))
 
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({
+    copyToClipboard
+  })
+}))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
     ...actual,
     useI18n: () => ({
       t: (key: string, params?: Record<string, unknown>) => {
+        if (key === 'common.copy') return '复制'
         if (key === 'admin.accounts.syncUpstreamModels') return '同步上游支持的模型'
         if (key === 'admin.accounts.syncUpstreamModelsFailed') return '同步上游模型失败'
         if (key === 'admin.accounts.syncUpstreamModelsError') return `同步上游模型失败：${params?.message ?? ''}`
@@ -85,7 +93,7 @@ describe('ModelWhitelistSelector upstream sync', () => {
     expect(findSyncButton(wrapper)).toBeTruthy()
   })
 
-  it('hides live upstream sync for Grok accounts until backend model listing is supported', () => {
+  it('keeps live upstream sync for existing Grok accounts', () => {
     const wrapper = mount(ModelWhitelistSelector, {
       props: {
         modelValue: [],
@@ -95,7 +103,7 @@ describe('ModelWhitelistSelector upstream sync', () => {
       }
     })
 
-    expect(findSyncButton(wrapper)).toBeUndefined()
+    expect(findSyncButton(wrapper)).toBeTruthy()
   })
 
   it('uses API plain-object message once when sync fails', async () => {
@@ -138,5 +146,64 @@ describe('ModelWhitelistSelector upstream sync', () => {
     await flushPromises()
 
     expect(showError).toHaveBeenCalledWith('同步上游模型失败')
+  })
+})
+
+function mountSelector() {
+  return mount(ModelWhitelistSelector, {
+    props: {
+      modelValue: [],
+      platform: 'openai'
+    },
+    global: {
+      stubs: {
+        ModelIcon: true
+      }
+    }
+  })
+}
+
+function findModelRow(wrapper: ReturnType<typeof mountSelector>, modelId: string) {
+  const row = wrapper
+    .findAll('[data-testid="model-option"]')
+    .find(candidate => candidate.text().includes(modelId))
+
+  if (!row) {
+    throw new Error(`Model row not found: ${modelId}`)
+  }
+
+  return row
+}
+
+describe('ModelWhitelistSelector', () => {
+  beforeEach(() => {
+    copyToClipboard.mockClear()
+  })
+
+  it('copies a model ID without selecting the model', async () => {
+    const wrapper = mountSelector()
+    await wrapper.get('div.cursor-pointer').trigger('click')
+
+    const row = findModelRow(wrapper, 'gpt-5.6-sol')
+
+    const copyButton = row.get('[data-testid="copy-model-id"]')
+    expect(copyButton.attributes('aria-label')).toBe('复制 gpt-5.6-sol')
+
+    await copyButton.trigger('click')
+    await flushPromises()
+
+    expect(copyToClipboard).toHaveBeenCalledWith('gpt-5.6-sol')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('keeps the existing model selection behavior', async () => {
+    const wrapper = mountSelector()
+    await wrapper.get('div.cursor-pointer').trigger('click')
+
+    const row = findModelRow(wrapper, 'gpt-5.6-sol')
+    await row.get('[data-testid="select-model"]').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([[['gpt-5.6-sol']]])
+    expect(copyToClipboard).not.toHaveBeenCalled()
   })
 })
