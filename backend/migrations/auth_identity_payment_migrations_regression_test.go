@@ -180,8 +180,8 @@ func TestMigration158BackfillsGrokMediaGenerationGroups(t *testing.T) {
 	require.Contains(t, sql, "AND allow_image_generation = false")
 }
 
-func TestMigration158AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
-	content, err := FS.ReadFile("158_account_spark_shadow.sql")
+func TestMigration154AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
+	content, err := FS.ReadFile("154_account_spark_shadow.sql")
 	require.NoError(t, err)
 
 	sql := string(content)
@@ -201,8 +201,8 @@ func TestMigration158AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *te
 	require.NotContains(t, sql, "CONCURRENTLY")
 }
 
-func TestMigration158aAddsSparkShadowIndexesConcurrently(t *testing.T) {
-	content, err := FS.ReadFile("158a_account_spark_shadow_indexes_notx.sql")
+func TestMigration154aAddsSparkShadowIndexesConcurrently(t *testing.T) {
+	content, err := FS.ReadFile("154a_account_spark_shadow_indexes_notx.sql")
 	require.NoError(t, err)
 
 	sql := string(content)

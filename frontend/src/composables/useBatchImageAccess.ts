@@ -40,7 +40,8 @@ async function loadBatchImageAccess(force = false): Promise<boolean> {
       const response = await keysAPI.list(page, pageSize, {
         status: 'active',
         sort_by: 'created_at',
-        sort_order: 'desc'
+        sort_order: 'desc',
+        include_last_used_ip: false
       })
 
       if ((response.items || []).some(keyAllowsBatchImage)) {

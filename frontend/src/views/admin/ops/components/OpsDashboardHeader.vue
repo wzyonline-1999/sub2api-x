@@ -681,7 +681,7 @@ const dbConnIdleValue = computed<number | null>(() => {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 })
 
-const dbConnWaitingValue = computed<number | null>(() => {
+const dbConnWaitEventDeltaValue = computed<number | null>(() => {
   const v = systemMetrics.value?.db_conn_waiting
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 })
@@ -1480,7 +1480,9 @@ function handleToolbarRefresh() {
             {{ t('admin.ops.conns') }} {{ dbConnOpenValue ?? '-' }} / {{ dbMaxOpenConnsValue ?? '-' }}
             · {{ t('admin.ops.active') }} {{ dbConnActiveValue ?? '-' }}
             · {{ t('admin.ops.idle') }} {{ dbConnIdleValue ?? '-' }}
-            <span v-if="dbConnWaitingValue != null"> · {{ t('admin.ops.waiting') }} {{ dbConnWaitingValue }} </span>
+            <span v-if="dbConnWaitEventDeltaValue != null">
+              · {{ t('admin.ops.dbWaitEventsDelta') }} {{ dbConnWaitEventDeltaValue }}
+            </span>
           </div>
         </div>
 

@@ -291,9 +291,9 @@ func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_ExplicitSources(t *te
 			wantHashFor: "codebuddy-conversation",
 		},
 		{
-			name:        "prompt_cache_key used when headers absent",
+			name:        "prompt_cache_key routes without raw persistence",
 			headers:     map[string]string{},
-			wantID:      "body-cache-key",
+			wantID:      "",
 			wantSource:  "prompt_cache_key",
 			wantHashFor: "body-cache-key",
 		},
@@ -345,7 +345,7 @@ func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_GrokConversationHeade
 	t.Run("non-Grok group ignores native conversation header", func(t *testing.T) {
 		got := svc.ResolveOpenAISessionMetadata(newContext(PlatformOpenAI), bodyWithKey)
 
-		require.Equal(t, "body-cache-key", got.SessionID)
+		require.Empty(t, got.SessionID)
 		require.Equal(t, "prompt_cache_key", got.SessionIDSource)
 		require.True(t, got.SessionExplicit)
 		require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String("body-cache-key")), got.SessionHash)
@@ -379,7 +379,7 @@ func TestOpenAIGatewayService_ResolveOpenAISessionMetadata_CompositeGrokConversa
 	t.Run("composite route targeting OpenAI ignores the Grok-only header", func(t *testing.T) {
 		got := svc.ResolveOpenAISessionMetadata(newContext(PlatformOpenAI), bodyWithKey)
 
-		require.Equal(t, "body-cache-key", got.SessionID)
+		require.Empty(t, got.SessionID)
 		require.Equal(t, "prompt_cache_key", got.SessionIDSource)
 		require.True(t, got.SessionExplicit)
 	})
@@ -578,14 +578,14 @@ func TestOpenAIGatewayService_ResolveExplicitOpenAISessionMetadata_ForImages(t *
 	gin.SetMode(gin.TestMode)
 	svc := &OpenAIGatewayService{}
 
-	t.Run("prompt_cache_key records explicit session metadata", func(t *testing.T) {
+	t.Run("prompt_cache_key records metadata without the raw value", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 
 		got := svc.ResolveExplicitOpenAISessionMetadata(c, []byte(`{"model":"gpt-image-2","prompt":"draw","prompt_cache_key":"image-session"}`))
 
-		require.Equal(t, "image-session", got.SessionID)
+		require.Empty(t, got.SessionID)
 		require.Equal(t, "prompt_cache_key", got.SessionIDSource)
 		require.True(t, got.SessionExplicit)
 		require.Equal(t, fmt.Sprintf("%016x", xxhash.Sum64String("image-session")), got.SessionHash)

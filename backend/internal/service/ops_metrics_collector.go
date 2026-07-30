@@ -275,7 +275,7 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 
 	dbOK := c.checkDB(ctx)
 	redisOK := c.checkRedis(ctx)
-	active, idle, waiting := c.dbPoolStats()
+	active, idle, dbWaitEventDelta := c.dbPoolStats()
 	redisTotal, redisIdle, redisStatsOK := c.redisPoolStats()
 
 	successCount, tokenConsumed, err := c.queryUsageCounts(ctx, windowStart, windowEnd)
@@ -364,7 +364,7 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 
 		DBConnActive:          intPtr(active),
 		DBConnIdle:            intPtr(idle),
-		DBConnWaiting:         intPtr(waiting),
+		DBConnWaiting:         intPtr(dbWaitEventDelta),
 		GoroutineCount:        intPtr(goroutines),
 		ConcurrencyQueueDepth: concurrencyQueueDepth,
 	}
@@ -859,7 +859,7 @@ func (c *OpsMetricsCollector) redisPoolStats() (total int, idle int, ok bool) {
 	return int(stats.TotalConns), int(stats.IdleConns), true
 }
 
-func (c *OpsMetricsCollector) dbPoolStats() (active int, idle int, waiting int) {
+func (c *OpsMetricsCollector) dbPoolStats() (active int, idle int, waitEventDelta int) {
 	if c == nil || c.db == nil {
 		return 0, 0, 0
 	}
@@ -871,13 +871,13 @@ func (c *OpsMetricsCollector) dbPoolStats() (active int, idle int, waiting int) 
 	if c.hasLastDBWaitStats {
 		waitDelta := stats.WaitCount - c.lastDBWaitCount
 		if waitDelta > 0 {
-			waiting = int64ToIntSaturating(waitDelta)
+			waitEventDelta = int64ToIntSaturating(waitDelta)
 		}
 	}
 	c.lastDBWaitCount = stats.WaitCount
 	c.hasLastDBWaitStats = true
 
-	return stats.InUse, stats.Idle, waiting
+	return stats.InUse, stats.Idle, waitEventDelta
 }
 
 func int64ToIntSaturating(v int64) int {

@@ -1970,6 +1970,10 @@ func init() {
 	usagelogDescUpstreamModel := usagelogFields[6].Descriptor()
 	// usagelog.UpstreamModelValidator is a validator for the "upstream_model" field. It is called by the builders before save.
 	usagelog.UpstreamModelValidator = usagelogDescUpstreamModel.Validators[0].(func(string) error)
+	// usagelogDescSessionID is the schema descriptor for session_id field.
+	usagelogDescSessionID := usagelogFields[7].Descriptor()
+	// usagelog.SessionIDValidator is a validator for the "session_id" field. It is called by the builders before save.
+	usagelog.SessionIDValidator = usagelogDescSessionID.Validators[0].(func(string) error)
 	// usagelogDescSessionIDSource is the schema descriptor for session_id_source field.
 	usagelogDescSessionIDSource := usagelogFields[8].Descriptor()
 	// usagelog.SessionIDSourceValidator is a validator for the "session_id_source" field. It is called by the builders before save.

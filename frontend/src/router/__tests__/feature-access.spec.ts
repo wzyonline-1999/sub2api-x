@@ -8,6 +8,7 @@ type NavigationGuard = (
 
 const routerHarness = vi.hoisted(() => ({
   guard: null as NavigationGuard | null,
+  routes: [] as Array<{ path?: string; alias?: string | string[]; children?: unknown[] }>,
 }))
 
 const authStore = vi.hoisted(() => ({
@@ -32,13 +33,18 @@ const appStore = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({
   createWebHistory: vi.fn(() => ({})),
-  createRouter: vi.fn(() => ({
-    beforeEach: vi.fn((guard: NavigationGuard) => {
-      routerHarness.guard = guard
-    }),
-    afterEach: vi.fn(),
-    onError: vi.fn(),
-  })),
+  createRouter: vi.fn((options: {
+    routes?: Array<{ path?: string; alias?: string | string[]; children?: unknown[] }>
+  }) => {
+    routerHarness.routes = options.routes ?? []
+    return {
+      beforeEach: vi.fn((guard: NavigationGuard) => {
+        routerHarness.guard = guard
+      }),
+      afterEach: vi.fn(),
+      onError: vi.fn(),
+    }
+  }),
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -51,14 +57,6 @@ vi.mock('@/stores/app', () => ({
 
 vi.mock('@/stores/adminSettings', () => ({
   useAdminSettingsStore: () => ({ customMenuItems: [] }),
-}))
-
-vi.mock('@/stores/adminCompliance', () => ({
-  useAdminComplianceStore: () => ({
-    initialized: true,
-    fetchStatus: vi.fn(),
-    requireAcknowledgement: vi.fn(),
-  }),
 }))
 
 vi.mock('@/composables/useNavigationLoading', () => ({
@@ -117,6 +115,23 @@ describe('feature route guard', () => {
     appStore.publicSettingsLoaded = false
     appStore.cachedPublicSettings = null
     appStore.fetchPublicSettings.mockReset()
+  })
+
+  it('does not register the removed channel-resources route or alias', () => {
+    const pending = [...routerHarness.routes]
+    const paths: string[] = []
+    while (pending.length > 0) {
+      const route = pending.shift()
+      if (!route) continue
+      if (route.path) paths.push(route.path)
+      if (typeof route.alias === 'string') paths.push(route.alias)
+      if (Array.isArray(route.alias)) paths.push(...route.alias)
+      if (Array.isArray(route.children)) {
+        pending.push(...(route.children as typeof pending))
+      }
+    }
+
+    expect(paths).not.toContain('/capacity')
   })
 
   it('waits for the first public-settings request before deciding payment access', async () => {

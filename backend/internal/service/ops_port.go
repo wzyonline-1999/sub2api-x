@@ -171,8 +171,10 @@ type OpsInsertSystemMetricsInput struct {
 	RedisConnTotal *int
 	RedisConnIdle  *int
 
-	DBConnActive  *int
-	DBConnIdle    *int
+	DBConnActive *int
+	DBConnIdle   *int
+	// DBConnWaiting is the delta of sql.DBStats.WaitCount since the previous metrics sample,
+	// not the current number of connections waiting.
 	DBConnWaiting *int
 
 	GoroutineCount        *int
@@ -268,8 +270,10 @@ type OpsSystemMetricsSnapshot struct {
 	RedisConnTotal *int `json:"redis_conn_total"`
 	RedisConnIdle  *int `json:"redis_conn_idle"`
 
-	DBConnActive  *int `json:"db_conn_active"`
-	DBConnIdle    *int `json:"db_conn_idle"`
+	DBConnActive *int `json:"db_conn_active"`
+	DBConnIdle   *int `json:"db_conn_idle"`
+	// DBConnWaiting retains its historical wire name but represents the delta of
+	// sql.DBStats.WaitCount since the previous metrics sample.
 	DBConnWaiting *int `json:"db_conn_waiting"`
 
 	GoroutineCount        *int   `json:"goroutine_count"`

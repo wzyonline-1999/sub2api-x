@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -105,6 +106,24 @@ func TestUsageRankingsPassesMetricPeriodLimitAndCurrentUser(t *testing.T) {
 	require.Equal(t, repo.query.StartTime.AddDate(0, 0, -7), repo.query.ComparisonStartTime)
 	require.True(t, repo.query.ComparisonEndTime.After(repo.query.ComparisonStartTime))
 	require.False(t, repo.query.ComparisonEndTime.After(repo.query.StartTime))
+}
+
+func TestUsageRankingsIgnoresCallerTimezoneForSharedGlobalCache(t *testing.T) {
+	repo := &usageRankingRepoCapture{}
+	router := newUsageRankingTestRouter(repo)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/usage/rankings?metric=cost&period=month&timezone=Pacific%2FKiritimati",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, timezone.Location(), repo.query.StartTime.Location())
+	require.Equal(t, timezone.Location(), repo.query.EndTime.Location())
+	require.NotEqual(t, "Pacific/Kiritimati", repo.query.StartTime.Location().String())
 }
 
 func TestUsageRankingComparisonTimeRangeUsesEquivalentElapsedProgress(t *testing.T) {

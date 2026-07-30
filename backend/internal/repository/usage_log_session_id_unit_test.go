@@ -67,6 +67,17 @@ func TestPrepareUsageLogInsert_SessionIDNullWhenAbsent(t *testing.T) {
 	require.False(t, nsEmpty.Valid, "empty session id must also be NULL")
 }
 
+func TestPrepareUsageLogInsert_PromptCacheKeyRawValueIsNeverPersisted(t *testing.T) {
+	sessionID := "raw-prompt-cache-key"
+	source := "prompt_cache_key"
+	log := newSessionIDUsageLog(&sessionID)
+	log.SessionIDSource = &source
+
+	prepared := prepareUsageLogInsert(log)
+	sessionArg := prepared.args[len(prepared.args)-5].(sql.NullString)
+	require.False(t, sessionArg.Valid)
+}
+
 // TestUsageLogInsertQueries_IncludeSessionID guards that every generated INSERT path
 // and the SELECT column list reference session_id.
 func TestUsageLogInsertQueries_IncludeSessionID(t *testing.T) {

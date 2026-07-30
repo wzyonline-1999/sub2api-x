@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"regexp"
 	"testing"
 	"testing/fstest"
 
@@ -271,6 +272,54 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduler_outbox_pending_dedu
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestApplyMigrationsFS_AccountSparkShadowIndexesMigration_DropsInvalidIndexesBeforeRetry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(accountSparkShadowIndexesMigration).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs(accountParentAccountIDIndex).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS idx_accounts_parent_account_id").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs(accountSparkShadowPerParentIndex).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS uq_accounts_spark_shadow_per_parent").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_parent_account_id").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_accounts_spark_shadow_per_parent").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(accountSparkShadowIndexesMigration, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		accountSparkShadowIndexesMigration: &fstest.MapFile{
+			Data: []byte(`
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_parent_account_id
+    ON accounts (parent_account_id) WHERE parent_account_id IS NOT NULL;
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_accounts_spark_shadow_per_parent
+    ON accounts (parent_account_id)
+    WHERE parent_account_id IS NOT NULL AND quota_dimension = 'spark' AND deleted_at IS NULL;
+`),
+		},
+	}
+
+	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestApplyMigrationsFS_TransactionalMigration(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -305,10 +354,152 @@ func TestApplyMigrationsFS_TransactionalMigration(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestApplyMigrationsFSForSchema_TransactionalUsesAdaptedExecutionSQL(t *testing.T) {
+	const name = "999_schema_tx.sql"
+	migrationSchemaRewriteRules[name] = migrationSchemaRewriteRule{publicQualifierCount: 1}
+	t.Cleanup(func() {
+		delete(migrationSchemaRewriteRules, name)
+	})
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectQuery("SELECT pg_try_advisory_lock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT current_schema()")).
+		WillReturnRows(sqlmock.NewRows([]string{"current_schema"}).AddRow("tenant_a"))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS schema_migrations").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs("schema_migrations").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs("atlas_schema_revisions").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM atlas_schema_revisions").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(name).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`ALTER TABLE "tenant_a".widgets ADD COLUMN name TEXT`)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(name, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		name: &fstest.MapFile{
+			Data: []byte("ALTER TABLE public.widgets ADD COLUMN name TEXT;"),
+		},
+	}
+
+	err = applyMigrationsFSForSchema(context.Background(), db, fsys, "tenant_a")
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFSForSchema_NonTransactionalUsesAdaptedExecutionSQL(t *testing.T) {
+	const name = "999_schema_notx.sql"
+	migrationSchemaRewriteRules[name] = migrationSchemaRewriteRule{publicQualifierCount: 1}
+	t.Cleanup(func() {
+		delete(migrationSchemaRewriteRules, name)
+	})
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectQuery("SELECT pg_try_advisory_lock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT current_schema()")).
+		WillReturnRows(sqlmock.NewRows([]string{"current_schema"}).AddRow("tenant_a"))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS schema_migrations").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs("schema_migrations").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs("atlas_schema_revisions").
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM atlas_schema_revisions").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(name).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec(regexp.QuoteMeta(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_widgets_id ON "tenant_a".widgets (id)`)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(name, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		name: &fstest.MapFile{
+			Data: []byte("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_widgets_id ON public.widgets (id);"),
+		},
+	}
+
+	err = applyMigrationsFSForSchema(context.Background(), db, fsys, "tenant_a")
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFSForSchemaRejectsSearchPathMismatch(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectQuery("SELECT pg_try_advisory_lock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT current_schema()")).
+		WillReturnRows(sqlmock.NewRows([]string{"current_schema"}).AddRow("public"))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = applyMigrationsFSForSchema(context.Background(), db, fstest.MapFS{}, "tenant_a")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `configured="tenant_a" current="public"`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFSRejectsNonPublicImplicitSearchPath(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectQuery("SELECT pg_try_advisory_lock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT current_schema()")).
+		WillReturnRows(sqlmock.NewRows([]string{"current_schema"}).AddRow("tenant_a"))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = applyMigrationsFS(context.Background(), db, fstest.MapFS{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "DATABASE_SCHEMA=tenant_a")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func prepareMigrationsBootstrapExpectations(mock sqlmock.Sqlmock) {
 	mock.ExpectQuery("SELECT pg_try_advisory_lock\\(\\$1\\)").
 		WithArgs(migrationsAdvisoryLockID).
 		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT current_schema()")).
+		WillReturnRows(sqlmock.NewRows([]string{"current_schema"}).AddRow("public"))
 	mock.ExpectExec("CREATE TABLE IF NOT EXISTS schema_migrations").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery("SELECT EXISTS \\(").

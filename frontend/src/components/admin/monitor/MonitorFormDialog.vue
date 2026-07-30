@@ -505,7 +505,7 @@ async function openMyKeyPicker() {
   myKeysLoading.value = true
   try {
     const [res, rates] = await Promise.all([
-      keysAPI.list(1, 100, { status: 'active' }),
+      keysAPI.list(1, 100, { status: 'active', include_last_used_ip: false }),
       userGroupsAPI.getUserGroupRates(),
     ])
     const items = res.items || []

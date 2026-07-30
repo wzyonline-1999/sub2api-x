@@ -73,3 +73,10 @@ func sanitizeSessionID(raw string) string {
 	}
 	return trimmed
 }
+
+// NormalizeUsageLogSessionID applies the same strict validation at repository
+// boundaries. Invalid or overlong identifiers are dropped instead of truncated,
+// preventing distinct client identifiers from collapsing to the same stored value.
+func NormalizeUsageLogSessionID(raw string) string {
+	return sanitizeSessionID(raw)
+}

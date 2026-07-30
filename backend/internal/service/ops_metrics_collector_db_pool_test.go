@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpsMetricsCollectorDBPoolStatsReportsWaitDelta(t *testing.T) {
+func TestOpsMetricsCollectorDBPoolStatsReportsWaitEventDeltaSincePreviousSample(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() {
@@ -20,8 +20,8 @@ func TestOpsMetricsCollectorDBPoolStatsReportsWaitDelta(t *testing.T) {
 
 	collector := &OpsMetricsCollector{db: db}
 
-	_, _, firstWaiting := collector.dbPoolStats()
-	require.Equal(t, 0, firstWaiting)
+	_, _, firstWaitEventDelta := collector.dbPoolStats()
+	require.Equal(t, 0, firstWaitEventDelta)
 
 	mock.ExpectQuery("SELECT 1").
 		WillDelayFor(80 * time.Millisecond).
@@ -47,11 +47,11 @@ func TestOpsMetricsCollectorDBPoolStatsReportsWaitDelta(t *testing.T) {
 	require.NoError(t, <-secondDone)
 	require.NoError(t, mock.ExpectationsWereMet())
 
-	_, _, waiting := collector.dbPoolStats()
-	require.GreaterOrEqual(t, waiting, 1)
+	_, _, waitEventDelta := collector.dbPoolStats()
+	require.GreaterOrEqual(t, waitEventDelta, 1)
 
-	_, _, waitingAgain := collector.dbPoolStats()
-	require.Equal(t, 0, waitingAgain)
+	_, _, nextWaitEventDelta := collector.dbPoolStats()
+	require.Equal(t, 0, nextWaitEventDelta)
 }
 
 func runDBPoolStatsTestQuery(db *sql.DB, query string) error {

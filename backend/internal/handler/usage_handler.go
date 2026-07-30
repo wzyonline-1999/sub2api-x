@@ -433,10 +433,6 @@ func usageRankingTimeRangeAt(period usagestats.UsageRankingPeriod, now time.Time
 	}
 }
 
-func usageRankingTimeRange(period usagestats.UsageRankingPeriod, userTZ string) (time.Time, time.Time) {
-	return usageRankingTimeRangeAt(period, timezone.NowInUserLocation(userTZ))
-}
-
 func usageRankingComparisonTimeRange(period usagestats.UsageRankingPeriod, currentStart, currentEnd, now time.Time) (time.Time, time.Time) {
 	var previousStart time.Time
 	switch period {
@@ -464,6 +460,10 @@ func usageRankingComparisonTimeRange(period usagestats.UsageRankingPeriod, curre
 
 // Rankings handles the shared usage leaderboard for admins and regular users.
 // GET /api/v1/usage/rankings?metric=tokens|cost&period=day|week|month
+//
+// Rankings are global, so all callers use the configured server timezone.
+// Accepting a caller-controlled timezone would fragment the shared cache and
+// let otherwise equivalent requests trigger separate full-table aggregations.
 func (h *UsageHandler) Rankings(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
@@ -495,7 +495,7 @@ func (h *UsageHandler) Rankings(c *gin.Context) {
 		}
 	}
 
-	now := timezone.NowInUserLocation(c.Query("timezone"))
+	now := timezone.Now()
 	startTime, endTime := usageRankingTimeRangeAt(period, now)
 	comparisonStartTime, comparisonEndTime := usageRankingComparisonTimeRange(period, startTime, endTime, now)
 	ranking, err := h.usageService.GetUsageRanking(c.Request.Context(), usagestats.UsageRankingQuery{
@@ -755,7 +755,11 @@ func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.usageService.GetBatchAPIKeyUsageStats(c.Request.Context(), validAPIKeyIDs, time.Time{}, time.Time{})
+	stats, err := h.usageService.GetDashboardAPIKeyUsageStats(
+		c.Request.Context(),
+		subject.UserID,
+		validAPIKeyIDs,
+	)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

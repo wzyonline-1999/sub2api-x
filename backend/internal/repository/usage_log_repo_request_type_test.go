@@ -759,7 +759,7 @@ func TestUsageLogRepositoryGetUsageRankingByTokens(t *testing.T) {
 		AddRow(int64(2), int64(42), "me@example.com", "", "", int64(9), int64(99400000), 1104.71, int64(8), int64(110000000), 1200.00, int64(260000000), 3210.99, int64(44), int64(3))
 
 	mock.ExpectQuery("WITH previous_user_usage AS \\(").
-		WithArgs(start, end, 10, "tokens", int64(42), start.AddDate(0, -1, 0), start).
+		WithArgs(start, end, "tokens", start.AddDate(0, -1, 0), start).
 		WillReturnRows(rows)
 
 	got, err := repo.GetUsageRanking(context.Background(), usagestats.UsageRankingQuery{
@@ -799,6 +799,50 @@ func TestUsageLogRepositoryGetUsageRankingByTokens(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetUsageRankingSnapshotIgnoresPersonalizationFields(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 1)
+	previousStart := start.AddDate(0, 0, -1)
+	rows := sqlmock.NewRows([]string{
+		"rank", "user_id", "email", "username", "avatar_url", "requests", "total_tokens", "actual_cost",
+		"previous_requests", "previous_total_tokens", "previous_actual_cost",
+		"summary_total_tokens", "summary_total_actual_cost", "summary_total_requests", "ranked_users",
+	}).
+		AddRow(int64(1), int64(1), "one@example.com", "one", "", int64(3), int64(300), 3.00, int64(2), int64(200), 2.00, int64(600), 6.00, int64(6), int64(3)).
+		AddRow(int64(2), int64(2), "two@example.com", "two", "", int64(2), int64(200), 2.00, int64(1), int64(100), 1.00, int64(600), 6.00, int64(6), int64(3)).
+		AddRow(int64(3), int64(42), "me@example.com", "me", "", int64(1), int64(100), 1.00, int64(0), int64(0), 0.00, int64(600), 6.00, int64(6), int64(3))
+
+	mock.ExpectQuery(`FROM ranked\s+ORDER BY rank ASC, user_id ASC`).
+		WithArgs(start, end, "tokens", previousStart, start).
+		WillReturnRows(rows)
+
+	snapshot, err := repo.GetUsageRankingSnapshot(context.Background(), usagestats.UsageRankingQuery{
+		StartTime:           start,
+		EndTime:             end,
+		ComparisonStartTime: previousStart,
+		ComparisonEndTime:   start,
+		Metric:              usagestats.UsageRankingMetricTokens,
+		Period:              usagestats.UsageRankingPeriodDay,
+		Limit:               1,
+		CurrentUserID:       42,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, snapshot.Items, 3)
+	require.NotEmpty(t, snapshot.GeneratedAt)
+	_, err = time.Parse(time.RFC3339Nano, snapshot.GeneratedAt)
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2, 42}, []int64{
+		snapshot.Items[0].UserID,
+		snapshot.Items[1].UserID,
+		snapshot.Items[2].UserID,
+	})
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUsageLogRepositoryGetUsageRankingKeepsCurrentUserSeparateWhenOutsideLimit(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}
@@ -815,7 +859,7 @@ func TestUsageLogRepositoryGetUsageRankingKeepsCurrentUserSeparateWhenOutsideLim
 		AddRow(int64(18), int64(42), "me@example.com", "me", "", int64(2), int64(1200000), 9.71, int64(0), int64(0), 0.0, int64(260000000), 3210.99, int64(44), int64(18))
 
 	mock.ExpectQuery("WITH previous_user_usage AS \\(").
-		WithArgs(start, end, 1, "cost", int64(42), start.AddDate(0, 0, -1), start).
+		WithArgs(start, end, "cost", start.AddDate(0, 0, -1), start).
 		WillReturnRows(rows)
 
 	got, err := repo.GetUsageRanking(context.Background(), usagestats.UsageRankingQuery{
@@ -862,7 +906,7 @@ func TestUsageLogRepositoryGetUsageRankingTopUserHasNoTarget(t *testing.T) {
 		AddRow(int64(1), int64(42), "top@example.com", "top-user", "", int64(12), int64(128600000), 1842.62, int64(0), int64(0), 0.0, int64(128600000), 1842.62, int64(12), int64(1))
 
 	mock.ExpectQuery("WITH previous_user_usage AS \\(").
-		WithArgs(start, end, 10, "tokens", int64(42), start.AddDate(0, 0, -1), start).
+		WithArgs(start, end, "tokens", start.AddDate(0, 0, -1), start).
 		WillReturnRows(rows)
 
 	got, err := repo.GetUsageRanking(context.Background(), usagestats.UsageRankingQuery{
@@ -903,7 +947,7 @@ func TestUsageLogRepositoryGetUsageRankingUsesNearestHigherRankWhenRanksTie(t *t
 		AddRow(int64(3), int64(42), "me@example.com", "me", "", int64(7), int64(800), 8.00, int64(0), int64(0), 0.0, int64(2800), 28.00, int64(30), int64(3))
 
 	mock.ExpectQuery("WITH previous_user_usage AS \\(").
-		WithArgs(start, end, 10, "tokens", int64(42), start.AddDate(0, 0, -1), start).
+		WithArgs(start, end, "tokens", start.AddDate(0, 0, -1), start).
 		WillReturnRows(rows)
 
 	got, err := repo.GetUsageRanking(context.Background(), usagestats.UsageRankingQuery{
@@ -957,7 +1001,7 @@ func TestUsageLogRepositoryGetUsageRankingUsesNearestThresholdWhenRanksSkip(t *t
 		AddRow(int64(11), int64(42), "me@example.com", "me", "", int64(7), int64(250), 2.50, int64(0), int64(0), 0.0, int64(6200), 62.00, int64(100), int64(11))
 
 	mock.ExpectQuery("WITH previous_user_usage AS \\(").
-		WithArgs(start, end, 10, "tokens", int64(42), start.AddDate(0, 0, -1), start).
+		WithArgs(start, end, "tokens", start.AddDate(0, 0, -1), start).
 		WillReturnRows(rows)
 
 	got, err := repo.GetUsageRanking(context.Background(), usagestats.UsageRankingQuery{

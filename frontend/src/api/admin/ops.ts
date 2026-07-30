@@ -266,6 +266,8 @@ export interface OpsSystemMetricsSnapshot {
 
   db_conn_active?: number | null
   db_conn_idle?: number | null
+  // Historical wire name: delta of DB-pool wait events since the previous metrics sample,
+  // not the current number of connections waiting.
   db_conn_waiting?: number | null
 
   goroutine_count?: number | null

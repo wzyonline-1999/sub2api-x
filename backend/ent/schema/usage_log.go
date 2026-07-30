@@ -53,7 +53,8 @@ func (UsageLog) Fields() []ent.Field {
 			MaxLen(100).
 			Optional().
 			Nillable(),
-		field.Text("session_id").
+		field.String("session_id").
+			MaxLen(255).
 			Optional().
 			Nillable(),
 		field.String("session_id_source").

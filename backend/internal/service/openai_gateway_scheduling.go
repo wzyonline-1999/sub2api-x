@@ -146,7 +146,14 @@ func resolveOpenAISessionMetadata(c *gin.Context, body []byte, includeContentFal
 	}
 
 	if sessionID, source := explicitOpenAISessionIDWithSource(c, body); sessionID != "" {
-		return openAISessionMetadataFromSeed(c, sessionID, source, sessionID, true)
+		// prompt_cache_key is a routing/cache hint and may contain user-derived
+		// material. Keep using it for sticky routing and upstream caching, but
+		// never persist the raw value in usage_logs.session_id.
+		rawSessionID := sessionID
+		if source == "prompt_cache_key" {
+			rawSessionID = ""
+		}
+		return openAISessionMetadataFromSeed(c, sessionID, source, rawSessionID, true)
 	}
 
 	if includeContentFallback && len(body) > 0 {

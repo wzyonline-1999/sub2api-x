@@ -1419,10 +1419,25 @@ func IsValidPostgresIdentifier(name string) bool {
 	return true
 }
 
+// EffectivePostgresSchema is the schema migrations expect when no explicit
+// database.schema is configured. The connection keeps PostgreSQL's inherited
+// search_path in that case, and startup fails closed if current_schema() is not
+// public. This avoids silently switching legacy role-level tenant schemas.
+func EffectivePostgresSchema(schema string) string {
+	schema = strings.TrimSpace(schema)
+	if schema == "" {
+		return "public"
+	}
+	return schema
+}
+
 func (d *DatabaseConfig) searchPathParam() string {
 	schema := strings.TrimSpace(d.Schema)
 	if schema == "" {
 		return ""
+	}
+	if schema == "public" {
+		return " search_path=public"
 	}
 	return fmt.Sprintf(" search_path=%s,public", schema)
 }

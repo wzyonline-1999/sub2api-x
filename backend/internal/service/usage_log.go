@@ -117,9 +117,9 @@ type UsageLog struct {
 	AccountID int64
 	RequestID string
 	Model     string
-	// SessionID records the explicit client-provided OpenAI session signal
-	// (session_id, conversation_id, or prompt_cache_key). Content-derived
-	// fallback seeds are intentionally not stored here.
+	// SessionID records a bounded explicit client-provided session/conversation
+	// identifier. prompt_cache_key and content-derived fallback seeds are
+	// intentionally not stored here.
 	SessionID *string
 	// SessionIDSource describes where SessionID came from when present. When
 	// SessionID is absent it describes the fallback used for SessionHash, e.g.
@@ -219,20 +219,8 @@ type UsageLog struct {
 	Subscription *UserSubscription
 }
 
-// Keep customized session metadata within the official persisted column bound
-// so databases that applied migration 187 before migration 159 remain writable.
+// Keep customized session metadata within the official persisted column bound.
 const UsageLogSessionIDMaxLength = maxPersistedSessionIDLength
-
-func TruncateUsageLogSessionID(sessionID string) string {
-	if len(sessionID) <= UsageLogSessionIDMaxLength {
-		return sessionID
-	}
-	runes := []rune(sessionID)
-	if len(runes) <= UsageLogSessionIDMaxLength {
-		return sessionID
-	}
-	return string(runes[:UsageLogSessionIDMaxLength])
-}
 
 func (u *UsageLog) TotalTokens() int {
 	return u.InputTokens + u.OutputTokens + u.CacheCreationTokens + u.CacheReadTokens

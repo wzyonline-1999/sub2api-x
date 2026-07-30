@@ -56,19 +56,45 @@ type UsageStats struct {
 
 // UsageService 使用统计服务
 type UsageService struct {
-	usageRepo            UsageLogRepository
-	userRepo             UserRepository
-	entClient            *dbent.Client
-	authCacheInvalidator APIKeyAuthCacheInvalidator
+	usageRepo             UsageLogRepository
+	userRepo              UserRepository
+	entClient             *dbent.Client
+	authCacheInvalidator  APIKeyAuthCacheInvalidator
+	rankingCache          UsageRankingCache
+	rankingCacheState     usageRankingCacheState
+	apiKeyUsageStatsState apiKeyUsageStatsCacheState
 }
 
 // NewUsageService 创建使用统计服务实例
 func NewUsageService(usageRepo UsageLogRepository, userRepo UserRepository, entClient *dbent.Client, authCacheInvalidator APIKeyAuthCacheInvalidator) *UsageService {
+	return newUsageService(usageRepo, userRepo, entClient, authCacheInvalidator, nil)
+}
+
+// NewUsageServiceWithRankingCache creates the usage service with the shared
+// leaderboard cache used by the production dependency graph.
+func NewUsageServiceWithRankingCache(
+	usageRepo UsageLogRepository,
+	userRepo UserRepository,
+	entClient *dbent.Client,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	rankingCache UsageRankingCache,
+) *UsageService {
+	return newUsageService(usageRepo, userRepo, entClient, authCacheInvalidator, rankingCache)
+}
+
+func newUsageService(
+	usageRepo UsageLogRepository,
+	userRepo UserRepository,
+	entClient *dbent.Client,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	rankingCache UsageRankingCache,
+) *UsageService {
 	return &UsageService{
 		usageRepo:            usageRepo,
 		userRepo:             userRepo,
 		entClient:            entClient,
 		authCacheInvalidator: authCacheInvalidator,
+		rankingCache:         rankingCache,
 	}
 }
 
@@ -345,11 +371,7 @@ func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, star
 }
 
 func (s *UsageService) GetUsageRanking(ctx context.Context, query usagestats.UsageRankingQuery) (*usagestats.UsageRankingResponse, error) {
-	ranking, err := s.usageRepo.GetUsageRanking(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("get usage ranking: %w", err)
-	}
-	return ranking, nil
+	return s.getUsageRankingCached(ctx, query)
 }
 
 // GetModelStatsWithFiltersBySource returns model stats using the shared usage filter shape.
@@ -436,11 +458,21 @@ func (s *UsageService) GetAPIKeyDailyUsage(ctx context.Context, userID, apiKeyID
 
 // GetBatchAPIKeyUsageStats returns today/total actual_cost for given api keys.
 func (s *UsageService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
-	stats, err := s.usageRepo.GetBatchAPIKeyUsageStats(ctx, apiKeyIDs, startTime, endTime)
-	if err != nil {
-		return nil, fmt.Errorf("get batch api key usage stats: %w", err)
+	return s.getBatchAPIKeyUsageStats(ctx, 0, apiKeyIDs, startTime, endTime)
+}
+
+// GetDashboardAPIKeyUsageStats returns the fixed dashboard-window usage for
+// API keys already verified as belonging to userID. The user scope is part of
+// the shared cache identity so cached panel data is never shared across users.
+func (s *UsageService) GetDashboardAPIKeyUsageStats(
+	ctx context.Context,
+	userID int64,
+	apiKeyIDs []int64,
+) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
+	if userID <= 0 {
+		return nil, fmt.Errorf("get dashboard api key usage stats: invalid user id")
 	}
-	return stats, nil
+	return s.getBatchAPIKeyUsageStats(ctx, userID, apiKeyIDs, time.Time{}, time.Time{})
 }
 
 // ListWithFilters lists usage logs with admin filters.

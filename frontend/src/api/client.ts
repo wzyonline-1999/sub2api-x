@@ -17,8 +17,6 @@ export { buildApiUrl, buildGatewayUrl } from './url'
 
 // ==================== Axios Instance Configuration ====================
 
-export const API_BASE_URL = getAPIBaseURL()
-
 export const apiClient: AxiosInstance = axios.create({
   baseURL: getAPIBaseURL(),
   withCredentials: true,

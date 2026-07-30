@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/migrations"
 )
 
@@ -55,35 +56,38 @@ const paymentOrdersOutTradeNoUniqueMigration = "120_enforce_payment_orders_out_t
 const paymentOrdersOutTradeNoUniqueIndex = "paymentorder_out_trade_no_unique"
 const schedulerOutboxPendingDedupKeyMigration = "153_scheduler_outbox_pending_dedup_key_index_notx.sql"
 const schedulerOutboxPendingDedupKeyIndex = "idx_scheduler_outbox_pending_dedup_key"
+const accountSparkShadowIndexesMigration = "154a_account_spark_shadow_indexes_notx.sql"
+const accountParentAccountIDIndex = "idx_accounts_parent_account_id"
+const accountSparkShadowPerParentIndex = "uq_accounts_spark_shadow_per_parent"
 const latestAPIKeyIPIndexMigration = "174_add_usage_logs_api_key_latest_ip_index_notx.sql"
 const latestAPIKeyIPIndex = "idx_usage_logs_api_key_latest_ip"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
 	acceptedDBChecksum map[string]struct{}
-	acceptedChecksums  map[string]struct{}
 }
 
 // migrationChecksumCompatibilityRules 仅用于兼容历史上误修改过的迁移文件 checksum。
-// 规则必须同时匹配「迁移名 + 数据库 checksum + 当前文件 checksum」且两者都落在该迁移的已知版本集合内才会放行，
-// 避免放宽全局校验，也允许将误改的历史 migration 回滚为已发布版本而不要求人工修 checksum。
+// 规则必须同时匹配「迁移名 + 已知数据库 checksum + 唯一规范文件 checksum」才会放行：
+// 数据库可保留历史二开 checksum，但工作树中的 migration 必须保持当前规范内容，
+// 避免兼容规则反过来允许旧文件或误改文件重新进入发布包。
 var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibilityRule{
-	"006_add_users_allowed_groups_compat.sql":                 newMigrationChecksumCompatibilityRule("c1301d7c0d9cb7a25e7a00ddc930992a6b645270d4379fd6dac023f847861169", "900f5ba934e8d66bba7d94f1d34463a9022e0e72c3ce911260d7c703449a33ae"),
-	"006_fix_invalid_subscription_expires_at.sql":             newMigrationChecksumCompatibilityRule("4ca60e82e381d97f19f4a6f1046a77c7d147a727553f0aea9417c3674267c0d3", "ed5d6553a86578d987088331bc8810808b75e554a160b66ff4626815ea838354"),
-	"006b_guard_users_allowed_groups.sql":                     newMigrationChecksumCompatibilityRule("cb97c4944338921bd9cdbba5eee7071abd775f67456798716637e0e1575b0de6", "6953b71b92d0ed2f035137fdc4e4fb6cc056861b22e28c5612950c08cedf564e"),
-	"009_fix_usage_logs_cache_columns.sql":                    newMigrationChecksumCompatibilityRule("e2127eb45db1fdd6c717aa77227831e542457be95bff8f7f28669197853b060d", "9a3c22b296ea5a628eb8b35b34318f035b9ac177dfc7d1db26b0901dcd98bafb"),
+	"006_add_users_allowed_groups_compat.sql":                 newMigrationChecksumCompatibilityRule("900f5ba934e8d66bba7d94f1d34463a9022e0e72c3ce911260d7c703449a33ae", "c1301d7c0d9cb7a25e7a00ddc930992a6b645270d4379fd6dac023f847861169"),
+	"006_fix_invalid_subscription_expires_at.sql":             newMigrationChecksumCompatibilityRule("ed5d6553a86578d987088331bc8810808b75e554a160b66ff4626815ea838354", "4ca60e82e381d97f19f4a6f1046a77c7d147a727553f0aea9417c3674267c0d3"),
+	"006b_guard_users_allowed_groups.sql":                     newMigrationChecksumCompatibilityRule("6953b71b92d0ed2f035137fdc4e4fb6cc056861b22e28c5612950c08cedf564e", "cb97c4944338921bd9cdbba5eee7071abd775f67456798716637e0e1575b0de6"),
+	"009_fix_usage_logs_cache_columns.sql":                    newMigrationChecksumCompatibilityRule("9a3c22b296ea5a628eb8b35b34318f035b9ac177dfc7d1db26b0901dcd98bafb", "e2127eb45db1fdd6c717aa77227831e542457be95bff8f7f28669197853b060d"),
 	"054_drop_legacy_cache_columns.sql":                       newMigrationChecksumCompatibilityRule("82de761156e03876653e7a6a4eee883cd927847036f779b0b9f34c42a8af7a7d", "182c193f3359946cf094090cd9e57d5c3fd9abaffbc1e8fc378646b8a6fa12b4"),
 	"061_add_usage_log_request_type.sql":                      newMigrationChecksumCompatibilityRule("66207e7aa5dd0429c2e2c0fabdaf79783ff157fa0af2e81adff2ee03790ec65c", "08a248652cbab7cfde147fc6ef8cda464f2477674e20b718312faa252e0481c0", "222b4a09c797c22e5922b6b172327c824f5463aaa8760e4f621bc5c22e2be0f3"),
-	"108a_widen_auth_identity_migration_report_type.sql":      newMigrationChecksumCompatibilityRule("ce0461cef9871b3042eefebc6065c94a21d61c339aa82eb44d95c19e5f4d9062", "87646a866b17a329b01abb241b99e3874ee2c13c7d7bba3f6e37c53722a60e18"),
-	"109_auth_identity_compat_backfill.sql":                   newMigrationChecksumCompatibilityRule("0580b4602d85435edf9aca1633db580bb3932f26517f75134106f80275ec2ace", "551e498aa5616d2d91096e9d72cf9fb36e418ee22eacc557f8811cadbc9e20ee"),
-	"110_pending_auth_and_provider_default_grants.sql":        newMigrationChecksumCompatibilityRule("32cf87ee787b1bb36b5c691367c96eee37518fa3eed6f3322cf68795e3745279", "e3d1f433be2b564cfbdc549adf98fce13c5c7b363ebc20fd05b765d0563b0925"),
-	"112_add_payment_order_provider_key_snapshot.sql":         newMigrationChecksumCompatibilityRule("b75f8f56d39455682787696a3d92ad25b055444ca328fb7fca9a460a15d68d99", "ffd3e8a2c9295fa9cbefefd629a78268877e5b51bc970a82d9b3f46ec4ebd15e"),
-	"115_auth_identity_legacy_external_backfill.sql":          newMigrationChecksumCompatibilityRule("022370762c2dd0ce4f665579b380653478723118886195e9dad481b903195394", "022aadd97bb53e755f0cf7a3a957e0cb1a1353b0c39ec4de3234acd2871fd04f", "4cf39e508be9fd1a5aa41610cbbebeb80385c9adda45bf78a706de9db4f1385f"),
-	"116_auth_identity_legacy_external_safety_reports.sql":    newMigrationChecksumCompatibilityRule("aee893b8afb6bbbdb37fc4ecc320438ad6f79b2f5a395e27d45fd6d82a9e0df6", "07edb09fa8d04ffb172b0621e3c22f4d1757d20a24ae267b3b36b087ab72d488", "f7757bd929ac67ffb08ce69fa4cf20fad39dbff9d5a5085fb2adabb7607e5877"),
-	"118_wechat_dual_mode_and_auth_source_defaults.sql":       newMigrationChecksumCompatibilityRule("b54194d7a3e4fbf710e0a3590d22a2fe7966804c487052a356e0b55f53ef96b0", "e0cdf835d6c688d64100f483d31bc02ac9ebad414bf1837af239a84bf75b8227", "a38243ca0a72c3a01c0a92b7986423054d6133c0399441f853b99802852720fb"),
+	"108a_widen_auth_identity_migration_report_type.sql":      newMigrationChecksumCompatibilityRule("87646a866b17a329b01abb241b99e3874ee2c13c7d7bba3f6e37c53722a60e18", "ce0461cef9871b3042eefebc6065c94a21d61c339aa82eb44d95c19e5f4d9062"),
+	"109_auth_identity_compat_backfill.sql":                   newMigrationChecksumCompatibilityRule("2b380305e73ff0c13aa8c811e45897f2b36ca4a438f7b3e8f98e19ecb6bae0b3", "748ddcdc60f93a1ac562ce8a66ee870f64ee594bf6dbedad55ed8baf3c75b28c"),
+	"110_pending_auth_and_provider_default_grants.sql":        newMigrationChecksumCompatibilityRule("57a196a9810fb478fa001dfff110f5c76a7d87fb04f15e12e513fcb75402d7a6", "301e90405b3424967b7d1931568b7a244902148fa82802f362c115ae4e2ae2ef"),
+	"112_add_payment_order_provider_key_snapshot.sql":         newMigrationChecksumCompatibilityRule("ab871fc02da1eabe0de6ca74a119ee3cea9c727caed30af2ae07a0cd1176d1b8", "d4476c67ceea871aa2d92ee2a603795a742d0379a58cf53938bb9aa559ff9caa"),
+	"115_auth_identity_legacy_external_backfill.sql":          newMigrationChecksumCompatibilityRule("022aadd97bb53e755f0cf7a3a957e0cb1a1353b0c39ec4de3234acd2871fd04f", "022370762c2dd0ce4f665579b380653478723118886195e9dad481b903195394", "4cf39e508be9fd1a5aa41610cbbebeb80385c9adda45bf78a706de9db4f1385f", "72f32dec60e352e652006b0a09ed8720b4c88e4afc177ecde22266a9803d7203"),
+	"116_auth_identity_legacy_external_safety_reports.sql":    newMigrationChecksumCompatibilityRule("07edb09fa8d04ffb172b0621e3c22f4d1757d20a24ae267b3b36b087ab72d488", "aee893b8afb6bbbdb37fc4ecc320438ad6f79b2f5a395e27d45fd6d82a9e0df6", "f7757bd929ac67ffb08ce69fa4cf20fad39dbff9d5a5085fb2adabb7607e5877", "a4db306b0b987459590522ebb08ff9ce42ab1ff5d4f99ec4068c41a51f2236da"),
+	"118_wechat_dual_mode_and_auth_source_defaults.sql":       newMigrationChecksumCompatibilityRule("ed272e0840730b6b8e7838513c4cc8817e8b5e488e27c88b5421adbece5e89c9", "b4a5b7a28f6a7ac67aad214645761e5a8486c83f0f2a1a874d7f67085f83159b", "6395ad255f2be2219ad85813b72db6fa7783c81d747e42e098847ef3594f1674"),
 	"119_enforce_payment_orders_out_trade_no_unique.sql":      newMigrationChecksumCompatibilityRule("0bbe809ae48a9d811dabda1ba1c74955bd71c4a9cc610f9128816818dfa6c11e", "ebd2c67cce0116393fb4f1b5d5116a67c6aceb73820dfb5133d1ff6f36d72d34"),
-	"120_enforce_payment_orders_out_trade_no_unique_notx.sql": newMigrationChecksumCompatibilityRule("34aadc0db59a4e390f92a12b73bd74642d9724f33124f73638ae00089ea5e074", "e77921f79d539bc24575cb9c16cbe566d2b23ce816190343d0a7568f6a3fcf61", "707431450603e70a43ce9fbd61e0c12fa67da4875158ccefabacea069587ab22", "04b082b5a239c525154fe9185d324ee2b05ff90da9297e10dba19f9be79aa59a"),
-	"123_fix_legacy_auth_source_grant_on_signup_defaults.sql": newMigrationChecksumCompatibilityRule("2ce43c2cd89e9f9e1febd34a407ed9e84d177386c5544b6f02c1f58a21129f57", "6cd33422f215dcd1f486ab6f35c0ea5805d9ca69bb25906d94bc649156657145"),
+	"120_enforce_payment_orders_out_trade_no_unique_notx.sql": newMigrationChecksumCompatibilityRule("34aadc0db59a4e390f92a12b73bd74642d9724f33124f73638ae00089ea5e074", "e77921f79d539bc24575cb9c16cbe566d2b23ce816190343d0a7568f6a3fcf61", "79ea6127a22e61b3bad6ea29347a8cc3ff005f8b486ef4a51bd04fdda906f931"),
+	"123_fix_legacy_auth_source_grant_on_signup_defaults.sql": newMigrationChecksumCompatibilityRule("7faba5ef65051b7ecb215b7fd2351b0828b7c48153ec688ac089c1588d2cde41", "ac0d79ca6feb449674f54f593a5eac5f7cc06751047c664b586c1892e19c60d5", "ea17c2767b937f08274e091d212a93acb7e2d62521129179830f073a291fbd97"),
 	"159_batch_image_foundation.sql":                          newMigrationChecksumCompatibilityRule("d902b70982025ec519749faf058aab7631e82c3f48167b9a4ae4db718eb72cce", "82da85b5d98e67a0507647b873a40373e84538e4adafdeed6767c0ac8b6570b2"),
 	"161_batch_image_pricing_snapshot.sql":                    newMigrationChecksumCompatibilityRule("4012af3e43636cb6af22e0176d59d1fcc70615c0f310194329461ae462c4fbd6", "96d915c9b7a6941ae99039e0ff3f1a61481eb9bddd933d11c6fadb2274554e87"),
 }
@@ -108,6 +112,17 @@ func ApplyMigrations(ctx context.Context, db *sql.DB) error {
 	return applyMigrationsFS(ctx, db, migrations.FS)
 }
 
+// ApplyMigrationsForSchema applies canonical migrations while adapting explicit
+// upstream "public" references when DATABASE_SCHEMA is configured. The database
+// connection itself must already use the matching schema-first search_path.
+func ApplyMigrationsForSchema(ctx context.Context, db *sql.DB, schema string) error {
+	if db == nil {
+		return errors.New("nil sql db")
+	}
+	schema = config.EffectivePostgresSchema(schema)
+	return applyMigrationsFSForSchema(ctx, db, migrations.FS, schema)
+}
+
 // applyMigrationsFS 是迁移执行的核心实现。
 // 它从指定的文件系统读取 SQL 迁移文件并按顺序应用。
 //
@@ -127,8 +142,16 @@ func ApplyMigrations(ctx context.Context, db *sql.DB) error {
 //   - db: 数据库连接
 //   - fsys: 包含迁移文件的文件系统（通常是 embed.FS）
 func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
+	return applyMigrationsFSForSchema(ctx, db, fsys, "")
+}
+
+func applyMigrationsFSForSchema(ctx context.Context, db *sql.DB, fsys fs.FS, schema string) error {
 	if db == nil {
 		return errors.New("nil sql db")
+	}
+	schema = config.EffectivePostgresSchema(schema)
+	if !config.IsValidPostgresIdentifier(schema) {
+		return fmt.Errorf("invalid database schema %q; use lowercase letters, digits, and underscores", schema)
 	}
 
 	// 获取分布式锁，确保多实例部署时只有一个实例执行迁移。
@@ -149,6 +172,14 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		defer cancel()
 		_ = pgAdvisoryUnlock(unlockCtx, lockConn)
 	}()
+
+	var currentSchema sql.NullString
+	if err := lockConn.QueryRowContext(ctx, "SELECT current_schema()").Scan(&currentSchema); err != nil {
+		return fmt.Errorf("check current database schema: %w", err)
+	}
+	if !currentSchema.Valid || currentSchema.String != schema {
+		return databaseSchemaMismatchError(schema, currentSchema.String)
+	}
 
 	// 创建迁移记录表（如果不存在）。
 	// 该表记录所有已应用的迁移及其校验和。
@@ -185,6 +216,10 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		// 这是一种防篡改机制：如果有人修改了已应用的迁移文件，系统会拒绝启动。
 		sum := sha256.Sum256([]byte(content))
 		checksum := hex.EncodeToString(sum[:])
+		executionContent, err := migrationSQLForSchema(name, content, schema)
+		if err != nil {
+			return fmt.Errorf("adapt migration %s for schema %q: %w", name, schema, err)
+		}
 
 		// 检查该迁移是否已经应用
 		var existing string
@@ -214,7 +249,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("check migration %s: %w", name, rowErr)
 		}
 
-		nonTx, err := validateMigrationExecutionMode(name, content)
+		nonTx, err := validateMigrationExecutionMode(name, executionContent)
 		if err != nil {
 			return fmt.Errorf("validate migration %s: %w", name, err)
 		}
@@ -226,7 +261,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 
 			// *_notx.sql：用于 CREATE/DROP INDEX CONCURRENTLY 场景，必须非事务执行。
 			// 逐条语句执行，避免将多条 CONCURRENTLY 语句放入同一个隐式事务块。
-			statements := splitSQLStatements(content)
+			statements := splitSQLStatements(executionContent)
 			for i, stmt := range statements {
 				trimmed := strings.TrimSpace(stmt)
 				if trimmed == "" {
@@ -252,7 +287,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		}
 
 		// 执行迁移 SQL
-		if _, err := tx.ExecContext(ctx, content); err != nil {
+		if _, err := tx.ExecContext(ctx, executionContent); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
@@ -273,6 +308,359 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 	return nil
 }
 
+type migrationSchemaRewriteRule struct {
+	publicQualifierCount int
+	tableSchemaCount     int
+	schemaNameCount      int
+}
+
+// migrationSchemaRewriteRules is deliberately narrow. Published migrations stay
+// byte-for-byte canonical for checksums; only these known upstream references to
+// the default schema are adapted in the execution copy.
+var migrationSchemaRewriteRules = map[string]migrationSchemaRewriteRule{
+	"006_add_users_allowed_groups_compat.sql":               {publicQualifierCount: 1, tableSchemaCount: 1},
+	"006_fix_invalid_subscription_expires_at.sql":           {publicQualifierCount: 1},
+	"006b_guard_users_allowed_groups.sql":                   {tableSchemaCount: 2},
+	"009_fix_usage_logs_cache_columns.sql":                  {tableSchemaCount: 2},
+	"108a_widen_auth_identity_migration_report_type.sql":    {tableSchemaCount: 1},
+	"115_auth_identity_legacy_external_backfill.sql":        {publicQualifierCount: 7},
+	"116_auth_identity_legacy_external_safety_reports.sql":  {publicQualifierCount: 20},
+	"120a_align_payment_orders_out_trade_no_index_name.sql": {schemaNameCount: 2},
+	"175_default_openai_long_context_billing.sql":           {publicQualifierCount: 4},
+}
+
+type migrationExecutionReplacement struct {
+	from  string
+	to    string
+	count int
+}
+
+// migrationSchemaIsolationRewrites fixes canonical migrations whose catalog
+// checks identify objects only by name. PostgreSQL constraint and relation names
+// are schema-local, while pg_catalog and information_schema queries span the
+// whole database; without these predicates, a same-named object in another
+// schema can make a migration skip required DDL or return multiple rows.
+//
+// The canonical embedded files remain byte-for-byte unchanged for checksum
+// compatibility. Every replacement is count-pinned so an upstream SQL change
+// fails closed and must be reviewed before execution.
+var migrationSchemaIsolationRewrites = map[string][]migrationExecutionReplacement{
+	"035_usage_logs_partitioning.sql": {
+		{
+			from:  "WHERE c.relname = 'usage_logs'",
+			to:    "WHERE c.oid = 'usage_logs'::regclass",
+			count: 1,
+		},
+	},
+	"061_add_usage_log_request_type.sql": {
+		{
+			from:  "WHERE conname = 'usage_logs_request_type_check'",
+			to:    "WHERE conname = 'usage_logs_request_type_check'\n          AND conrelid = 'usage_logs'::regclass",
+			count: 1,
+		},
+	},
+	"108_auth_identity_foundation_core.sql": {
+		{
+			from:  "WHERE conname = 'users_signup_source_check'",
+			to:    "WHERE conname = 'users_signup_source_check'\n          AND conrelid = 'users'::regclass",
+			count: 1,
+		},
+	},
+	"116_auth_identity_legacy_external_safety_reports.sql": {
+		{
+			from:  "WHERE conname = 'auth_identities_metadata_is_object_check'",
+			to:    "WHERE conname = 'auth_identities_metadata_is_object_check'\n          AND conrelid = 'auth_identities'::regclass",
+			count: 1,
+		},
+		{
+			from:  "WHERE conname = 'auth_identity_channels_metadata_is_object_check'",
+			to:    "WHERE conname = 'auth_identity_channels_metadata_is_object_check'\n          AND conrelid = 'auth_identity_channels'::regclass",
+			count: 1,
+		},
+		{
+			from:  "WHERE conname = 'auth_identity_migration_reports_details_is_object_check'",
+			to:    "WHERE conname = 'auth_identity_migration_reports_details_is_object_check'\n          AND conrelid = 'auth_identity_migration_reports'::regclass",
+			count: 1,
+		},
+	},
+	"128_add_channel_monitor_request_templates.sql": {
+		{
+			from:  "AND table_name = 'channel_monitors'",
+			to:    "AND table_name = 'channel_monitors'\n          AND table_schema = current_schema()",
+			count: 2,
+		},
+	},
+	"138_channel_monitor_openai_api_mode.sql": {
+		{
+			from:  "AND table_name = 'channel_monitors'",
+			to:    "AND table_name = 'channel_monitors'\n          AND table_schema = current_schema()",
+			count: 1,
+		},
+		{
+			from:  "AND table_name = 'channel_monitor_request_templates'",
+			to:    "AND table_name = 'channel_monitor_request_templates'\n          AND table_schema = current_schema()",
+			count: 1,
+		},
+	},
+	"154_account_spark_shadow.sql": {
+		{
+			from:  "WHERE conname = 'chk_accounts_quota_dimension'",
+			to:    "WHERE conname = 'chk_accounts_quota_dimension' AND conrelid = 'accounts'::regclass",
+			count: 1,
+		},
+		{
+			from:  "WHERE conname = 'chk_accounts_parent_dimension'",
+			to:    "WHERE conname = 'chk_accounts_parent_dimension' AND conrelid = 'accounts'::regclass",
+			count: 1,
+		},
+		{
+			from:  "WHERE conname = 'chk_accounts_parent_not_self'",
+			to:    "WHERE conname = 'chk_accounts_parent_not_self' AND conrelid = 'accounts'::regclass",
+			count: 1,
+		},
+		{
+			from:  "WHERE conname = 'fk_accounts_parent_account_id'",
+			to:    "WHERE conname = 'fk_accounts_parent_account_id' AND conrelid = 'accounts'::regclass",
+			count: 1,
+		},
+	},
+	"176_channel_monitor_grok_provider.sql": {
+		{
+			from:  "WHERE t.relname = 'channel_monitors'",
+			to:    "WHERE t.oid = 'channel_monitors'::regclass",
+			count: 1,
+		},
+		{
+			from:  "WHERE t.relname = 'channel_monitor_request_templates'",
+			to:    "WHERE t.oid = 'channel_monitor_request_templates'::regclass",
+			count: 1,
+		},
+	},
+}
+
+const (
+	publicQualifierPattern  = "public."
+	publicTableSchemaFilter = "table_schema = 'public'"
+	publicSchemaNameFilter  = "schemaname = 'public'"
+)
+
+// migrationSQLForSchema keeps embedded migration files canonical while
+// adapting a verified execution copy for DATABASE_SCHEMA. Any count drift or a
+// new migration with an explicit public-schema reference fails closed so an
+// upstream SQL change cannot be silently rewritten incorrectly.
+func migrationSQLForSchema(name, canonical, schema string) (string, error) {
+	schema = strings.TrimSpace(schema)
+	if schema == "" {
+		schema = "public"
+	}
+	if !config.IsValidPostgresIdentifier(schema) {
+		return "", fmt.Errorf("invalid database schema %q; use lowercase letters, digits, and underscores", schema)
+	}
+
+	executionSQL := canonical
+	if schema != "public" {
+		rule, allowed := migrationSchemaRewriteRules[name]
+		if !allowed {
+			if hasSchemaSensitivePublicReference(canonical) {
+				return "", errors.New("contains an unreviewed explicit public-schema reference")
+			}
+		} else {
+			actualPublicQualifiers := strings.Count(canonical, publicQualifierPattern)
+			actualTableSchemaFilters := strings.Count(canonical, publicTableSchemaFilter)
+			actualSchemaNameFilters := strings.Count(canonical, publicSchemaNameFilter)
+			if actualPublicQualifiers != rule.publicQualifierCount ||
+				actualTableSchemaFilters != rule.tableSchemaCount ||
+				actualSchemaNameFilters != rule.schemaNameCount {
+				return "", fmt.Errorf(
+					"schema rewrite expectation drifted (public qualifiers=%d/%d, table_schema filters=%d/%d, schemaname filters=%d/%d)",
+					actualPublicQualifiers,
+					rule.publicQualifierCount,
+					actualTableSchemaFilters,
+					rule.tableSchemaCount,
+					actualSchemaNameFilters,
+					rule.schemaNameCount,
+				)
+			}
+
+			quotedSchema := quotePostgresIdentifier(schema)
+			executionSQL = strings.ReplaceAll(executionSQL, publicTableSchemaFilter, "table_schema = '"+schema+"'")
+			executionSQL = strings.ReplaceAll(executionSQL, publicSchemaNameFilter, "schemaname = '"+schema+"'")
+			executionSQL = strings.ReplaceAll(executionSQL, publicQualifierPattern, quotedSchema+".")
+		}
+	}
+
+	if replacements := migrationSchemaIsolationRewrites[name]; len(replacements) > 0 {
+		var err error
+		executionSQL, err = applyMigrationExecutionReplacements(name, executionSQL, replacements)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if schema != "public" && hasSchemaSensitivePublicReference(executionSQL) {
+		return "", errors.New("explicit public-schema reference remained after adaptation")
+	}
+	return executionSQL, nil
+}
+
+func applyMigrationExecutionReplacements(
+	name string,
+	content string,
+	replacements []migrationExecutionReplacement,
+) (string, error) {
+	executionSQL := content
+	for index, replacement := range replacements {
+		actual := strings.Count(executionSQL, replacement.from)
+		if actual != replacement.count {
+			return "", fmt.Errorf(
+				"schema isolation rewrite expectation drifted for %s rule %d (matches=%d/%d)",
+				name,
+				index+1,
+				actual,
+				replacement.count,
+			)
+		}
+		executionSQL = strings.ReplaceAll(executionSQL, replacement.from, replacement.to)
+	}
+	return executionSQL, nil
+}
+
+// hasSchemaSensitivePublicReference recognizes the forms used by migrations
+// without treating ordinary string data (for example URLs containing
+// "public.example") as a schema reference.
+func hasSchemaSensitivePublicReference(content string) bool {
+	lower := strings.ToLower(content)
+	if containsPublicCatalogFilter(lower) || containsPublicRegclassReference(lower) {
+		return true
+	}
+	return containsPublicQualifierOutsideStringOrComment(lower)
+}
+
+func containsPublicCatalogFilter(content string) bool {
+	for _, column := range []string{"table_schema", "schemaname"} {
+		searchFrom := 0
+		for {
+			offset := strings.Index(content[searchFrom:], column)
+			if offset < 0 {
+				break
+			}
+			offset += searchFrom + len(column)
+			remainder := strings.TrimLeft(content[offset:], " \t\r\n")
+			if strings.HasPrefix(remainder, "=") {
+				remainder = strings.TrimLeft(remainder[1:], " \t\r\n")
+				if strings.HasPrefix(remainder, "'public'") {
+					return true
+				}
+			}
+			searchFrom = offset
+		}
+	}
+	return false
+}
+
+func containsPublicRegclassReference(content string) bool {
+	for _, functionName := range []string{"to_regclass", "to_regnamespace"} {
+		searchFrom := 0
+		for {
+			offset := strings.Index(content[searchFrom:], functionName)
+			if offset < 0 {
+				break
+			}
+			offset += searchFrom + len(functionName)
+			remainder := strings.TrimLeft(content[offset:], " \t\r\n")
+			if strings.HasPrefix(remainder, "(") {
+				remainder = strings.TrimLeft(remainder[1:], " \t\r\n")
+				if strings.HasPrefix(remainder, "'public.") || strings.HasPrefix(remainder, "'\"public\".") {
+					return true
+				}
+			}
+			searchFrom = offset
+		}
+	}
+	return false
+}
+
+func containsPublicQualifierOutsideStringOrComment(content string) bool {
+	masked := maskSQLSingleQuotedStringsAndComments(content)
+	for _, qualifier := range []string{"public.", `"public".`} {
+		searchFrom := 0
+		for {
+			offset := strings.Index(masked[searchFrom:], qualifier)
+			if offset < 0 {
+				break
+			}
+			offset += searchFrom
+			if offset == 0 || !isPostgresIdentifierPart(masked[offset-1]) {
+				return true
+			}
+			searchFrom = offset + len(qualifier)
+		}
+	}
+	return false
+}
+
+func maskSQLSingleQuotedStringsAndComments(content string) string {
+	masked := []byte(content)
+	const (
+		sqlNormal = iota
+		sqlSingleQuoted
+		sqlLineComment
+		sqlBlockComment
+	)
+	state := sqlNormal
+	for i := 0; i < len(masked); i++ {
+		switch state {
+		case sqlNormal:
+			switch {
+			case masked[i] == '\'':
+				masked[i] = ' '
+				state = sqlSingleQuoted
+			case masked[i] == '-' && i+1 < len(masked) && masked[i+1] == '-':
+				masked[i], masked[i+1] = ' ', ' '
+				i++
+				state = sqlLineComment
+			case masked[i] == '/' && i+1 < len(masked) && masked[i+1] == '*':
+				masked[i], masked[i+1] = ' ', ' '
+				i++
+				state = sqlBlockComment
+			}
+		case sqlSingleQuoted:
+			if masked[i] == '\'' {
+				masked[i] = ' '
+				if i+1 < len(masked) && masked[i+1] == '\'' {
+					masked[i+1] = ' '
+					i++
+				} else {
+					state = sqlNormal
+				}
+			} else {
+				masked[i] = ' '
+			}
+		case sqlLineComment:
+			if masked[i] == '\n' {
+				state = sqlNormal
+			} else {
+				masked[i] = ' '
+			}
+		case sqlBlockComment:
+			if masked[i] == '*' && i+1 < len(masked) && masked[i+1] == '/' {
+				masked[i], masked[i+1] = ' ', ' '
+				i++
+				state = sqlNormal
+			} else {
+				masked[i] = ' '
+			}
+		}
+	}
+	return string(masked)
+}
+
+func isPostgresIdentifierPart(value byte) bool {
+	return value == '_' || value == '$' ||
+		(value >= 'a' && value <= 'z') ||
+		(value >= '0' && value <= '9')
+}
+
 type migrationConnection interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
@@ -286,6 +674,13 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 		return preparePaymentOrdersOutTradeNoUniqueMigration(ctx, db)
 	case schedulerOutboxPendingDedupKeyMigration:
 		return dropInvalidIndexIfPresent(ctx, db, schedulerOutboxPendingDedupKeyIndex)
+	case accountSparkShadowIndexesMigration:
+		for _, indexName := range []string{accountParentAccountIDIndex, accountSparkShadowPerParentIndex} {
+			if err := dropInvalidIndexIfPresent(ctx, db, indexName); err != nil {
+				return err
+			}
+		}
+		return nil
 	case latestAPIKeyIPIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, latestAPIKeyIPIndex)
 	default:
@@ -458,7 +853,6 @@ func newMigrationChecksumCompatibilityRule(fileChecksum string, acceptedDBChecks
 	return migrationChecksumCompatibilityRule{
 		fileChecksum:       fileChecksum,
 		acceptedDBChecksum: checksumSet(acceptedDBChecksums...),
-		acceptedChecksums:  checksumSet(append([]string{fileChecksum}, acceptedDBChecksums...)...),
 	}
 }
 
@@ -467,12 +861,14 @@ func isMigrationChecksumCompatible(name, dbChecksum, fileChecksum string) bool {
 	if !ok {
 		return false
 	}
-	_, dbOK := rule.acceptedChecksums[dbChecksum]
-	if !dbOK {
+	if fileChecksum != rule.fileChecksum {
 		return false
 	}
-	_, fileOK := rule.acceptedChecksums[fileChecksum]
-	return fileOK
+	if dbChecksum == rule.fileChecksum {
+		return true
+	}
+	_, dbOK := rule.acceptedDBChecksum[dbChecksum]
+	return dbOK
 }
 
 func validateMigrationExecutionMode(name, content string) (bool, error) {

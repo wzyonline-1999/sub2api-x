@@ -144,3 +144,7 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+.ccw/
+.pnpm-store/
+.workflow/
+frontend/.codex-preview-rankings/

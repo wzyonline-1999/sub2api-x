@@ -1,4 +1,4 @@
--- 158_account_spark_shadow.sql
+-- 154_account_spark_shadow.sql
 ALTER TABLE accounts
     ADD COLUMN IF NOT EXISTS parent_account_id BIGINT,
     ADD COLUMN IF NOT EXISTS quota_dimension VARCHAR(20) NOT NULL DEFAULT 'global';

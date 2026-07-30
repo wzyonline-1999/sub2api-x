@@ -1263,7 +1263,7 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 	modelMappingChain := nullString(log.ModelMappingChain)
 	billingTier := nullString(log.BillingTier)
 	billingMode := nullString(log.BillingMode)
-	sessionID := nullUsageLogSessionID(log.SessionID)
+	sessionID := nullUsageLogSessionID(log.SessionID, log.SessionIDSource)
 	sessionIDSource := nullString(log.SessionIDSource)
 	sessionHash := nullString(log.SessionHash)
 	sessionExplicit := nullBool(log.SessionExplicit)

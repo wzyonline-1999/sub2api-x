@@ -34,7 +34,7 @@
       <template #actions>
         <div class="flex justify-end gap-3">
           <button
-            @click="loadApiKeys"
+            @click="loadApiKeys()"
             :disabled="loading"
             class="btn btn-secondary"
             :title="t('common.refresh')"
@@ -189,17 +189,31 @@
 
           <template #cell-usage="{ row }">
             <div class="text-sm">
-              <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
-                </span>
+              <div
+                v-if="usageLoading && usageStats[row.id] === undefined"
+                data-test="usage-loading"
+                class="space-y-1.5 py-0.5"
+              >
+                <div class="h-3 w-24 animate-pulse rounded bg-gray-200 dark:bg-dark-600" />
+                <div class="h-3 w-28 animate-pulse rounded bg-gray-200 dark:bg-dark-600" />
               </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
-                </span>
+              <template v-else-if="usageStats[row.id] !== undefined">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
+                  <span class="font-medium text-gray-900 dark:text-white">
+                    ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
+                  </span>
+                </div>
+                <div class="mt-0.5 flex items-center gap-1.5">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
+                  <span class="font-medium text-gray-900 dark:text-white">
+                    ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
+                  </span>
+                </div>
+              </template>
+              <div v-else data-test="usage-unavailable" class="space-y-0.5 text-gray-400 dark:text-gray-500">
+                <div>{{ t('keys.today') }}: --</div>
+                <div>{{ t('keys.total') }}: --</div>
               </div>
               <!-- Quota progress (if quota is set) -->
               <div v-if="row.quota > 0" class="mt-1.5">
@@ -1255,12 +1269,29 @@ const loadSavedColumns = () => {
 
 const toggleColumn = (key: string) => {
   if (ALWAYS_VISIBLE_COLUMNS.has(key)) return
+  const wasHidden = hiddenColumns.has(key)
   if (hiddenColumns.has(key)) {
     hiddenColumns.delete(key)
   } else {
     hiddenColumns.add(key)
   }
   saveColumnsToStorage()
+
+  if (key === 'usage') {
+    if (wasHidden) {
+      usageStats.value = {}
+      const keyIds = apiKeys.value.map((item) => item.id)
+      if (keyIds.length > 0) {
+        void loadApiKeyUsage(keyIds)
+      }
+    } else {
+      cancelUsageLoad()
+    }
+  }
+
+  if (key === 'last_used_ip' && wasHidden) {
+    void loadApiKeys({ reloadUsage: false })
+  }
 }
 
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
@@ -1272,6 +1303,7 @@ const columns = computed<Column[]>(() =>
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
 const loading = ref(false)
+const usageLoading = ref(false)
 const submitting = ref(false)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
@@ -1311,7 +1343,11 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
-let abortController: AbortController | null = null
+let apiKeysAbortController: AbortController | null = null
+let usageAbortController: AbortController | null = null
+let apiKeysRequestId = 0
+let usageRequestId = 0
+let pendingApiKeysReloadUsage = false
 
 // Get the currently selected key for group change
 const selectedKeyForGroup = computed(() => {
@@ -1451,12 +1487,68 @@ const isAbortError = (error: unknown) => {
   return name === 'AbortError' || code === 'ERR_CANCELED'
 }
 
-const loadApiKeys = async () => {
-  abortController?.abort()
+const API_KEY_USAGE_BATCH_SIZE = 100
+
+const cancelUsageLoad = () => {
+  usageRequestId += 1
+  usageAbortController?.abort()
+  usageAbortController = null
+  usageLoading.value = false
+}
+
+const loadApiKeyUsage = async (keyIds: number[]) => {
+  cancelUsageLoad()
+
   const controller = new AbortController()
-  abortController = controller
+  const requestId = ++usageRequestId
+  usageAbortController = controller
+  usageLoading.value = true
+
+  try {
+    for (let offset = 0; offset < keyIds.length; offset += API_KEY_USAGE_BATCH_SIZE) {
+      const response = await usageAPI.getDashboardApiKeysUsage(
+        keyIds.slice(offset, offset + API_KEY_USAGE_BATCH_SIZE),
+        {
+          signal: controller.signal
+        }
+      )
+      if (controller.signal.aborted || requestId !== usageRequestId) return
+      usageStats.value = {
+        ...usageStats.value,
+        ...response.stats
+      }
+    }
+  } catch (error) {
+    if (!isAbortError(error) && requestId === usageRequestId) {
+      console.error('Failed to load usage stats:', error)
+    }
+  } finally {
+    if (usageAbortController === controller && requestId === usageRequestId) {
+      usageAbortController = null
+      usageLoading.value = false
+    }
+  }
+}
+
+interface LoadAPIKeysOptions {
+  reloadUsage?: boolean
+}
+
+const loadApiKeys = async ({ reloadUsage = true }: LoadAPIKeysOptions = {}) => {
+  const shouldReloadUsage =
+    reloadUsage || (apiKeysAbortController !== null && pendingApiKeysReloadUsage)
+  apiKeysAbortController?.abort()
+  if (shouldReloadUsage) {
+    cancelUsageLoad()
+  }
+
+  const controller = new AbortController()
+  const requestId = ++apiKeysRequestId
+  apiKeysAbortController = controller
+  pendingApiKeysReloadUsage = shouldReloadUsage
   const { signal } = controller
   loading.value = true
+
   try {
     // Build filters
     const filters: {
@@ -1465,41 +1557,45 @@ const loadApiKeys = async () => {
       group_id?: number | string
       sort_by?: string
       sort_order?: 'asc' | 'desc'
+      include_last_used_ip?: boolean
     } = {}
     if (filterSearch.value) filters.search = filterSearch.value
     if (filterStatus.value) filters.status = filterStatus.value
     if (filterGroupId.value !== '') filters.group_id = filterGroupId.value
     filters.sort_by = sortState.value.sort_by
     filters.sort_order = sortState.value.sort_order
+    filters.include_last_used_ip = isColumnVisible('last_used_ip')
 
     const response = await keysAPI.list(pagination.value.page, pagination.value.page_size, filters, {
       signal
     })
-    if (signal.aborted) return
+    if (signal.aborted || requestId !== apiKeysRequestId) return
+
     apiKeys.value = response.items
     pagination.value.total = response.total
     pagination.value.pages = response.pages
 
-    // Load usage stats for all API keys in the list
-    if (response.items.length > 0) {
-      const keyIds = response.items.map((k) => k.id)
-      try {
-        const usageResponse = await usageAPI.getDashboardApiKeysUsage(keyIds, { signal })
-        if (signal.aborted) return
-        usageStats.value = usageResponse.stats
-      } catch (e) {
-        if (!isAbortError(e)) {
-          console.error('Failed to load usage stats:', e)
-        }
+    if (shouldReloadUsage) {
+      usageStats.value = {}
+
+      // Usage aggregation can be slow. Load it independently so the key list is
+      // interactive as soon as the lightweight list request has completed.
+      if (isColumnVisible('usage') && response.items.length > 0) {
+        const keyIds = response.items.map((k) => k.id)
+        void loadApiKeyUsage(keyIds)
       }
     }
   } catch (error) {
     if (isAbortError(error)) {
       return
     }
-    appStore.showError(t('keys.failedToLoad'))
+    if (requestId === apiKeysRequestId) {
+      appStore.showError(t('keys.failedToLoad'))
+    }
   } finally {
-    if (abortController === controller) {
+    if (apiKeysAbortController === controller && requestId === apiKeysRequestId) {
+      apiKeysAbortController = null
+      pendingApiKeysReloadUsage = false
       loading.value = false
     }
   }
@@ -1966,5 +2062,12 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeGroupSelector)
   if (resetTimer) clearInterval(resetTimer)
+  apiKeysRequestId += 1
+  usageRequestId += 1
+  apiKeysAbortController?.abort()
+  usageAbortController?.abort()
+  apiKeysAbortController = null
+  usageAbortController = null
+  pendingApiKeysReloadUsage = false
 })
 </script>

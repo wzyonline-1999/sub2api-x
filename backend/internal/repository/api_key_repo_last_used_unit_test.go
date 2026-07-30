@@ -124,6 +124,17 @@ func TestAPIKeyRepositoryListByUserIDAttachesLastUsedIP(t *testing.T) {
 	require.Equal(t, newestIP, *byID[withLogs.ID].LastUsedIP)
 	require.Nil(t, byID[emptyOnly.ID].LastUsedIP)
 	require.Nil(t, byID[noLogs.ID].LastUsedIP)
+
+	keysWithoutIP, _, err := repo.ListByUserID(
+		ctx,
+		user.ID,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		service.APIKeyListFilters{SkipLastUsedIP: true},
+	)
+	require.NoError(t, err)
+	for _, key := range keysWithoutIP {
+		require.Nil(t, key.LastUsedIP)
+	}
 }
 
 func TestLatestUsageLogIPsQueryPostgresUsesPerKeyLateralLookup(t *testing.T) {

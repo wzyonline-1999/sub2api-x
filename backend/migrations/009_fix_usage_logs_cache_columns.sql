@@ -12,7 +12,7 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = current_schema()
+        WHERE table_schema = 'public'
           AND table_name = 'usage_logs'
           AND column_name = 'cache_creation5m_tokens'
     ) THEN
@@ -25,7 +25,7 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM information_schema.columns
-        WHERE table_schema = current_schema()
+        WHERE table_schema = 'public'
           AND table_name = 'usage_logs'
           AND column_name = 'cache_creation1h_tokens'
     ) THEN

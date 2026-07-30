@@ -1200,6 +1200,13 @@ func TestConfigAddressHelpers(t *testing.T) {
 	if !strings.Contains(dbCfg.DSNWithTimezone("UTC"), "TimeZone=UTC") {
 		t.Fatalf("DatabaseConfig.DSNWithTimezone() should use provided timezone")
 	}
+	if strings.Contains(dbCfg.DSN(), "search_path=") {
+		t.Fatalf("DatabaseConfig.DSN() should preserve the inherited search_path when schema is empty: %q", dbCfg.DSN())
+	}
+	dbCfg.Schema = "public"
+	if !strings.Contains(dbCfg.DSN(), "search_path=public") || strings.Contains(dbCfg.DSN(), "search_path=public,public") {
+		t.Fatalf("DatabaseConfig.DSN() should pin an explicitly configured public schema once: %q", dbCfg.DSN())
+	}
 	dbCfg.Schema = "sub2api"
 	if !strings.Contains(dbCfg.DSN(), "search_path=sub2api,public") {
 		t.Fatalf("DatabaseConfig.DSN() should include search_path when schema is set: %q", dbCfg.DSN())

@@ -516,10 +516,10 @@ async function handleVerify(): Promise<void> {
         payload.adopt_avatar = pendingAdoptionDecision.value.adoptAvatar
       }
 
-	    const { data } = await apiClient.post<PendingOAuthCreateAccountResponse>(
-	      '/auth/oauth/pending/create-account',
-	      payload
-	    )
+      const { data } = await apiClient.post<PendingOAuthCreateAccountResponse>(
+        '/auth/oauth/pending/create-account',
+        payload
+      )
       if (isPendingOAuthSessionResponse(data)) {
         sessionStorage.removeItem('register_data')
         persistPendingOAuthSession(data.provider || pendingProvider.value, data.redirect)

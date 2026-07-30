@@ -35,9 +35,10 @@ const (
 )
 
 var (
-	integrationDB        *sql.DB
-	integrationEntClient *dbent.Client
-	integrationRedis     *redisclient.Client
+	integrationDB          *sql.DB
+	integrationEntClient   *dbent.Client
+	integrationRedis       *redisclient.Client
+	integrationPostgresDSN string
 
 	redisNamespaceSeq uint64
 )
@@ -85,13 +86,13 @@ func TestMain(m *testing.M) {
 	}
 	defer func() { _ = redisContainer.Terminate(ctx) }()
 
-	dsn, err := pgContainer.ConnectionString(ctx, "sslmode=disable", "TimeZone=UTC")
+	integrationPostgresDSN, err = pgContainer.ConnectionString(ctx, "sslmode=disable", "TimeZone=UTC")
 	if err != nil {
 		log.Printf("failed to get postgres dsn: %v", err)
 		os.Exit(1)
 	}
 
-	integrationDB, err = openSQLWithRetry(ctx, dsn, 30*time.Second)
+	integrationDB, err = openSQLWithRetry(ctx, integrationPostgresDSN, 30*time.Second)
 	if err != nil {
 		log.Printf("failed to open sql db: %v", err)
 		os.Exit(1)

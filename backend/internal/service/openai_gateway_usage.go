@@ -398,10 +398,13 @@ func applyOpenAISessionMetadataToUsageLog(log *UsageLog, metadata OpenAISessionM
 	if log == nil {
 		return
 	}
-	if sessionID := sanitizeSessionID(metadata.SessionID); sessionID != "" {
-		log.SessionID = &sessionID
+	source := strings.TrimSpace(metadata.SessionIDSource)
+	if source != "prompt_cache_key" {
+		if sessionID := sanitizeSessionID(metadata.SessionID); sessionID != "" {
+			log.SessionID = &sessionID
+		}
 	}
-	if source := strings.TrimSpace(metadata.SessionIDSource); source != "" {
+	if source != "" {
 		log.SessionIDSource = &source
 	}
 	if hash := strings.TrimSpace(metadata.SessionHash); hash != "" {

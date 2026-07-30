@@ -98,7 +98,9 @@ func postgresDSN(cfg *DatabaseConfig, dbName string, includeSchema bool) string 
 	searchPath := ""
 	if includeSchema {
 		schema := strings.TrimSpace(cfg.Schema)
-		if schema != "" {
+		if schema == "public" {
+			searchPath = " search_path=public"
+		} else if schema != "" {
 			searchPath = fmt.Sprintf(" search_path=%s,public", schema)
 		}
 	}
@@ -287,7 +289,7 @@ func TestDatabaseConnection(cfg *DatabaseConfig) error {
 		return fmt.Errorf("ping target database failed: %w", err)
 	}
 
-	if err := repository.EnsureDatabaseSchema(ctx2, targetDB, cfg.Schema); err != nil {
+	if err := repository.EnsureDatabaseSchema(ctx2, targetDB, config.EffectivePostgresSchema(cfg.Schema)); err != nil {
 		return err
 	}
 
@@ -398,10 +400,11 @@ func initializeDatabase(cfg *SetupConfig) error {
 
 	migrationCtx, cancel := context.WithTimeout(context.Background(), cfg.migrationTimeout())
 	defer cancel()
-	if err := repository.EnsureDatabaseSchema(migrationCtx, db, cfg.Database.Schema); err != nil {
+	databaseSchema := config.EffectivePostgresSchema(cfg.Database.Schema)
+	if err := repository.EnsureDatabaseSchema(migrationCtx, db, databaseSchema); err != nil {
 		return err
 	}
-	return repository.ApplyMigrations(migrationCtx, db)
+	return repository.ApplyMigrationsForSchema(migrationCtx, db, databaseSchema)
 }
 
 func (cfg *SetupConfig) migrationTimeout() time.Duration {

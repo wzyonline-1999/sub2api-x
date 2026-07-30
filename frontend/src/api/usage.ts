@@ -145,6 +145,7 @@ export interface UsageRankingTarget {
 export interface UsageRankingResponse {
   metric: UsageRankingMetric
   period: UsageRankingPeriod
+  generated_at?: string
   start_date: string
   end_date: string
   summary: UsageRankingSummary

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,6 +93,114 @@ func TestIsMigrationChecksumCompatible_AdditionalCases(t *testing.T) {
 	}
 	require.NotEmpty(t, accepted)
 	require.True(t, isMigrationChecksumCompatible(name, accepted, rule.fileChecksum))
+	require.False(t, isMigrationChecksumCompatible(name, rule.fileChecksum, accepted))
+}
+
+func TestMigrationSQLForSchemaRewritesReviewedReferences(t *testing.T) {
+	canonical := `
+SELECT to_regclass('public.user_allowed_groups');
+SELECT 1 FROM information_schema.tables WHERE table_schema = 'public';
+`
+
+	executionSQL, err := migrationSQLForSchema(
+		"006_add_users_allowed_groups_compat.sql",
+		canonical,
+		"tenant_a",
+	)
+
+	require.NoError(t, err)
+	require.Contains(t, executionSQL, `to_regclass('"tenant_a".user_allowed_groups')`)
+	require.Contains(t, executionSQL, "table_schema = 'tenant_a'")
+	require.False(t, hasSchemaSensitivePublicReference(executionSQL))
+}
+
+func TestMigrationSQLForSchemaFailsClosedOnRewriteDrift(t *testing.T) {
+	canonical := `
+SELECT to_regclass('public.user_allowed_groups');
+SELECT 1 FROM information_schema.tables WHERE table_schema = 'public';
+SELECT * FROM public.unexpected_table;
+`
+
+	_, err := migrationSQLForSchema(
+		"006_add_users_allowed_groups_compat.sql",
+		canonical,
+		"tenant_a",
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expectation drifted")
+}
+
+func TestMigrationSQLForSchemaScopesCatalogChecksToCurrentRelation(t *testing.T) {
+	for name, replacements := range migrationSchemaIsolationRewrites {
+		content, err := migrations.FS.ReadFile(name)
+		require.NoError(t, err, name)
+
+		for _, schema := range []string{"public", "tenant_a"} {
+			executionSQL, rewriteErr := migrationSQLForSchema(name, string(content), schema)
+			require.NoError(t, rewriteErr, "%s (%s)", name, schema)
+			for _, replacement := range replacements {
+				require.Equal(
+					t,
+					replacement.count,
+					strings.Count(executionSQL, replacement.to),
+					"%s (%s): expected reviewed schema-isolation rewrite",
+					name,
+					schema,
+				)
+			}
+		}
+	}
+}
+
+func TestMigrationSQLForSchemaFailsClosedOnCatalogIsolationDrift(t *testing.T) {
+	const name = "154_account_spark_shadow.sql"
+	content, err := migrations.FS.ReadFile(name)
+	require.NoError(t, err)
+	canonical := strings.Replace(
+		string(content),
+		"WHERE conname = 'chk_accounts_quota_dimension'",
+		"WHERE conname = 'renamed_constraint'",
+		1,
+	)
+
+	_, err = migrationSQLForSchema(name, canonical, "tenant_a")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "schema isolation rewrite expectation drifted")
+}
+
+func TestMigrationSQLForSchemaRejectsUnreviewedPublicReference(t *testing.T) {
+	for _, canonical := range []string{
+		"SELECT * FROM public.users;",
+		"SELECT * FROM \"public\".users;",
+		"SELECT to_regclass('public.users');",
+		"SELECT 1 FROM information_schema.tables WHERE table_schema='public';",
+		"SELECT 1 FROM pg_indexes WHERE schemaname = 'public';",
+	} {
+		_, err := migrationSQLForSchema("999_unknown.sql", canonical, "tenant_a")
+		require.Error(t, err, canonical)
+		require.Contains(t, err.Error(), "unreviewed explicit public-schema reference")
+	}
+}
+
+func TestMigrationSQLForSchemaLeavesOrdinaryPublicDataUntouched(t *testing.T) {
+	canonical := `
+INSERT INTO labels (name, url, note)
+VALUES ('public', 'https://public.example/path', 'public.users is documentation');
+-- public.comment_only is not executable SQL
+`
+
+	executionSQL, err := migrationSQLForSchema("999_data.sql", canonical, "tenant_a")
+
+	require.NoError(t, err)
+	require.Equal(t, canonical, executionSQL)
+}
+
+func TestMigrationSQLForSchemaRejectsInvalidIdentifier(t *testing.T) {
+	_, err := migrationSQLForSchema("999_data.sql", "SELECT 1;", "tenant-a")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid database schema")
 }
 
 func TestMigrationChecksumCompatibilityRules_CoverEditedUpgradeCompatibilityMigrations(t *testing.T) {

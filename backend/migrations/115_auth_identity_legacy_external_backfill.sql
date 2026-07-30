@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION __migration_115_safe_legacy_metadata_jsonb(input_text TEXT)
+CREATE OR REPLACE FUNCTION public.__migration_115_safe_legacy_metadata_jsonb(input_text TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
@@ -26,7 +26,7 @@ $$;
 
 DO $$
 BEGIN
-    IF to_regclass('user_external_identities') IS NULL THEN
+    IF to_regclass('public.user_external_identities') IS NULL THEN
         RETURN;
     END IF;
 
@@ -38,7 +38,7 @@ WITH legacy AS (
         BTRIM(uei.provider_user_id) AS provider_user_id,
         BTRIM(uei.provider_username) AS provider_username,
         BTRIM(uei.display_name) AS display_name,
-        __migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
+        public.__migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
         uei.created_at,
         uei.updated_at
     FROM user_external_identities AS uei
@@ -101,7 +101,7 @@ WITH legacy AS (
         BTRIM(uei.provider_union_id) AS provider_union_id,
         BTRIM(uei.provider_username) AS provider_username,
         BTRIM(uei.display_name) AS display_name,
-        __migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
+        public.__migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
         uei.created_at,
         uei.updated_at
     FROM user_external_identities AS uei
@@ -170,7 +170,7 @@ WITH legacy AS (
     FROM user_external_identities AS uei
     JOIN users AS u ON u.id = uei.user_id
     CROSS JOIN LATERAL (
-        SELECT __migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
+        SELECT public.__migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
     ) AS meta
     WHERE u.deleted_at IS NULL
       AND LOWER(BTRIM(COALESCE(uei.provider, ''))) = 'wechat'
@@ -236,7 +236,7 @@ FROM (
         uei.id,
         uei.user_id,
         BTRIM(uei.provider_user_id) AS provider_user_id,
-        __migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
+        public.__migration_115_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
     FROM user_external_identities AS uei
     JOIN users AS u ON u.id = uei.user_id
     WHERE u.deleted_at IS NULL
@@ -265,4 +265,4 @@ WHERE ai.provider_type = 'wechat'
   AND BTRIM(COALESCE(ai.metadata ->> 'unionid', '')) = ''
 ON CONFLICT (report_type, report_key) DO NOTHING;
 
-DROP FUNCTION IF EXISTS __migration_115_safe_legacy_metadata_jsonb(TEXT);
+DROP FUNCTION IF EXISTS public.__migration_115_safe_legacy_metadata_jsonb(TEXT);

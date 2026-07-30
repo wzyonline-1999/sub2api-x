@@ -153,10 +153,11 @@ const TablePageLayoutStub = {
 
 const DataTableStub = {
   name: 'DataTable',
-  props: ['columns', 'data'],
+  props: ['columns', 'data', 'loading'],
   emits: ['sort'],
   template: `
     <div>
+      <div data-test="table-loading">{{ String(loading) }}</div>
       <div data-test="columns">{{ columns.map((col) => col.key).join(',') }}</div>
       <div data-test="columns-meta">{{ JSON.stringify(columns.map((col) => ({ key: col.key, sortable: !!col.sortable }))) }}</div>
       <button data-test="sort-current-concurrency" @click="$emit('sort', 'current_concurrency', 'asc')">
@@ -172,6 +173,9 @@ const DataTableStub = {
         <slot name="cell-name" :value="row.name" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
+        </div>
+        <div data-test="usage">
+          <slot name="cell-usage" :row="row" />
         </div>
         <div
           v-if="columns.some((col) => col.key === 'last_used_ip')"
@@ -256,6 +260,16 @@ const getButtonByText = (wrapper: VueWrapper, text: string) => {
   return button
 }
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 describe('user KeysView column settings', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -332,7 +346,7 @@ describe('user KeysView column settings', () => {
   })
 
   it('shows the last used IP column when toggled', async () => {
-    listKeys.mockResolvedValueOnce({
+    listKeys.mockResolvedValue({
       items: [{ ...createApiKey(), last_used_ip: '203.0.113.10' }],
       total: 1,
       page: 1,
@@ -343,10 +357,34 @@ describe('user KeysView column settings', () => {
 
     await wrapper.get('button[title="Column Settings"]').trigger('click')
     await getButtonByText(wrapper, 'Last Used IP').trigger('click')
+    await flushPromises()
     await nextTick()
 
     expect(visibleColumnKeys(wrapper)).toContain('last_used_ip')
     expect(wrapper.get('[data-test="last-used-ip"]').text()).toBe('203.0.113.10')
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    expect(listKeys.mock.calls[0][2]).toMatchObject({ include_last_used_ip: false })
+    expect(listKeys.mock.calls[1][2]).toMatchObject({ include_last_used_ip: true })
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
+  })
+
+  it('only loads usage after the usage column becomes visible', async () => {
+    localStorage.setItem('api-key-hidden-columns', JSON.stringify(['usage', 'last_used_ip']))
+    localStorage.setItem('api-key-column-settings-version', '3')
+
+    const wrapper = await mountView()
+
+    expect(visibleColumnKeys(wrapper)).not.toContain('usage')
+    expect(getDashboardApiKeysUsage).not.toHaveBeenCalled()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'Usage').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(visibleColumnKeys(wrapper)).toContain('usage')
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
+    expect(getDashboardApiKeysUsage.mock.calls[0][0]).toEqual([1])
   })
 
   it('restores column preferences from localStorage on mount', async () => {
@@ -394,6 +432,265 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('[data-test="current-concurrency"]').text()).toBe('3')
   })
 
+  it('shows the API key list before the batch usage request completes', async () => {
+    const usageRequest = deferred<{
+      stats: Record<string, { today_actual_cost: number; total_actual_cost: number }>
+    }>()
+    getDashboardApiKeysUsage.mockReturnValueOnce(usageRequest.promise)
+
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[data-test="table-loading"]').text()).toBe('false')
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).toBe('3')
+    expect(wrapper.get('[data-test="usage-loading"]').exists()).toBe(true)
+
+    usageRequest.resolve({
+      stats: {
+        '1': {
+          today_actual_cost: 1.25,
+          total_actual_cost: 9.5,
+        },
+      },
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.find('[data-test="usage-loading"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$1.2500')
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$9.5000')
+  })
+
+  it('splits large pages into backend-safe usage batches', async () => {
+    const items = Array.from({ length: 101 }, (_, index) => ({
+      ...createApiKey(),
+      id: index + 1,
+      key: `sk-test-key-${index + 1}`,
+      name: `test-key-${index + 1}`,
+    }))
+    listKeys.mockResolvedValueOnce({
+      items,
+      total: items.length,
+      page: 1,
+      page_size: items.length,
+      pages: 1,
+    })
+    getDashboardApiKeysUsage
+      .mockResolvedValueOnce({ stats: {} })
+      .mockResolvedValueOnce({ stats: {} })
+
+    await mountView()
+
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(2)
+    expect(getDashboardApiKeysUsage.mock.calls[0][0]).toHaveLength(100)
+    expect(getDashboardApiKeysUsage.mock.calls[1][0]).toEqual([101])
+  })
+
+  it('cancels stale usage requests and ignores responses that arrive after a reload', async () => {
+    const firstUsageRequest = deferred<{
+      stats: Record<string, { today_actual_cost: number; total_actual_cost: number }>
+    }>()
+    const secondUsageRequest = deferred<{
+      stats: Record<string, { today_actual_cost: number; total_actual_cost: number }>
+    }>()
+    getDashboardApiKeysUsage
+      .mockReturnValueOnce(firstUsageRequest.promise)
+      .mockReturnValueOnce(secondUsageRequest.promise)
+
+    const wrapper = await mountView()
+    const firstSignal = getDashboardApiKeysUsage.mock.calls[0][1].signal as AbortSignal
+
+    await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(firstSignal.aborted).toBe(true)
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(2)
+
+    secondUsageRequest.resolve({
+      stats: {
+        '1': {
+          today_actual_cost: 2,
+          total_actual_cost: 20,
+        },
+      },
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$2.0000')
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$20.0000')
+
+    firstUsageRequest.resolve({
+      stats: {
+        '1': {
+          today_actual_cost: 99,
+          total_actual_cost: 999,
+        },
+      },
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$2.0000')
+    expect(wrapper.get('[data-test="usage"]').text()).not.toContain('$99.0000')
+    expect(wrapper.get('[data-test="usage"]').text()).not.toContain('$999.0000')
+  })
+
+  it('keeps an in-flight usage request when loading the last used IP column', async () => {
+    const usageRequest = deferred<{
+      stats: Record<string, { today_actual_cost: number; total_actual_cost: number }>
+    }>()
+    getDashboardApiKeysUsage.mockReturnValueOnce(usageRequest.promise)
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), last_used_ip: '203.0.113.10' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+
+    const wrapper = await mountView()
+    const usageSignal = getDashboardApiKeysUsage.mock.calls[0][1].signal as AbortSignal
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'Last Used IP').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
+    expect(usageSignal.aborted).toBe(false)
+
+    usageRequest.resolve({
+      stats: {
+        '1': {
+          today_actual_cost: 3,
+          total_actual_cost: 30,
+        },
+      },
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$3.0000')
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$30.0000')
+  })
+
+  it('inherits usage loading when the last used IP reload replaces a pending list request', async () => {
+    const initialListRequest = deferred<{
+      items: ApiKey[]
+      total: number
+      page: number
+      page_size: number
+      pages: number
+    }>()
+    listKeys
+      .mockReturnValueOnce(initialListRequest.promise)
+      .mockResolvedValueOnce({
+        items: [{ ...createApiKey(), id: 2, last_used_ip: '203.0.113.20' }],
+        total: 1,
+        page: 1,
+        page_size: 20,
+        pages: 1,
+      })
+
+    const wrapper = await mountView()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'Last Used IP').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
+    expect(getDashboardApiKeysUsage.mock.calls[0][0]).toEqual([2])
+
+    initialListRequest.resolve({
+      items: [createApiKey()],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    await flushPromises()
+  })
+
+  it('cancels usage for stale keys when a pending list returns new keys', async () => {
+    localStorage.setItem('api-key-hidden-columns', JSON.stringify(['usage', 'last_used_ip']))
+    localStorage.setItem('api-key-column-settings-version', '3')
+
+    const nextListRequest = deferred<{
+      items: ApiKey[]
+      total: number
+      page: number
+      page_size: number
+      pages: number
+    }>()
+    const staleUsageRequest = deferred<{
+      stats: Record<string, { today_actual_cost: number; total_actual_cost: number }>
+    }>()
+    listKeys
+      .mockResolvedValueOnce({
+        items: [createApiKey()],
+        total: 1,
+        page: 1,
+        page_size: 20,
+        pages: 1,
+      })
+      .mockReturnValueOnce(nextListRequest.promise)
+    getDashboardApiKeysUsage
+      .mockReturnValueOnce(staleUsageRequest.promise)
+      .mockResolvedValueOnce({
+        stats: {
+          '2': {
+            today_actual_cost: 4,
+            total_actual_cost: 40,
+          },
+        },
+      })
+
+    const wrapper = await mountView()
+    await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    await nextTick()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'Usage').trigger('click')
+    await nextTick()
+
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
+    expect(getDashboardApiKeysUsage.mock.calls[0][0]).toEqual([1])
+    const staleSignal = getDashboardApiKeysUsage.mock.calls[0][1].signal as AbortSignal
+
+    nextListRequest.resolve({
+      items: [{ ...createApiKey(), id: 2 }],
+      total: 1,
+      page: 1,
+      page_size: 50,
+      pages: 1,
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(staleSignal.aborted).toBe(true)
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(2)
+    expect(getDashboardApiKeysUsage.mock.calls[1][0]).toEqual([2])
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$4.0000')
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$40.0000')
+
+    staleUsageRequest.resolve({
+      stats: {
+        '1': {
+          today_actual_cost: 99,
+          total_actual_cost: 999,
+        },
+      },
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect(wrapper.get('[data-test="usage"]').text()).not.toContain('$99.0000')
+  })
+
   it('marks current concurrency as sortable', async () => {
     const wrapper = await mountView()
 
@@ -434,6 +731,7 @@ describe('user KeysView column settings', () => {
         group_id: 42,
         sort_by: 'current_concurrency',
         sort_order: 'asc',
+        include_last_used_ip: false,
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )

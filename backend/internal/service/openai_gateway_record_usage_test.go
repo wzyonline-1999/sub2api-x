@@ -406,13 +406,26 @@ func TestApplyOpenAISessionMetadataToUsageLog_RejectsUnsafeSessionID(t *testing.
 	}
 }
 
+func TestApplyOpenAISessionMetadataToUsageLog_DropsPromptCacheKeyRawValue(t *testing.T) {
+	log := &UsageLog{}
+	applyOpenAISessionMetadataToUsageLog(log, OpenAISessionMetadata{
+		SessionID:       "raw-prompt-cache-key",
+		SessionIDSource: "prompt_cache_key",
+		SessionHash:     "0123456789abcdef",
+		SessionExplicit: true,
+	})
+
+	require.Nil(t, log.SessionID)
+	require.Equal(t, "prompt_cache_key", *log.SessionIDSource)
+	require.Equal(t, "0123456789abcdef", *log.SessionHash)
+	require.True(t, *log.SessionExplicit)
+}
+
 func TestApplyPersistedClientSessionIDToUsageLog_KeepsRoutingHashCoherent(t *testing.T) {
-	metadataSessionID := "prompt-cache-session"
 	metadataSource := "prompt_cache_key"
 	routingHash := "0123456789abcdef"
 	explicit := true
 	log := &UsageLog{
-		SessionID:       &metadataSessionID,
 		SessionIDSource: &metadataSource,
 		SessionHash:     &routingHash,
 		SessionExplicit: &explicit,
@@ -427,13 +440,12 @@ func TestApplyPersistedClientSessionIDToUsageLog_KeepsRoutingHashCoherent(t *tes
 }
 
 func TestApplyPersistedClientSessionIDToUsageLog_EmptyDoesNotEraseMetadata(t *testing.T) {
-	sessionID := "prompt-cache-session"
 	source := "prompt_cache_key"
-	log := &UsageLog{SessionID: &sessionID, SessionIDSource: &source}
+	log := &UsageLog{SessionIDSource: &source}
 
 	applyPersistedClientSessionIDToUsageLog(log, "")
 
-	require.Equal(t, sessionID, *log.SessionID)
+	require.Nil(t, log.SessionID)
 	require.Equal(t, source, *log.SessionIDSource)
 }
 

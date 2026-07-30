@@ -1618,7 +1618,7 @@ var (
 		{Name: "model", Type: field.TypeString, Size: 100},
 		{Name: "requested_model", Type: field.TypeString, Nullable: true, Size: 100},
 		{Name: "upstream_model", Type: field.TypeString, Nullable: true, Size: 100},
-		{Name: "session_id", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "session_id", Type: field.TypeString, Nullable: true, Size: 255},
 		{Name: "session_id_source", Type: field.TypeString, Nullable: true, Size: 32},
 		{Name: "session_hash", Type: field.TypeString, Nullable: true, Size: 64},
 		{Name: "session_explicit", Type: field.TypeBool, Nullable: true},

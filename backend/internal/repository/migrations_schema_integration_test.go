@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -28,6 +29,158 @@ func TestMigrationsRunner_ConcurrentInstancesSerializeOnSessionLock(t *testing.T
 	wg.Wait()
 	for i, err := range errorsByInstance {
 		require.NoErrorf(t, err, "migration instance %d", i)
+	}
+}
+
+func TestMigrationsRunner_CustomSchemaIsIsolatedFromPublicObjects(t *testing.T) {
+	const schema = "sub2api_tenant_test"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	_, _ = integrationDB.ExecContext(ctx, `DROP SCHEMA IF EXISTS sub2api_tenant_test CASCADE`)
+	_, err := integrationDB.ExecContext(ctx, `CREATE SCHEMA sub2api_tenant_test`)
+	require.NoError(t, err)
+
+	tenantURL, err := url.Parse(integrationPostgresDSN)
+	require.NoError(t, err)
+	query := tenantURL.Query()
+	query.Set("search_path", schema+",public")
+	tenantURL.RawQuery = query.Encode()
+
+	tenantDB, err := sql.Open("postgres", tenantURL.String())
+	require.NoError(t, err)
+	defer func() {
+		_ = tenantDB.Close()
+		_, _ = integrationDB.ExecContext(context.Background(), `DROP SCHEMA IF EXISTS sub2api_tenant_test CASCADE`)
+	}()
+
+	require.NoError(t, tenantDB.PingContext(ctx))
+	require.NoError(t, ApplyMigrationsForSchema(ctx, tenantDB, schema))
+	require.NoError(t, ApplyMigrationsForSchema(ctx, tenantDB, schema), "custom-schema migrations must be idempotent")
+
+	for _, table := range []string{"users", "usage_logs", "accounts", "channel_monitors"} {
+		var exists bool
+		require.NoError(t, tenantDB.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM pg_class t
+				JOIN pg_namespace n ON n.oid = t.relnamespace
+				WHERE n.nspname = $1
+				  AND t.relname = $2
+			)
+		`, schema, table).Scan(&exists))
+		require.Truef(t, exists, "expected %s.%s to exist", schema, table)
+	}
+
+	for _, constraint := range []string{
+		"usage_logs_request_type_check",
+		"users_signup_source_check",
+		"chk_accounts_quota_dimension",
+		"channel_monitors_api_mode_check",
+	} {
+		var exists bool
+		require.NoError(t, tenantDB.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM pg_constraint c
+				JOIN pg_class t ON t.oid = c.conrelid
+				JOIN pg_namespace n ON n.oid = t.relnamespace
+				WHERE n.nspname = $1
+				  AND c.conname = $2
+			)
+		`, schema, constraint).Scan(&exists))
+		require.Truef(t, exists, "expected constraint %s in schema %s", constraint, schema)
+	}
+
+	var triggerCount, schemaLocalFunctionCount, schemaPinnedFunctionCount int
+	require.NoError(t, tenantDB.QueryRowContext(ctx, `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE function_namespace.nspname = $1),
+			COUNT(*) FILTER (
+			    WHERE function_namespace.nspname = $1
+			      AND COALESCE(array_to_string(proc.proconfig, ','), '') LIKE '%' || $1 || '%'
+			)
+		FROM pg_trigger AS trg
+		JOIN pg_proc AS proc ON proc.oid = trg.tgfoid
+		JOIN pg_namespace AS function_namespace ON function_namespace.oid = proc.pronamespace
+		WHERE trg.tgrelid = 'accounts'::regclass
+		  AND NOT trg.tgisinternal
+		  AND trg.tgname IN (
+		      'accounts_enforce_openai_long_context_billing_extra',
+		      'accounts_propagate_openai_long_context_billing_extra'
+		  )
+	`, schema).Scan(&triggerCount, &schemaLocalFunctionCount, &schemaPinnedFunctionCount))
+	require.Equal(t, 2, triggerCount)
+	require.Equal(t, 2, schemaLocalFunctionCount)
+	require.Equal(t, 2, schemaPinnedFunctionCount)
+
+	// Emulate a tenant previously marked as migrated by the old runner while
+	// same-named public constraints caused its unscoped catalog checks to skip
+	// tenant-local DDL. Only the additive repair migration should be pending.
+	for _, statement := range []string{
+		`ALTER TABLE usage_logs DROP CONSTRAINT IF EXISTS usage_logs_request_type_check`,
+		`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_signup_source_check`,
+		`ALTER TABLE auth_identities DROP CONSTRAINT IF EXISTS auth_identities_metadata_is_object_check`,
+		`ALTER TABLE auth_identity_channels DROP CONSTRAINT IF EXISTS auth_identity_channels_metadata_is_object_check`,
+		`ALTER TABLE auth_identity_migration_reports DROP CONSTRAINT IF EXISTS auth_identity_migration_reports_details_is_object_check`,
+		`ALTER TABLE channel_monitors DROP CONSTRAINT IF EXISTS channel_monitors_body_mode_check`,
+		`ALTER TABLE channel_monitors DROP CONSTRAINT IF EXISTS channel_monitors_template_id_fkey`,
+		`ALTER TABLE channel_monitors DROP CONSTRAINT IF EXISTS channel_monitors_api_mode_check`,
+		`ALTER TABLE channel_monitors DROP CONSTRAINT IF EXISTS channel_monitors_provider_check`,
+		`ALTER TABLE channel_monitor_request_templates DROP CONSTRAINT IF EXISTS channel_monitor_request_templates_api_mode_check`,
+		`ALTER TABLE channel_monitor_request_templates DROP CONSTRAINT IF EXISTS channel_monitor_request_templates_provider_check`,
+	} {
+		_, err := tenantDB.ExecContext(ctx, statement)
+		require.NoError(t, err)
+	}
+	_, err = tenantDB.ExecContext(
+		ctx,
+		`DELETE FROM schema_migrations WHERE filename = '191y_fork_repair_custom_schema_objects.sql'`,
+	)
+	require.NoError(t, err)
+	require.NoError(t, ApplyMigrationsForSchema(ctx, tenantDB, schema))
+
+	for table, constraints := range map[string][]string{
+		"usage_logs": {
+			"usage_logs_request_type_check",
+		},
+		"users": {
+			"users_signup_source_check",
+		},
+		"auth_identities": {
+			"auth_identities_metadata_is_object_check",
+		},
+		"auth_identity_channels": {
+			"auth_identity_channels_metadata_is_object_check",
+		},
+		"auth_identity_migration_reports": {
+			"auth_identity_migration_reports_details_is_object_check",
+		},
+		"channel_monitors": {
+			"channel_monitors_body_mode_check",
+			"channel_monitors_template_id_fkey",
+			"channel_monitors_api_mode_check",
+			"channel_monitors_provider_check",
+		},
+		"channel_monitor_request_templates": {
+			"channel_monitor_request_templates_api_mode_check",
+			"channel_monitor_request_templates_provider_check",
+		},
+	} {
+		for _, constraint := range constraints {
+			var definition string
+			require.NoError(t, tenantDB.QueryRowContext(ctx, `
+				SELECT pg_get_constraintdef(c.oid)
+				FROM pg_constraint c
+				WHERE c.conrelid = ($1 || '.' || $2)::regclass
+				  AND c.conname = $3
+			`, schema, table, constraint).Scan(&definition))
+			if constraint == "channel_monitors_provider_check" ||
+				constraint == "channel_monitor_request_templates_provider_check" {
+				require.Contains(t, definition, "grok")
+			}
+		}
 	}
 }
 
@@ -69,6 +222,10 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "usage_logs", "billing_type", "smallint", 0, false)
 	requireColumn(t, tx, "usage_logs", "request_type", "smallint", 0, false)
 	requireColumn(t, tx, "usage_logs", "openai_ws_mode", "boolean", 0, false)
+	requireColumn(t, tx, "usage_logs", "session_id", "character varying", 255, true)
+	requireColumn(t, tx, "usage_logs", "session_id_source", "character varying", 32, true)
+	requireColumn(t, tx, "usage_logs", "session_hash", "character varying", 64, true)
+	requireColumn(t, tx, "usage_logs", "session_explicit", "boolean", 0, true)
 	requireColumn(t, tx, "usage_logs", "image_input_size", "character varying", 32, true)
 	requireColumn(t, tx, "usage_logs", "image_output_size", "character varying", 32, true)
 	requireColumn(t, tx, "usage_logs", "image_size_source", "character varying", 16, true)

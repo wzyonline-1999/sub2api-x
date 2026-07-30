@@ -718,11 +718,11 @@ func nullString(v *string) sql.NullString {
 	return sql.NullString{String: *v, Valid: true}
 }
 
-func nullUsageLogSessionID(v *string) sql.NullString {
-	if v == nil {
+func nullUsageLogSessionID(v, source *string) sql.NullString {
+	if v == nil || (source != nil && strings.TrimSpace(*source) == "prompt_cache_key") {
 		return sql.NullString{}
 	}
-	sessionID := service.TruncateUsageLogSessionID(strings.TrimSpace(*v))
+	sessionID := service.NormalizeUsageLogSessionID(*v)
 	if sessionID == "" {
 		return sql.NullString{}
 	}

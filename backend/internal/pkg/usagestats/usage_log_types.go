@@ -226,6 +226,24 @@ type UsageRankingItem struct {
 	PreviousActualCost  float64 `json:"previous_actual_cost"`
 }
 
+// UsageRankingSnapshot is the shared, non-personalized result of the expensive
+// leaderboard aggregation. Callers derive the requested Top N and current-user
+// fields from Items without querying the database again.
+type UsageRankingSnapshot struct {
+	Metric      UsageRankingMetric  `json:"metric"`
+	Period      UsageRankingPeriod  `json:"period"`
+	GeneratedAt string              `json:"generated_at"`
+	StartDate   string              `json:"start_date"`
+	EndDate     string              `json:"end_date"`
+	Summary     UsageRankingSummary `json:"summary"`
+	Items       []UsageRankingItem  `json:"items"`
+
+	// itemIndexByUser is built before a snapshot enters the process-local L1.
+	// It is intentionally excluded from Redis JSON and treated as immutable
+	// afterwards so per-user personalization does not scan every ranked user.
+	itemIndexByUser map[int64]int
+}
+
 type UsageRankingTargetType string
 
 const (
@@ -247,6 +265,7 @@ type UsageRankingTarget struct {
 type UsageRankingResponse struct {
 	Metric            UsageRankingMetric  `json:"metric"`
 	Period            UsageRankingPeriod  `json:"period"`
+	GeneratedAt       string              `json:"generated_at,omitempty"`
 	StartDate         string              `json:"start_date"`
 	EndDate           string              `json:"end_date"`
 	Summary           UsageRankingSummary `json:"summary"`

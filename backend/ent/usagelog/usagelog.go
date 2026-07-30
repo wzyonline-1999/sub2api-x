@@ -234,6 +234,8 @@ var (
 	RequestedModelValidator func(string) error
 	// UpstreamModelValidator is a validator for the "upstream_model" field. It is called by the builders before save.
 	UpstreamModelValidator func(string) error
+	// SessionIDValidator is a validator for the "session_id" field. It is called by the builders before save.
+	SessionIDValidator func(string) error
 	// SessionIDSourceValidator is a validator for the "session_id_source" field. It is called by the builders before save.
 	SessionIDSourceValidator func(string) error
 	// SessionHashValidator is a validator for the "session_hash" field. It is called by the builders before save.

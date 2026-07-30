@@ -1096,6 +1096,11 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "upstream_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SessionID(); ok {
+		if err := usagelog.SessionIDValidator(v); err != nil {
+			return &ValidationError{Name: "session_id", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_id": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.SessionIDSource(); ok {
 		if err := usagelog.SessionIDSourceValidator(v); err != nil {
 			return &ValidationError{Name: "session_id_source", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_id_source": %w`, err)}
@@ -2678,6 +2683,11 @@ func (_u *UsageLogUpdateOne) check() error {
 	if v, ok := _u.mutation.UpstreamModel(); ok {
 		if err := usagelog.UpstreamModelValidator(v); err != nil {
 			return &ValidationError{Name: "upstream_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_model": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.SessionID(); ok {
+		if err := usagelog.SessionIDValidator(v); err != nil {
+			return &ValidationError{Name: "session_id", err: fmt.Errorf(`ent: validator failed for field "UsageLog.session_id": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.SessionIDSource(); ok {

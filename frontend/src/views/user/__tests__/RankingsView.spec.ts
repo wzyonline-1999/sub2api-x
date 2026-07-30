@@ -8,9 +8,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../RankingsView.vue')
 const componentSource = readFileSync(componentPath, 'utf8')
 
-const { getRankings, showError } = vi.hoisted(() => ({
+const { getRankings, showError, activeLocale } = vi.hoisted(() => ({
   getRankings: vi.fn(),
   showError: vi.fn(),
+  activeLocale: { value: 'zh' },
 }))
 
 vi.mock('@/api/usage', () => ({
@@ -23,10 +24,32 @@ vi.mock('@/stores/app', () => ({
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
+  const [zhDashboard, enDashboard] = await Promise.all([
+    vi.importActual<typeof import('@/i18n/locales/zh/dashboard')>('@/i18n/locales/zh/dashboard'),
+    vi.importActual<typeof import('@/i18n/locales/en/dashboard')>('@/i18n/locales/en/dashboard'),
+  ])
+  const catalogs: Record<string, unknown> = {
+    zh: zhDashboard.default,
+    en: enDashboard.default,
+  }
+
+  function translate(key: string, params: Record<string, unknown> = {}): string {
+    let message: unknown = catalogs[activeLocale.value]
+    for (const segment of key.split('.')) {
+      if (!message || typeof message !== 'object') return key
+      message = (message as Record<string, unknown>)[segment]
+    }
+    if (typeof message !== 'string') return key
+    return message.replace(/\{(\w+)\}/g, (placeholder, name: string) => {
+      return Object.hasOwn(params, name) ? String(params[name]) : placeholder
+    })
+  }
+
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key,
+      locale: activeLocale,
+      t: translate,
     }),
   }
 })
@@ -51,6 +74,7 @@ function rankingItem(rank: number, totalTokens: number, actualCost = totalTokens
 const rankingResponse = {
   metric: 'tokens',
   period: 'month',
+  generated_at: '2026-06-28T12:34:56Z',
   start_date: '2026-06-01',
   end_date: '2026-06-28',
   summary: {
@@ -107,10 +131,21 @@ const rankingResponse = {
   },
 }
 
+function deferredRankingResponse() {
+  let resolve!: (value: typeof rankingResponse) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<typeof rankingResponse>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 describe('RankingsView', () => {
   beforeEach(() => {
     getRankings.mockReset()
     showError.mockReset()
+    activeLocale.value = 'zh'
     getRankings.mockResolvedValue(rankingResponse)
   })
 
@@ -139,6 +174,7 @@ describe('RankingsView', () => {
     expect(wrapper.find('.medal').exists()).toBe(false)
     expect(text).toContain('我的排名')
     expect(text).toContain('全站实名账号')
+    expect(text).toContain(new Date(rankingResponse.generated_at).toLocaleString('zh-CN'))
 
     const podiumFrames = wrapper.findAll('.podium-frame')
     expect(podiumFrames).toHaveLength(3)
@@ -166,6 +202,27 @@ describe('RankingsView', () => {
     expect(text).not.toContain('CSV')
     expect(text).not.toContain('截图')
     expect(text).not.toContain('全站匿名账号')
+  })
+
+  it('renders the complete rankings experience in English', async () => {
+    activeLocale.value = 'en'
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('Usage')
+    expect(text).toContain('Daily')
+    expect(text).toContain('My rank')
+    expect(text).toContain('Verified accounts site-wide')
+    expect(text).not.toMatch(/[\u3400-\u9fff]/)
   })
 
   it('keeps dark-mode selectors scoped to ranking elements', () => {
@@ -459,5 +516,176 @@ describe('RankingsView', () => {
       period: 'week',
       limit: 10,
     })
+  })
+
+  it('ignores stale responses when filters change quickly', async () => {
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    const stale = deferredRankingResponse()
+    const latest = deferredRankingResponse()
+    getRankings.mockImplementation(({ metric, period }) => {
+      if (metric === 'cost' && period === 'day') return stale.promise
+      if (metric === 'cost' && period === 'week') return latest.promise
+      return Promise.resolve(rankingResponse)
+    })
+
+    await wrapper.get('[data-testid="ranking-metric-cost"]').trigger('click')
+    await wrapper.get('[data-testid="ranking-period-week"]').trigger('click')
+
+    stale.resolve({
+      ...rankingResponse,
+      ranking: [{ ...rankingItem(1, 100), display_name: 'stale-result' }],
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.loading-panel').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('stale-result')
+
+    latest.resolve({
+      ...rankingResponse,
+      ranking: [{ ...rankingItem(1, 200), display_name: 'latest-result' }],
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.loading-panel').exists()).toBe(false)
+    expect(wrapper.text()).toContain('latest-result')
+    expect(wrapper.text()).not.toContain('stale-result')
+    expect(showError).not.toHaveBeenCalled()
+  })
+
+  it('ignores a pending request after the view is unmounted', async () => {
+    const pending = deferredRankingResponse()
+    getRankings.mockReturnValueOnce(pending.promise)
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+
+    wrapper.unmount()
+    pending.reject(new Error('late ranking failure'))
+    await flushPromises()
+
+    expect(showError).not.toHaveBeenCalled()
+  })
+
+  it('uses singular English labels for one token and one call', async () => {
+    activeLocale.value = 'en'
+    getRankings.mockResolvedValue({
+      ...rankingResponse,
+      ranking: [
+        rankingItem(1, 3),
+        rankingItem(2, 2),
+        rankingItem(3, 1),
+        { ...rankingItem(4, 1), requests: 1 },
+      ],
+    })
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    const fourth = wrapper.get('[data-testid="ranking-row-4"]')
+    expect(fourth.text()).toContain('1 token')
+    expect(fourth.text()).toContain('1 call')
+    expect(fourth.text()).not.toContain('1 tokens')
+    expect(fourth.text()).not.toContain('1 calls')
+
+    await wrapper.get('[data-testid="ranking-metric-cost"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="ranking-row-4"]').text()).toContain('1 token')
+  })
+
+  it('does not show the previous filter summary while the next ranking is loading', async () => {
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+    await flushPromises()
+    expect(wrapper.find('.stats-grid').exists()).toBe(true)
+
+    const pending = deferredRankingResponse()
+    getRankings.mockReturnValueOnce(pending.promise)
+    await wrapper.get('[data-testid="ranking-period-week"]').trigger('click')
+
+    expect(wrapper.find('.loading-panel').exists()).toBe(true)
+    expect(wrapper.find('.stats-grid').exists()).toBe(false)
+
+    pending.resolve({ ...rankingResponse, period: 'week' })
+    await flushPromises()
+    expect(wrapper.find('.stats-grid').exists()).toBe(true)
+  })
+
+  it('clears data when the latest filter request fails', async () => {
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('zeyu.wang.1999')
+
+    const failed = deferredRankingResponse()
+    getRankings.mockReturnValueOnce(failed.promise)
+    await wrapper.get('[data-testid="ranking-metric-cost"]').trigger('click')
+    failed.reject(new Error('ranking unavailable'))
+    await flushPromises()
+
+    expect(wrapper.find('.loading-panel').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('zeyu.wang.1999')
+    expect(wrapper.text()).toContain('暂无排行数据')
+    expect(showError).toHaveBeenCalledWith('ranking unavailable')
+  })
+
+  it('scales relative cost progress against a sub-dollar leader', async () => {
+    getRankings.mockResolvedValue({
+      ...rankingResponse,
+      metric: 'cost',
+      ranking: [
+        { ...rankingItem(1, 100, 0.2), display_name: 'cost-leader' },
+        { ...rankingItem(2, 90, 0.15), display_name: 'cost-runner-up' },
+        { ...rankingItem(3, 80, 0.12), display_name: 'cost-third' },
+        { ...rankingItem(4, 70, 0.1), display_name: 'cost-fourth' },
+      ],
+    })
+
+    const RankingsView = (await import('../RankingsView.vue')).default
+    const wrapper = mount(RankingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+        },
+      },
+    })
+    await flushPromises()
+    await wrapper.get('[data-testid="ranking-metric-cost"]').trigger('click')
+    await flushPromises()
+
+    const fourthRow = wrapper.get('[data-testid="ranking-row-4"]')
+    expect(fourthRow.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('50')
+    expect(fourthRow.text()).toContain('50%')
   })
 })

@@ -1241,7 +1241,12 @@ function readFileAsBase64(file: File): Promise<string> {
 async function loadApiKeys() {
   loadingKeys.value = true
   try {
-    const response = await keysAPI.list(1, 100, { status: 'active', sort_by: 'created_at', sort_order: 'desc' })
+    const response = await keysAPI.list(1, 100, {
+      status: 'active',
+      sort_by: 'created_at',
+      sort_order: 'desc',
+      include_last_used_ip: false
+    })
     apiKeys.value = response.items || []
     if (!selectedApiKey.value && geminiApiKeys.value.length > 0) {
       form.apiKeyId = geminiApiKeys.value[0].id

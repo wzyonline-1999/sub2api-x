@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,6 +8,8 @@ const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../AppSi
 const componentSource = readFileSync(componentPath, 'utf8')
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
 const styleSource = readFileSync(stylePath, 'utf8')
+const capacityAPIPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../api/capacity.ts')
+const capacityViewPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../views/user/CapacityView.vue')
 
 describe('AppSidebar custom SVG styles', () => {
   it('does not override uploaded SVG fill or stroke colors', () => {
@@ -59,5 +61,14 @@ describe('AppSidebar ranking navigation icon', () => {
     expect(componentSource).toContain('const TrophyIcon = {')
     expect(componentSource).toContain("{ path: '/usage', label: t('nav.usage'), icon: ChartIcon")
     expect(componentSource).toContain("{ path: '/rankings', label: t('nav.rankings'), icon: TrophyIcon")
+  })
+})
+
+describe('removed channel resources feature', () => {
+  it('does not reintroduce the legacy capacity menu, view, or API module', () => {
+    expect(componentSource).not.toMatch(/path\s*:\s*['"]\/capacity['"]/)
+    expect(componentSource).not.toContain("t('nav.resourceStatus')")
+    expect(existsSync(capacityAPIPath)).toBe(false)
+    expect(existsSync(capacityViewPath)).toBe(false)
   })
 })

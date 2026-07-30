@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION __migration_116_safe_legacy_metadata_jsonb(input_text TEXT)
+CREATE OR REPLACE FUNCTION public.__migration_116_safe_legacy_metadata_jsonb(input_text TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
 AS $$
@@ -24,7 +24,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION __migration_116_is_valid_legacy_metadata_jsonb(input_text TEXT)
+CREATE OR REPLACE FUNCTION public.__migration_116_is_valid_legacy_metadata_jsonb(input_text TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $$
@@ -45,7 +45,7 @@ $$;
 
 DO $$
 BEGIN
-    IF to_regclass('user_external_identities') IS NULL THEN
+    IF to_regclass('public.user_external_identities') IS NULL THEN
         RETURN;
     END IF;
 
@@ -68,7 +68,7 @@ FROM user_external_identities AS uei
 JOIN users AS u ON u.id = uei.user_id
 WHERE u.deleted_at IS NULL
   AND BTRIM(COALESCE(uei.metadata, '')) <> ''
-  AND NOT __migration_116_is_valid_legacy_metadata_jsonb(uei.metadata)
+  AND NOT public.__migration_116_is_valid_legacy_metadata_jsonb(uei.metadata)
 ON CONFLICT (report_type, report_key) DO NOTHING;
 $sql$;
 
@@ -100,7 +100,7 @@ FROM (
             WHEN LOWER(BTRIM(COALESCE(uei.provider, ''))) = 'wechat' THEN BTRIM(COALESCE(uei.provider_union_id, ''))
             ELSE BTRIM(COALESCE(uei.provider_user_id, ''))
         END AS provider_subject,
-        __migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
+        public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
     FROM user_external_identities AS uei
     JOIN users AS u ON u.id = uei.user_id
     WHERE u.deleted_at IS NULL
@@ -181,7 +181,7 @@ FROM (
         BTRIM(COALESCE(uei.provider_union_id, '')) AS provider_union_id,
         BTRIM(COALESCE(uei.provider_username, '')) AS provider_username,
         BTRIM(COALESCE(uei.display_name, '')) AS display_name,
-        __migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
+        public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
     FROM user_external_identities AS uei
     JOIN users AS u ON u.id = uei.user_id
     WHERE u.deleted_at IS NULL
@@ -251,7 +251,7 @@ WITH legacy AS (
         BTRIM(COALESCE(uei.provider_union_id, '')) AS provider_union_id,
         BTRIM(COALESCE(uei.provider_username, '')) AS provider_username,
         BTRIM(COALESCE(uei.display_name, '')) AS display_name,
-        __migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
+        public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
         COALESCE(uei.updated_at, uei.created_at, NOW()) AS verified_at
     FROM user_external_identities AS uei
     JOIN users AS u ON u.id = uei.user_id
@@ -343,12 +343,12 @@ FROM (
         uei.user_id,
         BTRIM(COALESCE(uei.provider_user_id, '')) AS provider_user_id,
         BTRIM(COALESCE(uei.provider_union_id, '')) AS provider_union_id,
-        __migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
-        BTRIM(COALESCE(__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel', '')) AS channel,
+        public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
+        BTRIM(COALESCE(public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel', '')) AS channel,
         BTRIM(COALESCE(
-            __migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel_app_id',
-            __migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'appid',
-            __migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'app_id',
+            public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel_app_id',
+            public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'appid',
+            public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'app_id',
             ''
         )) AS channel_app_id
     FROM user_external_identities AS uei
@@ -396,12 +396,12 @@ WITH legacy AS (
         uei.user_id,
         BTRIM(COALESCE(uei.provider_user_id, '')) AS provider_user_id,
         BTRIM(COALESCE(uei.provider_union_id, '')) AS provider_union_id,
-        __migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
-        BTRIM(COALESCE(__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel', '')) AS channel,
+        public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json,
+        BTRIM(COALESCE(public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel', '')) AS channel,
         BTRIM(COALESCE(
-            __migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel_app_id',
-            __migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'appid',
-            __migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'app_id',
+            public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'channel_app_id',
+            public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'appid',
+            public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) ->> 'app_id',
             ''
         )) AS channel_app_id
     FROM user_external_identities AS uei
@@ -476,7 +476,7 @@ FROM (
         uei.id,
         uei.user_id,
         BTRIM(COALESCE(uei.provider_user_id, '')) AS provider_user_id,
-        __migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
+        public.__migration_116_safe_legacy_metadata_jsonb(uei.metadata) AS metadata_json
     FROM user_external_identities AS uei
     JOIN users AS u ON u.id = uei.user_id
     WHERE u.deleted_at IS NULL
@@ -521,5 +521,5 @@ BEGIN
     END IF;
 END $$;
 
-DROP FUNCTION IF EXISTS __migration_116_is_valid_legacy_metadata_jsonb(TEXT);
-DROP FUNCTION IF EXISTS __migration_116_safe_legacy_metadata_jsonb(TEXT);
+DROP FUNCTION IF EXISTS public.__migration_116_is_valid_legacy_metadata_jsonb(TEXT);
+DROP FUNCTION IF EXISTS public.__migration_116_safe_legacy_metadata_jsonb(TEXT);

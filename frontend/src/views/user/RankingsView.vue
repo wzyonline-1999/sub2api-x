@@ -3,8 +3,8 @@
     <div class="rankings-page">
       <section class="ranking-controls panel">
         <div class="control-group">
-          <span class="control-label">榜单类型</span>
-          <div class="segmented" role="group" aria-label="榜单类型">
+          <span class="control-label">{{ t('rankings.controls.metric') }}</span>
+          <div class="segmented" role="group" :aria-label="t('rankings.controls.metric')">
             <button
               type="button"
               data-testid="ranking-metric-tokens"
@@ -13,7 +13,7 @@
               :aria-pressed="metric === 'tokens'"
               @click="setMetric('tokens')"
             >
-              使用量榜
+              {{ t('rankings.controls.usage') }}
             </button>
             <button
               type="button"
@@ -23,14 +23,14 @@
               :aria-pressed="metric === 'cost'"
               @click="setMetric('cost')"
             >
-              花费榜
+              {{ t('rankings.controls.cost') }}
             </button>
           </div>
         </div>
 
         <div class="control-group">
-          <span class="control-label">时间范围</span>
-          <div class="segmented" role="group" aria-label="时间范围">
+          <span class="control-label">{{ t('rankings.controls.period') }}</span>
+          <div class="segmented" role="group" :aria-label="t('rankings.controls.period')">
             <button
               v-for="item in periods"
               :key="item.value"
@@ -47,16 +47,16 @@
         </div>
 
         <div class="selection-summary">
-          <span>当前</span>
-          <strong>{{ periodLabel }} · {{ metric === 'tokens' ? '使用量榜' : '花费榜' }}</strong>
+          <span>{{ t('rankings.controls.current') }}</span>
+          <strong>{{ periodLabel }} · {{ metricLabel }}</strong>
         </div>
       </section>
 
-      <section class="stats-grid" aria-label="榜单概览">
+      <section v-if="!loading" class="stats-grid" :aria-label="t('rankings.overview')">
         <article class="stat-card panel">
           <span class="stat-icon token">T</span>
           <div>
-            <p>总 Token</p>
+            <p>{{ t('rankings.totalTokens') }}</p>
             <strong>{{ formatTokens(summary.total_tokens) }}</strong>
             <small>{{ dateRangeLabel }}</small>
           </div>
@@ -64,23 +64,23 @@
         <article class="stat-card panel">
           <span class="stat-icon cost">$</span>
           <div>
-            <p>实际花费</p>
+            <p>{{ t('rankings.actualCost') }}</p>
             <strong>{{ formatUsd(summary.total_actual_cost) }}</strong>
-            <small>{{ metric === 'cost' ? '当前排序口径' : '同步展示花费' }}</small>
+            <small>{{ metric === 'cost' ? t('rankings.currentSortBasis') : t('rankings.syncedCost') }}</small>
           </div>
         </article>
         <article class="stat-card panel">
           <span class="stat-icon users">U</span>
           <div>
-            <p>上榜账号</p>
-            <strong>{{ summary.ranked_users.toLocaleString() }}</strong>
-            <small>当前周期有调用</small>
+            <p>{{ t('rankings.rankedAccounts') }}</p>
+            <strong>{{ formatCount(summary.ranked_users) }}</strong>
+            <small>{{ t('rankings.calledThisPeriod') }}</small>
           </div>
         </article>
         <article class="stat-card panel">
           <span class="stat-icon mine">#</span>
           <div>
-            <p>我的排名</p>
+            <p>{{ t('rankings.myRank') }}</p>
             <strong :class="['mine-status-text', mineStatusTone]">{{ mineStatusLabel }}</strong>
             <small>{{ mineStatSubtitle }}</small>
           </div>
@@ -88,14 +88,14 @@
       </section>
 
       <div v-if="loading" class="loading-panel panel" role="status" aria-live="polite">
-        正在加载排行榜...
+        {{ t('rankings.loading') }}
       </div>
 
       <template v-else>
         <section class="ranking-main">
           <article class="podium-panel panel">
             <div class="panel-heading">
-              <h2>{{ periodLabel }}前三名</h2>
+              <h2>{{ t('rankings.topThree', { period: periodLabel }) }}</h2>
               <span>{{ dateRangeLabel }}</span>
             </div>
 
@@ -108,7 +108,7 @@
                   aria-hidden="true"
                   decoding="async"
                 />
-                <span class="podium-rank baked-in-frame">第 1 名</span>
+                <span class="podium-rank baked-in-frame">{{ t('rankings.rankPosition', { rank: 1 }) }}</span>
                 <div class="podium-card-content">
                   <RankAvatar
                     :name="firstPlace.display_name"
@@ -130,7 +130,7 @@
                   aria-hidden="true"
                   decoding="async"
                 />
-                <span class="podium-rank baked-in-frame">第 2 名</span>
+                <span class="podium-rank baked-in-frame">{{ t('rankings.rankPosition', { rank: 2 }) }}</span>
                 <div class="podium-card-content">
                   <RankAvatar
                     :name="secondPlace.display_name"
@@ -151,7 +151,7 @@
                   aria-hidden="true"
                   decoding="async"
                 />
-                <span class="podium-rank baked-in-frame">第 3 名</span>
+                <span class="podium-rank baked-in-frame">{{ t('rankings.rankPosition', { rank: 3 }) }}</span>
                 <div class="podium-card-content">
                   <RankAvatar
                     :name="thirdPlace.display_name"
@@ -165,13 +165,13 @@
               </div>
             </div>
 
-            <div v-else class="empty-state">当前周期暂无排行数据</div>
+            <div v-else class="empty-state">{{ t('rankings.noRankingData') }}</div>
           </article>
 
           <aside class="side-stack">
             <section class="mine-card panel" :class="mineStatusTone">
               <div class="mine-card-header">
-                <h2>我的排名</h2>
+                <h2>{{ t('rankings.myRank') }}</h2>
                 <span class="mine-status-badge">{{ mineStatusLabel }}</span>
               </div>
               <div class="mine-status-body">
@@ -185,17 +185,17 @@
             </section>
 
             <section class="status-card panel">
-              <h2>榜单状态</h2>
-              <p><strong>统计周期</strong>{{ dateRangeLabel }}</p>
-              <p><strong>更新时间</strong>{{ updatedAtLabel }}</p>
-              <p><strong>数据范围</strong>全站实名账号</p>
+              <h2>{{ t('rankings.status.title') }}</h2>
+              <p><strong>{{ t('rankings.status.period') }}</strong>{{ dateRangeLabel }}</p>
+              <p><strong>{{ t('rankings.status.updatedAt') }}</strong>{{ updatedAtLabel }}</p>
+              <p><strong>{{ t('rankings.status.scope') }}</strong>{{ t('rankings.status.scopeValue') }}</p>
             </section>
           </aside>
         </section>
 
         <section class="list-panel panel">
           <div class="panel-heading list-heading">
-            <h2>第 4-10 名</h2>
+            <h2>{{ t('rankings.fourthToTenth') }}</h2>
           </div>
 
           <div v-if="restRanking.length > 0" class="rank-list" role="list">
@@ -207,7 +207,7 @@
               :data-testid="`ranking-row-${item.rank}`"
               role="listitem"
             >
-              <span class="rank-number" :aria-label="`第 ${item.rank} 名`">
+              <span class="rank-number" :aria-label="t('rankings.rankPosition', { rank: item.rank })">
                 <img
                   class="rank-number-sticker"
                   :src="jadeRankSticker"
@@ -229,8 +229,10 @@
                 <div class="rank-profile">
                   <strong>{{ item.display_name }}</strong>
                   <div class="rank-profile-meta">
-                    <span>{{ item.requests.toLocaleString() }} 次调用</span>
-                    <span v-if="currentUser?.user_id === item.user_id" class="current-user-label">我的账号</span>
+                    <span>{{ formatCalls(item.requests) }}</span>
+                    <span v-if="currentUser?.user_id === item.user_id" class="current-user-label">
+                      {{ t('rankings.myAccount') }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -248,13 +250,13 @@
               </div>
               <div class="rank-progress">
                 <div class="rank-progress-label">
-                  <span>相对榜首</span>
+                  <span>{{ t('rankings.relativeToLeader') }}</span>
                   <strong>{{ relativeMetricLabel(item) }}</strong>
                 </div>
                 <span
                   class="metric-track"
                   role="progressbar"
-                  aria-label="相对榜首进度"
+                  :aria-label="t('rankings.relativeProgress')"
                   aria-valuemin="0"
                   aria-valuemax="100"
                   :aria-valuenow="Math.round(relativeMetricPercent(item))"
@@ -268,7 +270,7 @@
               </div>
             </article>
           </div>
-          <div v-else class="empty-state compact">暂无更多排名</div>
+          <div v-else class="empty-state compact">{{ t('rankings.noMoreRanks') }}</div>
         </section>
       </template>
     </div>
@@ -276,8 +278,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import RankAvatar from '@/views/user/components/RankAvatar.vue'
 import jadeRankSticker from '@/assets/rankings/badges/jade-rank-sticker.png'
 import bronzeSnakeFrame from '@/assets/rankings/podium/bronze-twin-snake-frame-v2.png'
 import goldDragonFrame from '@/assets/rankings/podium/gold-twin-dragon-frame-v2.png'
@@ -293,6 +297,7 @@ import {
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
+const { t, locale } = useI18n()
 
 const metric = ref<UsageRankingMetric>('tokens')
 const period = ref<UsageRankingPeriod>('day')
@@ -309,29 +314,28 @@ const summary = ref<UsageRankingSummary>({
 })
 const startDate = ref('')
 const endDate = ref('')
+let latestRankingRequest = 0
 
-const periods: Array<{ value: UsageRankingPeriod; label: string }> = [
-  { value: 'day', label: '日榜' },
-  { value: 'week', label: '周榜' },
-  { value: 'month', label: '月榜' },
-]
+const periods = computed<Array<{ value: UsageRankingPeriod; label: string }>>(() => [
+  { value: 'day', label: t('rankings.periods.day') },
+  { value: 'week', label: t('rankings.periods.week') },
+  { value: 'month', label: t('rankings.periods.month') },
+])
 
-const periodLabel = computed(() => periods.find((item) => item.value === period.value)?.label ?? '日榜')
-const comparisonLabel = computed(() => {
-  if (period.value === 'week') return '较上周同期'
-  if (period.value === 'month') return '较上月同期'
-  return '较昨日同期'
-})
-const previousPeriodLabel = computed(() => {
-  if (period.value === 'week') return '上周'
-  if (period.value === 'month') return '上月'
-  return '昨日'
-})
+const periodLabel = computed(
+  () => periods.value.find((item) => item.value === period.value)?.label ?? t('rankings.periods.day')
+)
+const metricLabel = computed(() =>
+  metric.value === 'tokens' ? t('rankings.controls.usage') : t('rankings.controls.cost')
+)
+const comparisonLabel = computed(() => t(`rankings.comparisons.${period.value}`))
+const previousPeriodLabel = computed(() => t(`rankings.previousPeriods.${period.value}`))
 const dateRangeLabel = computed(() => {
-  if (!startDate.value || !endDate.value) return '当前周期'
-  return `${startDate.value} 至 ${endDate.value}`
+  if (!startDate.value || !endDate.value) return t('rankings.currentPeriod')
+  return t('rankings.dateRange', { start: startDate.value, end: endDate.value })
 })
-const updatedAtLabel = computed(() => updatedAt.value?.toLocaleString() ?? '-')
+const numberLocale = computed(() => locale.value === 'zh' ? 'zh-CN' : 'en-US')
+const updatedAtLabel = computed(() => updatedAt.value?.toLocaleString(numberLocale.value) ?? '-')
 const topThree = computed(() => ranking.value.slice(0, 3))
 const firstPlace = computed(() => topThree.value[0] ?? null)
 const secondPlace = computed(() => topThree.value[1] ?? null)
@@ -340,7 +344,8 @@ const restRanking = computed(() => ranking.value.slice(3, 10))
 const rankingThreshold = computed(() => ranking.value.length >= 10 ? ranking.value[9] : null)
 const maxMetricValue = computed(() => {
   const values = ranking.value.map((item) => metricValue(item))
-  return Math.max(...values, 1)
+  const maximum = Math.max(...values, 0)
+  return maximum > 0 ? maximum : 1
 })
 const currentMetricValue = computed(() => currentUser.value ? metricValue(currentUser.value) : 0)
 const thresholdMetricValue = computed(() => rankingThreshold.value ? metricValue(rankingThreshold.value) : 0)
@@ -348,7 +353,9 @@ const minimumGap = computed(() => metric.value === 'tokens' ? 1 : 0.01)
 const isCurrentUserRanked = computed(() => Boolean(currentUser.value && currentUser.value.rank <= 10))
 const isCurrentUserFirst = computed(() => Boolean(isCurrentUserRanked.value && currentUser.value?.rank === 1))
 const mineStatusTone = computed(() => isCurrentUserRanked.value ? 'ranked' : 'unranked')
-const mineStatusLabel = computed(() => isCurrentUserRanked.value ? '已上榜' : '未上榜')
+const mineStatusLabel = computed(() =>
+  isCurrentUserRanked.value ? t('rankings.ranked') : t('rankings.unranked')
+)
 const hasSummitTarget = computed(() => isCurrentUserFirst.value && (!currentUserTarget.value || currentUserTarget.value.target_type === 'none'))
 const mineGapValue = computed(() => {
   if (isCurrentUserRanked.value) return 0
@@ -362,32 +369,50 @@ const targetGapValue = computed(() => {
 })
 const targetGapLabel = computed(() => formatMetricValue(targetGapValue.value))
 const mineHeadline = computed(() => {
-  if (hasSummitTarget.value) return '已登顶'
-  if (isCurrentUserRanked.value && currentUser.value) return `第 ${currentUser.value.rank} 名`
-  if (currentUserTarget.value?.target_type === 'threshold') return `距离上榜还差 ${targetGapLabel.value}`
-  return `距离上榜还差 ${mineGapLabel.value}`
+  if (hasSummitTarget.value) return t('rankings.summit')
+  if (isCurrentUserRanked.value && currentUser.value) {
+    return t('rankings.rankPosition', { rank: currentUser.value.rank })
+  }
+  if (currentUserTarget.value?.target_type === 'threshold') {
+    return t('rankings.gapToRanking', { gap: targetGapLabel.value })
+  }
+  return t('rankings.gapToRanking', { gap: mineGapLabel.value })
 })
 const mineDetail = computed(() => {
   if (hasSummitTarget.value && currentUser.value) {
-    return `${primaryMetricLabel(currentUser.value)} · 继续保持当前榜首`
+    return t('rankings.keepLeadWithMetric', { metric: primaryMetricLabel(currentUser.value) })
   }
   if (isCurrentUserRanked.value && currentUser.value) {
     if (currentUserTarget.value?.target_type === 'previous') {
-      return `${primaryMetricLabel(currentUser.value)} · 距离超过上一名还差 ${targetGapLabel.value}`
+      return t('rankings.gapToPreviousWithMetric', {
+        metric: primaryMetricLabel(currentUser.value),
+        gap: targetGapLabel.value,
+      })
     }
     return `${primaryMetricLabel(currentUser.value)} · ${secondaryMetricLabel(currentUser.value)}`
   }
-  if (currentUser.value) return `当前 ${formatMetricValue(currentMetricValue.value)}`
-  return '当前周期暂无调用'
+  if (currentUser.value) {
+    return t('rankings.currentMetric', { metric: formatMetricValue(currentMetricValue.value) })
+  }
+  return t('rankings.noCallsThisPeriod')
 })
 const mineStatSubtitle = computed(() => {
-  if (hasSummitTarget.value && currentUser.value) return `已登顶 · ${primaryMetricLabel(currentUser.value)}`
-  if (isCurrentUserRanked.value && currentUser.value) {
-    if (currentUserTarget.value?.target_type === 'previous') return `距离超过上一名还差 ${targetGapLabel.value}`
-    return `第 ${currentUser.value.rank} 名 · ${primaryMetricLabel(currentUser.value)}`
+  if (hasSummitTarget.value && currentUser.value) {
+    return t('rankings.summitWithMetric', { metric: primaryMetricLabel(currentUser.value) })
   }
-  if (currentUserTarget.value?.target_type === 'threshold') return `距离上榜还差 ${targetGapLabel.value}`
-  return `距离上榜还差 ${mineGapLabel.value}`
+  if (isCurrentUserRanked.value && currentUser.value) {
+    if (currentUserTarget.value?.target_type === 'previous') {
+      return t('rankings.gapToPrevious', { gap: targetGapLabel.value })
+    }
+    return t('rankings.rankedWithMetric', {
+      rank: currentUser.value.rank,
+      metric: primaryMetricLabel(currentUser.value),
+    })
+  }
+  if (currentUserTarget.value?.target_type === 'threshold') {
+    return t('rankings.gapToRanking', { gap: targetGapLabel.value })
+  }
+  return t('rankings.gapToRanking', { gap: mineGapLabel.value })
 })
 const mineProgress = computed(() => {
   if (currentUserTarget.value) {
@@ -400,41 +425,61 @@ const mineProgress = computed(() => {
   return Math.min(98, Math.max(currentMetricValue.value > 0 ? 8 : 0, percent))
 })
 const mineProgressCaption = computed(() => {
-  if (hasSummitTarget.value) return '继续保持当前榜首'
+  if (hasSummitTarget.value) return t('rankings.keepLead')
   if (currentUserTarget.value?.target_type === 'previous') {
     return currentUserTarget.value.target_rank
-      ? `以第 ${currentUserTarget.value.target_rank} 名作为追赶目标`
-      : '距离超过上一名还差一步'
+      ? t('rankings.chaseRankTarget', { rank: currentUserTarget.value.target_rank })
+      : t('rankings.oneStepBehindPrevious')
   }
   if (currentUserTarget.value?.target_type === 'threshold') {
     return currentUserTarget.value.target_rank
-      ? `以第 ${currentUserTarget.value.target_rank} 名作为上榜门槛`
-      : '以当前 Top10 末位作为上榜门槛'
+      ? t('rankings.rankThresholdTarget', { rank: currentUserTarget.value.target_rank })
+      : t('rankings.topTenThreshold')
   }
-  if (isCurrentUserRanked.value) return '已进入当前 Top10'
-  if (rankingThreshold.value) return '以第 10 名作为上榜门槛'
-  return '当前榜单未满，产生用量即可上榜'
+  if (isCurrentUserRanked.value) return t('rankings.enteredTopTen')
+  if (rankingThreshold.value) return t('rankings.tenthPlaceThreshold')
+  return t('rankings.openRankingHint')
 })
 
 async function loadRankings() {
+  const requestID = ++latestRankingRequest
+  const requestedMetric = metric.value
+  const requestedPeriod = period.value
   loading.value = true
   try {
     const response = await getRankings({
-      metric: metric.value,
-      period: period.value,
+      metric: requestedMetric,
+      period: requestedPeriod,
       limit: 10,
     })
+    if (requestID !== latestRankingRequest) return
     ranking.value = response.ranking ?? []
     summary.value = response.summary ?? summary.value
     currentUser.value = response.current_user ?? null
     currentUserTarget.value = response.current_user_target ?? null
     startDate.value = response.start_date
     endDate.value = response.end_date
-    updatedAt.value = new Date()
+    const generatedAt = response.generated_at ? new Date(response.generated_at) : new Date()
+    updatedAt.value = Number.isNaN(generatedAt.getTime()) ? new Date() : generatedAt
   } catch (error: any) {
-    appStore.showError(error?.message || '排行榜加载失败')
+    if (requestID !== latestRankingRequest) return
+    ranking.value = []
+    currentUser.value = null
+    currentUserTarget.value = null
+    summary.value = {
+      total_tokens: 0,
+      total_actual_cost: 0,
+      total_requests: 0,
+      ranked_users: 0,
+    }
+    startDate.value = ''
+    endDate.value = ''
+    updatedAt.value = null
+    appStore.showError(error?.message || t('rankings.loadFailed'))
   } finally {
-    loading.value = false
+    if (requestID === latestRankingRequest) {
+      loading.value = false
+    }
   }
 }
 
@@ -454,11 +499,15 @@ function formatTokens(value: number): string {
   if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
-  return Math.round(value).toLocaleString()
+  return Math.round(value).toLocaleString(numberLocale.value)
 }
 
 function formatUsd(value: number): string {
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return `$${value.toLocaleString(numberLocale.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatCount(value: number): string {
+  return value.toLocaleString(numberLocale.value)
 }
 
 function metricValue(item: UsageRankingItem): number {
@@ -467,8 +516,21 @@ function metricValue(item: UsageRankingItem): number {
 
 function formatMetricValue(value: number): string {
   if (metric.value !== 'tokens') return formatUsd(value)
-  const unit = Math.round(value) === 1 ? 'token' : 'tokens'
+  return formatTokenQuantity(value)
+}
+
+function formatTokenQuantity(value: number): string {
+  const unit = Math.round(value) === 1
+    ? t('rankings.tokenSingular')
+    : t('rankings.tokenPlural')
   return `${formatTokens(value)} ${unit}`
+}
+
+function formatCalls(value: number): string {
+  const key = Math.round(value) === 1
+    ? 'rankings.callSingular'
+    : 'rankings.callPlural'
+  return t(key, { count: formatCount(value) })
 }
 
 function primaryMetricLabel(item: UsageRankingItem): string {
@@ -477,8 +539,8 @@ function primaryMetricLabel(item: UsageRankingItem): string {
 
 function secondaryMetricLabel(item: UsageRankingItem): string {
   return metric.value === 'tokens'
-    ? `${formatUsd(item.actual_cost)} 实际花费`
-    : `${formatTokens(item.total_tokens)} tokens`
+    ? t('rankings.actualCostValue', { cost: formatUsd(item.actual_cost) })
+    : formatTokenQuantity(item.total_tokens)
 }
 
 function previousMetricValue(item: UsageRankingItem): number {
@@ -509,12 +571,12 @@ function trendTone(item: UsageRankingItem): 'up' | 'down' | 'flat' {
 function trendValueLabel(item: UsageRankingItem): string {
   const previous = previousMetricValue(item)
   const current = metricValue(item)
-  if (previous <= 0) return current > 0 ? '新增' : '持平'
+  if (previous <= 0) return current > 0 ? t('rankings.trendNew') : t('rankings.trendFlat')
   const percent = trendPercent(item) ?? 0
-  if (Math.abs(percent) < 0.05) return '持平'
+  if (Math.abs(percent) < 0.05) return t('rankings.trendFlat')
   const absolute = Math.abs(percent)
   const formatted = absolute >= 100
-    ? Math.round(absolute).toLocaleString()
+    ? Math.round(absolute).toLocaleString(numberLocale.value)
     : absolute.toFixed(1)
   return `${percent > 0 ? '+' : '-'}${formatted}%`
 }
@@ -532,45 +594,15 @@ function relativeMetricLabel(item: UsageRankingItem): string {
   return `${percent >= 10 ? Math.round(percent) : percent.toFixed(1)}%`
 }
 
-const RankAvatar = defineComponent({
-  props: {
-    name: { type: String, required: true },
-    avatarUrl: { type: String, default: '' },
-    tone: { type: String, required: true },
-    large: { type: Boolean, default: false },
-    compact: { type: Boolean, default: false },
-  },
-  setup(props) {
-    const imageFailed = ref(false)
-
-    watch(() => props.avatarUrl, () => {
-      imageFailed.value = false
-    })
-
-    return () => {
-      const avatarUrl = props.avatarUrl.trim()
-      const fallback = props.name.trim().charAt(0).toUpperCase() || 'U'
-      const content = avatarUrl && !imageFailed.value
-        ? h('img', {
-          src: avatarUrl,
-          alt: '',
-          loading: props.compact ? 'lazy' : 'eager',
-          decoding: 'async',
-          onError: () => {
-            imageFailed.value = true
-          },
-        })
-        : h('span', { class: 'rank-avatar-initial', 'aria-hidden': 'true' }, fallback)
-
-      return h('span', {
-        class: ['rank-avatar', props.tone, { large: props.large, compact: props.compact }],
-      }, [content])
-    }
-  },
-})
-
 onMounted(() => {
   void loadRankings()
+})
+
+onBeforeUnmount(() => {
+  // Invalidate any request that resolves after navigation. This prevents a
+  // detached ranking view from mutating state or showing an unrelated toast on
+  // the page the user navigated to.
+  latestRankingRequest++
 })
 </script>
 
@@ -886,67 +918,6 @@ onMounted(() => {
 .podium-card.first .podium-card-content {
   gap: 0.45rem;
   padding: 5.875rem 3.25rem 1.375rem;
-}
-
-.rank-avatar {
-  display: inline-flex;
-  width: 3.625rem;
-  height: 3.625rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 50%;
-  font-size: 1.25rem;
-  font-weight: 900;
-}
-
-.rank-avatar img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.rank-avatar-initial {
-  line-height: 1;
-}
-
-.rank-avatar.large {
-  width: 4.75rem;
-  height: 4.75rem;
-  font-size: 1.7rem;
-}
-
-.rank-avatar.compact {
-  width: 2.75rem;
-  height: 2.75rem;
-  font-size: 0.9375rem;
-}
-
-.rank-avatar.gold {
-  border: 2px solid #f59e0b;
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.rank-avatar.silver {
-  border: 2px solid #94a3b8;
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.rank-avatar.bronze {
-  border: 2px solid #c2410c;
-  background: #ffedd5;
-  color: #9a3412;
-}
-
-.rank-avatar.neutral {
-  border: 1px solid #d6e2e6;
-  background: #eef6f6;
-  color: #0f766e;
-  box-shadow: 0 0 0 3px #f8fbfb;
 }
 
 .podium-card strong {
@@ -1472,28 +1443,6 @@ onMounted(() => {
   background: #25140b;
 }
 
-.dark .rank-avatar.gold {
-  background: rgb(245 158 11 / 0.18);
-  color: #facc15;
-}
-
-.dark .rank-avatar.silver {
-  background: rgb(148 163 184 / 0.16);
-  color: #cbd5e1;
-}
-
-.dark .rank-avatar.bronze {
-  background: rgb(194 65 12 / 0.18);
-  color: #fdba74;
-}
-
-.dark .rank-avatar.neutral {
-  border-color: #3a4a5f;
-  background: #243044;
-  color: #5eead4;
-  box-shadow: 0 0 0 3px #111827;
-}
-
 .dark .podium-card strong,
 .dark .podium-card b,
 .dark .rank-value b {
@@ -1696,8 +1645,6 @@ onMounted(() => {
   }
 
   .rank-avatar.compact {
-    width: 2.5rem;
-    height: 2.5rem;
     grid-column: 2;
     grid-row: 1;
   }
@@ -1825,12 +1772,6 @@ onMounted(() => {
   .podium-card.first .podium-card-content {
     gap: 0.25rem;
     padding-top: 4.5rem;
-  }
-
-  .podium-card.first .rank-avatar.large {
-    width: 3.625rem;
-    height: 3.625rem;
-    font-size: 1.25rem;
   }
 
   .podium-card.first strong {
