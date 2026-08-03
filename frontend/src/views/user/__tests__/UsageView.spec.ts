@@ -203,7 +203,7 @@ describe('user UsageView', () => {
       include_model_stats: false,
       include_group_stats: true,
     }))
-    expect(list).toHaveBeenCalledWith(1, 100)
+    expect(list).toHaveBeenCalledWith(1, 100, { include_last_used_ip: false })
     expect(getAvailable).toHaveBeenCalled()
   })
 

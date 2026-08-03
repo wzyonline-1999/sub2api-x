@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import type { Component } from 'vue'
 
 import AccountsView from '../AccountsView.vue'
 
@@ -10,7 +11,10 @@ const {
   getUpstreamBillingProbeSettings,
   getAllProxies,
   getAllGroups,
-  probeUpstreamBillingBatch
+  probeUpstreamBilling,
+  probeUpstreamBillingBatch,
+  showError,
+  showSuccess
 } = vi.hoisted(() => ({
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
@@ -18,7 +22,10 @@ const {
   getUpstreamBillingProbeSettings: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn(),
-  probeUpstreamBillingBatch: vi.fn()
+  probeUpstreamBilling: vi.fn(),
+  probeUpstreamBillingBatch: vi.fn(),
+  showError: vi.fn(),
+  showSuccess: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -31,6 +38,7 @@ vi.mock('@/api/admin', () => ({
       delete: vi.fn(),
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
+      probeUpstreamBilling,
       probeUpstreamBillingBatch,
       toggleSchedulable: vi.fn()
     },
@@ -45,8 +53,8 @@ vi.mock('@/api/admin', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    showError: vi.fn(),
-    showSuccess: vi.fn(),
+    showError,
+    showSuccess,
     showInfo: vi.fn()
   })
 }))
@@ -75,6 +83,19 @@ const DataTableStub = {
       <div v-for="row in data" :key="row.id">
         <div data-test="select-row"><slot name="cell-select" :row="row" /></div>
         <slot name="cell-created_at" :value="row.created_at" :row="row" />
+        <div data-test="account-rate"><slot name="cell-rate_multiplier" :row="row" /></div>
+      </div>
+    </div>
+  `
+}
+
+const ProbeDataTableStub = {
+  props: ['data'],
+  template: `
+    <div>
+      <div v-for="row in data" :key="row.id">
+        <div data-test="account-rate"><slot name="cell-rate_multiplier" :row="row" /></div>
+        <slot name="cell-upstream_billing_rate" :row="row" />
       </div>
     </div>
   `
@@ -82,9 +103,10 @@ const DataTableStub = {
 
 const AccountBulkActionsBarStub = {
   props: ['selectedIds'],
-  emits: ['edit-filtered', 'probe-upstream-billing'],
+  emits: ['edit-selected', 'edit-filtered', 'probe-upstream-billing'],
   template: `
     <div>
+      <button data-test="edit-selected" @click="$emit('edit-selected')">edit selected</button>
       <button data-test="edit-filtered" @click="$emit('edit-filtered')">edit filtered</button>
       <button data-test="probe-upstream-billing" @click="$emit('probe-upstream-billing')">probe</button>
     </div>
@@ -98,8 +120,55 @@ const PaginationStub = {
 
 const BulkEditAccountModalStub = {
   props: ['show', 'target'],
-  template: '<div data-test="bulk-edit-modal" :data-show="String(show)" :data-target-mode="target?.mode ?? \'\'"></div>'
+  template: `
+    <div
+      data-test="bulk-edit-modal"
+      :data-show="String(show)"
+      :data-target-mode="target?.mode ?? ''"
+      :data-platforms="(target?.selectedPlatforms ?? []).join(',')"
+      :data-types="(target?.selectedTypes ?? []).join(',')"
+    ></div>
+  `
 }
+
+const mountBulkEditView = (
+  accountTableFilters: Component = { template: '<div></div>' }
+) => mount(AccountsView, {
+  global: {
+    stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: {
+        template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+      },
+      DataTable: DataTableStub,
+      Pagination: PaginationStub,
+      ConfirmDialog: true,
+      AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+      AccountTableFilters: accountTableFilters,
+      AccountBulkActionsBar: AccountBulkActionsBarStub,
+      AccountActionMenu: true,
+      ImportDataModal: true,
+      ReAuthAccountModal: true,
+      AccountTestModal: true,
+      AccountStatsModal: true,
+      ScheduledTestsPanel: true,
+      SyncFromCrsModal: true,
+      TempUnschedStatusModal: true,
+      ErrorPassthroughRulesModal: true,
+      TLSFingerprintProfilesModal: true,
+      CreateAccountModal: true,
+      EditAccountModal: true,
+      BulkEditAccountModal: BulkEditAccountModalStub,
+      PlatformTypeBadge: true,
+      AccountCapacityCell: true,
+      AccountStatusIndicator: true,
+      AccountTodayStatsCell: true,
+      AccountGroupsCell: true,
+      AccountUsageCell: true,
+      Icon: true
+    }
+  }
+})
 
 describe('admin AccountsView bulk edit scope', () => {
   beforeEach(() => {
@@ -111,7 +180,10 @@ describe('admin AccountsView bulk edit scope', () => {
     getUpstreamBillingProbeSettings.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
+    probeUpstreamBilling.mockReset()
     probeUpstreamBillingBatch.mockReset()
+    showError.mockReset()
+    showSuccess.mockReset()
 
     listAccounts.mockResolvedValue({
       items: [],
@@ -129,46 +201,31 @@ describe('admin AccountsView bulk edit scope', () => {
     getUpstreamBillingProbeSettings.mockResolvedValue({ enabled: true, interval_minutes: 30 })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
+    probeUpstreamBilling.mockResolvedValue({})
     probeUpstreamBillingBatch.mockResolvedValue([])
   })
 
-  it('opens bulk edit in filtered-results mode from the bulk actions dropdown', async () => {
-    const wrapper = mount(AccountsView, {
-      global: {
-        stubs: {
-          AppLayout: { template: '<div><slot /></div>' },
-          TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
-          },
-          DataTable: DataTableStub,
-          Pagination: true,
-          ConfirmDialog: true,
-          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
-          AccountTableFilters: { template: '<div></div>' },
-          AccountBulkActionsBar: AccountBulkActionsBarStub,
-          AccountActionMenu: true,
-          ImportDataModal: true,
-          ReAuthAccountModal: true,
-          AccountTestModal: true,
-          AccountStatsModal: true,
-          ScheduledTestsPanel: true,
-          SyncFromCrsModal: true,
-          TempUnschedStatusModal: true,
-          ErrorPassthroughRulesModal: true,
-          TLSFingerprintProfilesModal: true,
-          CreateAccountModal: true,
-          EditAccountModal: true,
-          BulkEditAccountModal: BulkEditAccountModalStub,
-          PlatformTypeBadge: true,
-          AccountCapacityCell: true,
-          AccountStatusIndicator: true,
-          AccountTodayStatsCell: true,
-          AccountGroupsCell: true,
-          AccountUsageCell: true,
-          Icon: true
+  it('does not infer filtered-result metadata from an incomplete preview', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          name: 'preview-openai-key',
+          platform: 'openai',
+          type: 'apikey',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-07-13T00:00:00Z',
+          updated_at: '2026-07-13T00:00:00Z'
         }
-      }
+      ],
+      total: 200,
+      page: 1,
+      page_size: 100,
+      pages: 2
     })
+
+    const wrapper = mountBulkEditView()
 
     await flushPromises()
     await wrapper.get('[data-test="edit-filtered"]').trigger('click')
@@ -176,6 +233,160 @@ describe('admin AccountsView bulk edit scope', () => {
 
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-show')).toBe('true')
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-target-mode')).toBe('filtered')
+    expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-platforms')).toBe('')
+    expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-types')).toBe('')
+  })
+
+  it('uses complete filtered-result metadata when the preview covers every result', async () => {
+    const account = (id: number, platform: string, type: string) => ({
+      id,
+      name: `account-${id}`,
+      platform,
+      type,
+      status: 'active',
+      schedulable: true,
+      created_at: '2026-07-13T00:00:00Z',
+      updated_at: '2026-07-13T00:00:00Z'
+    })
+    listAccounts.mockResolvedValue({
+      items: [account(7, 'openai', 'apikey'), account(11, 'anthropic', 'oauth')],
+      total: 2,
+      page: 1,
+      page_size: 100,
+      pages: 1
+    })
+
+    const wrapper = mountBulkEditView()
+    await flushPromises()
+    await wrapper.get('[data-test="edit-filtered"]').trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.get('[data-test="bulk-edit-modal"]')
+    expect(modal.attributes('data-platforms')).toBe('openai,anthropic')
+    expect(modal.attributes('data-types')).toBe('apikey,oauth')
+  })
+
+  it('uses exact platform and type filters as reliable filtered-result metadata', async () => {
+    listAccounts.mockResolvedValue({
+      items: [],
+      total: 12,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    const AccountTableFiltersStub = {
+      emits: ['update:filters'],
+      template: `
+        <button
+          data-test="set-exact-account-filters"
+          @click="$emit('update:filters', { platform: 'openai', type: 'apikey' })"
+        >set filters</button>
+      `
+    }
+    const wrapper = mountBulkEditView(AccountTableFiltersStub)
+
+    await flushPromises()
+    await wrapper.get('[data-test="set-exact-account-filters"]').trigger('click')
+    await wrapper.get('[data-test="edit-filtered"]').trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.get('[data-test="bulk-edit-modal"]')
+    expect(modal.attributes('data-target-mode')).toBe('filtered')
+    expect(modal.attributes('data-platforms')).toBe('openai')
+    expect(modal.attributes('data-types')).toBe('apikey')
+  })
+
+  it('keeps metadata unknown for cross-page selections without exact filters', async () => {
+    const account = (id: number) => ({
+      id,
+      name: `account-${id}`,
+      platform: 'openai',
+      type: 'apikey',
+      status: 'active',
+      schedulable: true,
+      created_at: '2026-07-13T00:00:00Z',
+      updated_at: '2026-07-13T00:00:00Z'
+    })
+    listAccounts
+      .mockResolvedValueOnce({ items: [account(7)], total: 2, page: 1, page_size: 1, pages: 2 })
+      .mockResolvedValueOnce({ items: [account(11)], total: 2, page: 2, page_size: 1, pages: 2 })
+
+    const wrapper = mountBulkEditView()
+    await flushPromises()
+    await wrapper.get('[data-test="select-row"] input').trigger('change')
+    await wrapper.get('[data-test="next-page"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="select-row"] input').trigger('change')
+    await wrapper.get('[data-test="edit-selected"]').trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.get('[data-test="bulk-edit-modal"]')
+    expect(modal.attributes('data-target-mode')).toBe('selected')
+    expect(modal.attributes('data-platforms')).toBe('')
+    expect(modal.attributes('data-types')).toBe('')
+  })
+
+  it('keeps metadata for a uniform selection fully loaded on the current page', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 7,
+          name: 'account-7',
+          platform: 'openai',
+          type: 'apikey',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-07-13T00:00:00Z',
+          updated_at: '2026-07-13T00:00:00Z'
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mountBulkEditView()
+    await flushPromises()
+    await wrapper.get('[data-test="select-row"] input').trigger('change')
+    await wrapper.get('[data-test="edit-selected"]').trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.get('[data-test="bulk-edit-modal"]')
+    expect(modal.attributes('data-platforms')).toBe('openai')
+    expect(modal.attributes('data-types')).toBe('apikey')
+  })
+
+  it('keeps complete mixed metadata for a selection fully loaded on the current page', async () => {
+    const account = (id: number, platform: string, type: string) => ({
+      id,
+      name: `account-${id}`,
+      platform,
+      type,
+      status: 'active',
+      schedulable: true,
+      created_at: '2026-07-13T00:00:00Z',
+      updated_at: '2026-07-13T00:00:00Z'
+    })
+    listAccounts.mockResolvedValue({
+      items: [account(7, 'openai', 'apikey'), account(11, 'anthropic', 'oauth')],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mountBulkEditView()
+    await flushPromises()
+    for (const rowCheckbox of wrapper.findAll('[data-test="select-row"] input')) {
+      await rowCheckbox.trigger('change')
+    }
+    await wrapper.get('[data-test="edit-selected"]').trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.get('[data-test="bulk-edit-modal"]')
+    expect(modal.attributes('data-platforms')).toBe('openai,anthropic')
+    expect(modal.attributes('data-types')).toBe('apikey,oauth')
   })
 
   it('renders the created_at column by default', async () => {
@@ -376,32 +587,109 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(probeUpstreamBillingBatch).toHaveBeenCalledWith([7, 11])
   })
 
-  it('reloads the server-sorted list after a batch probe changes a snapshot', async () => {
-    localStorage.setItem('account-table-sort', JSON.stringify({ key: 'upstream_billing_rate', order: 'asc' }))
-    const account = (id: number) => ({
+  it('refreshes the current page after a batch probe and displays the synced rate', async () => {
+    const account = (id: number, rateMultiplier: number) => ({
       id,
       name: `account-${id}`,
       platform: 'openai',
       type: 'apikey',
       status: 'active',
       schedulable: true,
+      rate_multiplier: rateMultiplier,
       created_at: '2026-07-13T00:00:00Z',
       updated_at: '2026-07-13T00:00:00Z'
     })
     listAccounts
-      .mockResolvedValueOnce({ items: [account(7)], total: 1, page: 1, page_size: 20, pages: 1 })
-      .mockResolvedValueOnce({ items: [account(7)], total: 1, page: 1, page_size: 20, pages: 1 })
+      .mockResolvedValueOnce({ items: [account(7, 0.25)], total: 2, page: 1, page_size: 1, pages: 2 })
+      .mockResolvedValueOnce({ items: [account(11, 0.25)], total: 2, page: 2, page_size: 1, pages: 2 })
+      .mockResolvedValueOnce({ items: [account(11, 0.065)], total: 2, page: 2, page_size: 1, pages: 2 })
     probeUpstreamBillingBatch.mockResolvedValue([
       {
-        account_id: 7,
+        account_id: 11,
         snapshot: {
           status: 'ok',
-          data: { effective_rate_multiplier: 0.5 },
+          data: { effective_rate_multiplier: 0.065 },
           last_attempt_at: '2026-07-13T00:00:00Z',
           next_probe_at: '2026-07-13T00:30:00Z'
         }
       }
     ])
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: { template: '<div><slot name="table" /><slot name="pagination" /></div>' },
+          DataTable: DataTableStub,
+          AccountBulkActionsBar: AccountBulkActionsBarStub,
+          AccountTableActions: true,
+          AccountTableFilters: true,
+          AccountActionMenu: true,
+          Pagination: PaginationStub,
+          ConfirmDialog: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-test="next-page"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="select-row"] input').trigger('change')
+    await wrapper.get('[data-test="probe-upstream-billing"]').trigger('click')
+    await flushPromises()
+
+    expect(probeUpstreamBillingBatch).toHaveBeenCalledWith([11])
+    expect(listAccounts).toHaveBeenCalledTimes(3)
+    expect(listAccounts.mock.calls[2]?.[0]).toBe(2)
+    expect(wrapper.get('[data-test="account-rate"]').text()).toBe('0.065x')
+  })
+
+  it('does not report a successful batch probe as failed when the list refresh fails', async () => {
+    const account = {
+      id: 7,
+      name: 'account-7',
+      platform: 'openai',
+      type: 'apikey',
+      status: 'active',
+      schedulable: true,
+      rate_multiplier: 0.25,
+      created_at: '2026-07-13T00:00:00Z',
+      updated_at: '2026-07-13T00:00:00Z'
+    }
+    listAccounts
+      .mockResolvedValueOnce({ items: [account], total: 1, page: 1, page_size: 20, pages: 1 })
+      .mockRejectedValueOnce(new Error('refresh failed'))
+    probeUpstreamBillingBatch.mockResolvedValue([
+      {
+        account_id: 7,
+        snapshot: {
+          status: 'ok',
+          data: { effective_rate_multiplier: 0.065 },
+          last_attempt_at: '2026-07-13T00:00:00Z',
+          next_probe_at: '2026-07-13T00:30:00Z'
+        }
+      }
+    ])
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const wrapper = mount(AccountsView, {
       global: {
@@ -443,7 +731,78 @@ describe('admin AccountsView bulk edit scope', () => {
     await wrapper.get('[data-test="probe-upstream-billing"]').trigger('click')
     await flushPromises()
 
-    expect(probeUpstreamBillingBatch).toHaveBeenCalledWith([7])
+    expect(showError).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.upstreamBilling.batchCompleted')
+    consoleError.mockRestore()
+  })
+
+  it('refreshes the account row after a successful single-account probe', async () => {
+    const account = (rateMultiplier: number) => ({
+      id: 7,
+      name: 'account-7',
+      platform: 'openai',
+      type: 'apikey',
+      status: 'active',
+      schedulable: true,
+      rate_multiplier: rateMultiplier,
+      extra: { upstream_billing_probe_enabled: true },
+      created_at: '2026-07-13T00:00:00Z',
+      updated_at: '2026-07-13T00:00:00Z'
+    })
+    listAccounts
+      .mockResolvedValueOnce({ items: [account(0.25)], total: 1, page: 1, page_size: 20, pages: 1 })
+      .mockResolvedValueOnce({ items: [account(0.065)], total: 1, page: 1, page_size: 20, pages: 1 })
+    probeUpstreamBilling.mockResolvedValue({
+      account_id: 7,
+      snapshot: {
+        status: 'ok',
+        data: { effective_rate_multiplier: 0.065 },
+        last_attempt_at: '2026-07-13T00:00:00Z',
+        next_probe_at: '2026-07-13T00:30:00Z'
+      }
+    })
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: { template: '<div><slot name="table" /></div>' },
+          DataTable: ProbeDataTableStub,
+          AccountBulkActionsBar: true,
+          AccountTableActions: true,
+          AccountTableFilters: true,
+          AccountActionMenu: true,
+          Pagination: true,
+          ConfirmDialog: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: true,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-testid="upstream-billing-probe"]').trigger('click')
+    await flushPromises()
+
+    expect(probeUpstreamBilling).toHaveBeenCalledWith(7)
     expect(listAccounts).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-test="account-rate"]').text()).toBe('0.065x')
   })
 })

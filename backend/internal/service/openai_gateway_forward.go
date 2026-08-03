@@ -20,6 +20,7 @@ import (
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	clearGrokResponsesClientToolMapping(c)
+	clearOpenAIResponsesNamespaceNames(c)
 	startTime := time.Now()
 	// 固定渠道映射后的请求级 canonical body；账号 normalize/strip 不得改写跨 failover hint。
 	canonicalImageIntentBody := body
@@ -62,7 +63,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	// 仅允许 WS 入站请求走 WS 上游，避免出现 HTTP -> WS 协议混用。
 	wsDecision = resolveOpenAIWSDecisionByClientTransport(wsDecision, GetOpenAIClientTransport(c))
 	passthroughEnabled := account.IsOpenAIPassthroughEnabled()
-	if shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, passthroughEnabled) {
+	compactPath := isOpenAIResponsesCompactPath(c)
+	if shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, passthroughEnabled, compactPath) {
 		body, err = flattenOpenAIResponsesNamespaces(c, body)
 		if err != nil {
 			setOpsUpstreamError(c, http.StatusBadRequest, err.Error(), "")
@@ -73,7 +75,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 	}
 	if shouldStripOpenAIResponsesInputNamespaces(account, wsDecision.Transport, passthroughEnabled) {
-		body, err = stripOpenAIResponsesInputNamespaces(body)
+		keepToolCallNamespaces := shouldKeepOpenAIResponsesToolCallNamespaces(
+			account, wsDecision.Transport, passthroughEnabled, compactPath,
+		)
+		body, err = stripOpenAIResponsesInputNamespaces(body, keepToolCallNamespaces)
 		if err != nil {
 			setOpsUpstreamError(c, http.StatusBadRequest, err.Error(), "")
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
@@ -273,7 +278,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		markPatchSet("model", billingModel)
 	}
 	upstreamModel := billingModel
-	isCompactRequest := isOpenAIResponsesCompactPath(c)
+	isCompactRequest := compactPath
 	compactMapped := false
 	if isCompactRequest {
 		compactMappedModel := resolveOpenAICompactForwardModel(account, billingModel)
@@ -924,16 +929,30 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		responseID := ""
 		imageCount := 0
 		var imageOutputSizes []string
+		var forwardErr error
 		if reqStream {
-			streamResult, err := s.handleStreamingResponseWithReasoning(ctx, resp, c, account, startTime, originalModel, upstreamModel, reasoningEffortValue)
-			if err != nil {
-				return nil, err
+			streamResult, streamErr := s.handleStreamingResponseWithReasoning(ctx, resp, c, account, startTime, originalModel, upstreamModel, reasoningEffortValue)
+			if streamResult != nil {
+				usage = streamResult.usage
+				firstTokenMs = streamResult.firstTokenMs
+				responseID = strings.TrimSpace(streamResult.responseID)
+				imageCount = streamResult.imageCount
+				imageOutputSizes = streamResult.imageOutputSizes
 			}
-			usage = streamResult.usage
-			firstTokenMs = streamResult.firstTokenMs
-			responseID = strings.TrimSpace(streamResult.responseID)
-			imageCount = streamResult.imageCount
-			imageOutputSizes = streamResult.imageOutputSizes
+			if streamErr != nil {
+				// A failed/interrupted stream may still contain upstream-metered usage.
+				// Preserve that partial result for the handler to record if this attempt
+				// terminates. Empty pre-output failover results stay nil so a successful
+				// retry cannot be charged twice.
+				partialResult := &OpenAIForwardResult{ImageCount: imageCount}
+				if usage != nil {
+					partialResult.Usage = *usage
+				}
+				if streamResult == nil || !HasObservedOpenAIUsageResult(partialResult) {
+					return nil, streamErr
+				}
+				forwardErr = streamErr
+			}
 		} else {
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
 			if err != nil {
@@ -944,16 +963,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			imageCount = nonStreamResult.imageCount
 			imageOutputSizes = nonStreamResult.imageOutputSizes
 		}
-		s.bindHTTPResponseAccount(ctx, c, account, responseID)
-
-		// Extract and save Codex usage snapshot from response headers (for OAuth accounts).
-		// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
-		if account.Type == AccountTypeOAuth && !account.IsShadow() {
-			if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
-				s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
-			}
-		}
-
 		if usage == nil {
 			usage = &OpenAIUsage{}
 		}
@@ -978,6 +987,19 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			forwardResult.ImageInputSize = imageInputSize
 			forwardResult.ImageOutputSizes = imageOutputSizes
 			forwardResult.BillingModel = imageBillingModel
+		}
+		if forwardErr != nil {
+			return forwardResult, forwardErr
+		}
+
+		s.bindHTTPResponseAccount(ctx, c, account, responseID)
+
+		// Extract and save Codex usage snapshot from response headers (for OAuth accounts).
+		// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
+		if account.Type == AccountTypeOAuth && !account.IsShadow() {
+			if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
+				s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
+			}
 		}
 		return forwardResult, nil
 	}
