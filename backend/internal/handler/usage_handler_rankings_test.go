@@ -18,10 +18,14 @@ import (
 type usageRankingRepoCapture struct {
 	service.UsageLogRepository
 	query usagestats.UsageRankingQuery
+	err   error
 }
 
 func (r *usageRankingRepoCapture) GetUsageRanking(ctx context.Context, query usagestats.UsageRankingQuery) (*usagestats.UsageRankingResponse, error) {
 	r.query = query
+	if r.err != nil {
+		return nil, r.err
+	}
 	return &usagestats.UsageRankingResponse{
 		Metric:    query.Metric,
 		Period:    query.Period,
@@ -63,6 +67,18 @@ func TestUsageRankingsRejectsInvalidMetric(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Empty(t, repo.query.Metric)
+}
+
+func TestUsageRankingsReturnsGatewayTimeoutForAggregationDeadline(t *testing.T) {
+	repo := &usageRankingRepoCapture{err: context.DeadlineExceeded}
+	router := newUsageRankingTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/rankings", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusGatewayTimeout, rec.Code)
+	require.Contains(t, rec.Body.String(), `"reason":"USAGE_RANKING_TIMEOUT"`)
 }
 
 func TestUsageRankingsDefaultsToDayPeriod(t *testing.T) {

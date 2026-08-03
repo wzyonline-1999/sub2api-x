@@ -33,6 +33,7 @@ const messages: Record<string, string> = {
   'common.actions': 'Actions',
   'common.name': 'Name',
   'common.refresh': 'Refresh',
+  'common.retry': 'Retry',
   'common.status': 'Status',
   'keys.apiKey': 'API Key',
   'keys.allGroups': 'All Groups',
@@ -53,6 +54,7 @@ const messages: Record<string, string> = {
   'keys.status.inactive': 'Inactive',
   'keys.status.quota_exhausted': 'Quota exhausted',
   'keys.usage': 'Usage',
+  'usage.failedToLoad': 'Failed to load usage',
 }
 
 vi.mock('@/api', () => ({
@@ -385,6 +387,38 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnKeys(wrapper)).toContain('usage')
     expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
     expect(getDashboardApiKeysUsage.mock.calls[0][0]).toEqual([1])
+  })
+
+  it('shows a usage error and retries without reloading the key list', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getDashboardApiKeysUsage
+      .mockRejectedValueOnce(new Error('usage query timed out'))
+      .mockResolvedValueOnce({
+        stats: {
+          '1': {
+            api_key_id: 1,
+            today_actual_cost: 2,
+            total_actual_cost: 20,
+          },
+        },
+      })
+
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[data-test="usage-error"]').text()).toContain('Failed to load usage')
+    expect(showError).toHaveBeenCalledWith('Failed to load usage')
+    expect(listKeys).toHaveBeenCalledTimes(1)
+
+    await wrapper.get('[data-test="usage-retry"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(2)
+    expect(listKeys).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-test="usage-error"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$2.0000')
+    expect(wrapper.get('[data-test="usage"]').text()).toContain('$20.0000')
+    consoleError.mockRestore()
   })
 
   it('restores column preferences from localStorage on mount', async () => {

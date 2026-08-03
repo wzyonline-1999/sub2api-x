@@ -2,7 +2,8 @@
 #
 # Sub2API Installation Script
 # Sub2API 安装脚本
-# Usage: curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | bash
+# Usage: curl -sSL <fork-install-script-url> | sudo \
+#   SUB2API_GITHUB_REPO=owner/repository bash
 #
 
 set -e
@@ -30,8 +31,10 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Configuration
-GITHUB_REPO="Wei-Shaw/sub2api"
+# Release source. This fork is the safe default for this installer; operators
+# can select another compatible fork through SUB2API_GITHUB_REPO or --repo.
+DEFAULT_GITHUB_REPO="wzyonline-1999/sub2api-x"
+GITHUB_REPO="${SUB2API_GITHUB_REPO:-${GITHUB_REPOSITORY:-$DEFAULT_GITHUB_REPO}}"
 INSTALL_DIR="/opt/sub2api"
 SERVICE_NAME="sub2api"
 SERVICE_USER="sub2api"
@@ -40,6 +43,8 @@ CONFIG_DIR="/etc/sub2api"
 # Server configuration (will be set by user)
 SERVER_HOST="0.0.0.0"
 SERVER_PORT="8080"
+PROBE_ATTEMPTS="${SUB2API_PROBE_ATTEMPTS:-30}"
+PROBE_INTERVAL_SECONDS="${SUB2API_PROBE_INTERVAL_SECONDS:-2}"
 
 # Language (default: zh = Chinese)
 LANG_CHOICE="zh"
@@ -481,6 +486,13 @@ check_dependencies() {
 }
 
 # Authenticate only GitHub REST API requests. Release asset downloads must stay anonymous.
+validate_release_source() {
+    if [[ ! "$GITHUB_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+        echo "Invalid GitHub repository '$GITHUB_REPO'; expected owner/repository" >&2
+        exit 2
+    fi
+}
+
 github_api_curl() {
     local arg
     local expect_value=false
@@ -607,7 +619,13 @@ validate_version() {
 get_current_version() {
     if [ -f "$INSTALL_DIR/sub2api" ]; then
         # Use grep -E for better compatibility (works on macOS and Linux)
-        "$INSTALL_DIR/sub2api" --version 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown"
+        local detected_version
+        detected_version=$("$INSTALL_DIR/sub2api" --version 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+        if [ -n "$detected_version" ]; then
+            echo "$detected_version"
+        else
+            echo "unknown"
+        fi
     else
         echo "not_installed"
     fi
@@ -656,13 +674,18 @@ download_and_extract() {
     # Create install directory
     mkdir -p "$INSTALL_DIR"
 
-    # Copy binary
-    cp "$TEMP_DIR/sub2api" "$INSTALL_DIR/sub2api"
-    chmod +x "$INSTALL_DIR/sub2api"
+    # Install the verified binary through a same-filesystem rename. This keeps
+    # the active path atomic even if the installer is interrupted mid-copy.
+    cp "$TEMP_DIR/sub2api" "$INSTALL_DIR/sub2api.new"
+    chmod 0755 "$INSTALL_DIR/sub2api.new"
+    mv -f "$INSTALL_DIR/sub2api.new" "$INSTALL_DIR/sub2api"
 
     # Copy deploy files if they exist in the archive
     if [ -d "$TEMP_DIR/deploy" ]; then
         cp -r "$TEMP_DIR/deploy/"* "$INSTALL_DIR/" 2>/dev/null || true
+        if [ -f "$INSTALL_DIR/probe-release.sh" ]; then
+            chmod 0755 "$INSTALL_DIR/probe-release.sh"
+        fi
     fi
 
     print_success "$(msg 'binary_installed') $INSTALL_DIR/sub2api"
@@ -718,7 +741,7 @@ install_service() {
     cat > /etc/systemd/system/sub2api.service << EOF
 [Unit]
 Description=Sub2API - AI API Gateway Platform
-Documentation=https://github.com/Wei-Shaw/sub2api
+Documentation=https://github.com/${GITHUB_REPO}
 After=network.target postgresql.service redis.service
 Wants=postgresql.service redis.service
 
@@ -788,7 +811,7 @@ get_public_ip() {
 start_service() {
     print_info "$(msg 'starting_service')"
 
-    if systemctl start sub2api; then
+    if systemctl start "$SERVICE_NAME"; then
         print_success "$(msg 'service_started')"
         return 0
     else
@@ -796,6 +819,139 @@ start_service() {
         print_info "sudo journalctl -u sub2api -n 50"
         return 1
     fi
+}
+
+# Run the strict probe shipped in the release archive. The default mode checks
+# liveness, database readiness, both SPA entry points, and every JS/CSS asset
+# referenced by the generated HTML.
+resolve_service_probe_url() {
+    if [ -n "${SUB2API_PROBE_URL:-}" ]; then
+        printf '%s\n' "${SUB2API_PROBE_URL%/}"
+        return 0
+    fi
+
+    local service_environment=""
+    local service_port=""
+    service_environment=$(systemctl show "$SERVICE_NAME" --property=Environment --value 2>/dev/null || true)
+    service_port=$(printf '%s\n' "$service_environment" | sed -n 's/.*SERVER_PORT=\([0-9][0-9]*\).*/\1/p' | tail -1)
+
+    if [ -n "$service_port" ] && [ "$service_port" -ge 1 ] 2>/dev/null && [ "$service_port" -le 65535 ] 2>/dev/null; then
+        printf 'http://127.0.0.1:%s\n' "$service_port"
+        return 0
+    fi
+
+    printf 'http://127.0.0.1:%s\n' "$SERVER_PORT"
+}
+
+wait_for_service_probe() {
+    local mode="${1:-release}"
+    local probe_script="$INSTALL_DIR/probe-release.sh"
+    local probe_url
+    probe_url=$(resolve_service_probe_url)
+    local attempt=1
+    local probe_arg=""
+
+    case "$mode" in
+        release)
+            ;;
+        rollback)
+            probe_arg="--skip-ready"
+            ;;
+        setup)
+            probe_arg="--setup"
+            ;;
+        *)
+            print_error "Unknown probe mode: $mode"
+            return 1
+            ;;
+    esac
+
+    if [ ! -x "$probe_script" ]; then
+        print_error "Strict release probe is missing or not executable: $probe_script"
+        return 1
+    fi
+    if ! [[ "$PROBE_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || ! [[ "$PROBE_INTERVAL_SECONDS" =~ ^[0-9]+$ ]]; then
+        print_error "SUB2API_PROBE_ATTEMPTS must be positive and SUB2API_PROBE_INTERVAL_SECONDS non-negative"
+        return 1
+    fi
+
+    while [ "$attempt" -le "$PROBE_ATTEMPTS" ]; do
+        if { [ -n "$probe_arg" ] && "$probe_script" "$probe_url" "$probe_arg" || [ -z "$probe_arg" ] && "$probe_script" "$probe_url"; } >/dev/null 2>&1; then
+            if [ -n "$probe_arg" ]; then
+                "$probe_script" "$probe_url" "$probe_arg"
+            else
+                "$probe_script" "$probe_url"
+            fi
+            return 0
+        fi
+        if [ "$attempt" -lt "$PROBE_ATTEMPTS" ]; then
+            sleep "$PROBE_INTERVAL_SECONDS"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    # Preserve the actionable failure from the final attempt.
+    if [ -n "$probe_arg" ]; then
+        "$probe_script" "$probe_url" "$probe_arg" || true
+    else
+        "$probe_script" "$probe_url" || true
+    fi
+    return 1
+}
+
+restore_binary_and_restart() {
+    local backup_path="$1"
+
+    print_warning "New release failed validation; restoring $backup_path"
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    cp "$backup_path" "$INSTALL_DIR/sub2api.rollback"
+    chmod 0755 "$INSTALL_DIR/sub2api.rollback"
+    chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/sub2api.rollback"
+    mv -f "$INSTALL_DIR/sub2api.rollback" "$INSTALL_DIR/sub2api"
+
+    if ! systemctl start "$SERVICE_NAME"; then
+        print_error "Rollback binary was restored but the service could not start"
+        return 1
+    fi
+    if ! wait_for_service_probe rollback; then
+        print_error "Rollback service started but failed the liveness and SPA probe"
+        return 1
+    fi
+
+    print_success "Previous release restored successfully"
+    return 0
+}
+
+activate_release_or_rollback() {
+    local backup_path="$1"
+
+    print_info "$(msg 'starting_service')"
+    if systemctl start "$SERVICE_NAME" && wait_for_service_probe release; then
+        print_success "$(msg 'service_started')"
+        return 0
+    fi
+
+    print_error "New release did not pass the strict cutover probe"
+    systemctl status "$SERVICE_NAME" --no-pager 2>/dev/null || true
+    if restore_binary_and_restart "$backup_path"; then
+        return 1
+    fi
+
+    print_error "Automatic rollback also failed; inspect: journalctl -u $SERVICE_NAME -n 100"
+    return 1
+}
+
+start_setup_service() {
+    if ! start_service; then
+        return 1
+    fi
+    if wait_for_service_probe setup; then
+        return 0
+    fi
+
+    print_error "Setup service started but its embedded setup page failed validation"
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    return 1
 }
 
 # Enable service auto-start
@@ -863,18 +1019,18 @@ upgrade() {
     print_info "$(msg 'upgrading')"
 
     # Get current version
-    CURRENT_VERSION=$("$INSTALL_DIR/sub2api" --version 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+    CURRENT_VERSION=$("$INSTALL_DIR/sub2api" --version 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+    if [ -z "$CURRENT_VERSION" ]; then
+        CURRENT_VERSION="unknown"
+    fi
     print_info "$(msg 'current_version'): $CURRENT_VERSION"
 
-    # Stop service
-    if systemctl is-active --quiet sub2api; then
-        print_info "$(msg 'stopping_service')"
-        systemctl stop sub2api
-    fi
-
-    # Backup current binary
-    cp "$INSTALL_DIR/sub2api" "$INSTALL_DIR/sub2api.backup"
-    print_info "$(msg 'backup_created'): $INSTALL_DIR/sub2api.backup"
+    # Backup before replacing the path. The running process keeps its original
+    # inode while the verified replacement is downloaded and atomically moved.
+    local backup_path="$INSTALL_DIR/sub2api.backup.${CURRENT_VERSION}.$(date +%Y%m%d%H%M%S).$$"
+    cp "$INSTALL_DIR/sub2api" "$backup_path"
+    chmod 0755 "$backup_path"
+    print_info "$(msg 'backup_created'): $backup_path"
 
     # Download and install new version
     get_latest_version
@@ -883,9 +1039,16 @@ upgrade() {
     # Set permissions
     chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/sub2api"
 
-    # Start service
-    print_info "$(msg 'starting_service')"
-    systemctl start sub2api
+    # Stop only after the new artifact is fully installed, then validate before
+    # considering the release active.
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        print_info "$(msg 'stopping_service')"
+        systemctl stop "$SERVICE_NAME"
+    fi
+
+    if ! activate_release_or_rollback "$backup_path"; then
+        return 1
+    fi
 
     print_success "$(msg 'upgrade_complete')"
 }
@@ -918,23 +1081,18 @@ install_version() {
         exit 0
     fi
 
-    # Stop service if running
-    if systemctl is-active --quiet sub2api; then
-        print_info "$(msg 'stopping_service')"
-        systemctl stop sub2api
-    fi
-
     # Backup current binary (for potential recovery)
-    if [ -f "$INSTALL_DIR/sub2api" ]; then
-        local backup_name
-        if [ "$current_version" != "unknown" ] && [ "$current_version" != "not_installed" ]; then
-            backup_name="sub2api.backup.${current_version}"
-        else
-            backup_name="sub2api.backup.$(date +%Y%m%d%H%M%S)"
-        fi
-        cp "$INSTALL_DIR/sub2api" "$INSTALL_DIR/$backup_name"
-        print_info "$(msg 'backup_created'): $INSTALL_DIR/$backup_name"
+    local backup_name
+    local backup_path
+    if [ "$current_version" != "unknown" ] && [ "$current_version" != "not_installed" ]; then
+        backup_name="sub2api.backup.${current_version}.$(date +%Y%m%d%H%M%S).$$"
+    else
+        backup_name="sub2api.backup.$(date +%Y%m%d%H%M%S).$$"
     fi
+    backup_path="$INSTALL_DIR/$backup_name"
+    cp "$INSTALL_DIR/sub2api" "$backup_path"
+    chmod 0755 "$backup_path"
+    print_info "$(msg 'backup_created'): $backup_path"
 
     # Set LATEST_VERSION to the target version for download_and_extract
     LATEST_VERSION="$target_version"
@@ -945,13 +1103,13 @@ install_version() {
     # Set permissions
     chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/sub2api"
 
-    # Start service
-    print_info "$(msg 'starting_service')"
-    if systemctl start sub2api; then
-        print_success "$(msg 'service_started')"
-    else
-        print_error "$(msg 'service_start_failed')"
-        print_info "sudo journalctl -u sub2api -n 50"
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        print_info "$(msg 'stopping_service')"
+        systemctl stop "$SERVICE_NAME"
+    fi
+
+    if ! activate_release_or_rollback "$backup_path"; then
+        return 1
     fi
 
     # Print completion message
@@ -1061,6 +1219,23 @@ main() {
                 fi
                 shift
                 ;;
+            --repo)
+                if [ -n "${2:-}" ] && [[ ! "$2" =~ ^- ]]; then
+                    GITHUB_REPO="$2"
+                    shift 2
+                else
+                    echo "Error: --repo requires owner/repository"
+                    exit 1
+                fi
+                ;;
+            --repo=*)
+                GITHUB_REPO="${1#*=}"
+                if [ -z "$GITHUB_REPO" ]; then
+                    echo "Error: --repo requires owner/repository"
+                    exit 1
+                fi
+                shift
+                ;;
             *)
                 positional_args+=("$1")
                 shift
@@ -1070,6 +1245,8 @@ main() {
 
     # Restore positional arguments
     set -- "${positional_args[@]}"
+
+    validate_release_source
 
     # Select language first
     select_language
@@ -1115,7 +1292,7 @@ main() {
                     install_service
                     prepare_for_setup
                     get_public_ip
-                    start_service
+                    start_setup_service
                     enable_autostart
                     print_completion
                 fi
@@ -1129,7 +1306,7 @@ main() {
                 install_service
                 prepare_for_setup
                 get_public_ip
-                start_service
+                start_setup_service
                 enable_autostart
                 print_completion
             fi
@@ -1177,6 +1354,7 @@ main() {
             echo ""
             echo "Options:"
             echo "  -v, --version <ver>  $(msg 'opt_version')"
+            echo "  --repo <owner/repo>  GitHub release repository (default: $DEFAULT_GITHUB_REPO)"
             echo "  -y, --yes            Skip confirmation prompts (for uninstall)"
             echo ""
             echo "Examples:"
@@ -1209,7 +1387,7 @@ main() {
             install_service
             prepare_for_setup
             get_public_ip
-            start_service
+            start_setup_service
             enable_autostart
             print_completion
         fi
@@ -1223,7 +1401,7 @@ main() {
         install_service
         prepare_for_setup
         get_public_ip
-        start_service
+        start_setup_service
         enable_autostart
         print_completion
     fi

@@ -930,12 +930,13 @@ database:
   # 若 role/database 默认 search_path 指向其他 schema，启动会失败并要求显式填写。
   # 已有 public 表的实例应先完成显式迁移，不要把此项当作在线迁移开关。
   schema: ""
-  # Max open connections (高并发场景建议 256+，需配合 PostgreSQL max_connections 调整)
-  # 最大打开连接数
-  max_open_conns: 256
-  # Max idle connections (建议为 max_open_conns 的 50%，减少频繁建连开销)
-  # 最大空闲连接数
-  max_idle_conns: 128
+  # Per-process pool budget. The conservative 8/2 default is suitable for a
+  # small Supabase project running a blue/green pair (16 max app connections).
+  # Increase only after budgeting every replica plus platform/migration headroom.
+  # 每进程连接池预算；小型 Supabase 蓝绿两槽默认合计最多 16 条应用连接。
+  max_open_conns: 8
+  # Max idle connections / 最大空闲连接数
+  max_idle_conns: 2
   # Connection max lifetime (minutes)
   # 连接最大存活时间（分钟）
   conn_max_lifetime_minutes: 30

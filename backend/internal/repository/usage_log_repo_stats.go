@@ -267,8 +267,10 @@ func resolveUsageStatsTimezone() string {
 	if tzName != "" && tzName != "Local" {
 		return tzName
 	}
-	if envTZ := strings.TrimSpace(os.Getenv("TZ")); envTZ != "" {
-		return envTZ
+	if envTZ := strings.TrimSpace(os.Getenv("TZ")); envTZ != "" && envTZ != "Local" {
+		if _, err := time.LoadLocation(envTZ); err == nil {
+			return envTZ
+		}
 	}
 	return "UTC"
 }
@@ -967,10 +969,11 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 	if daysCount <= 0 {
 		daysCount = 30
 	}
+	tzName := resolveUsageStatsTimezone()
 
 	query := `
 		SELECT
-			TO_CHAR(created_at, 'YYYY-MM-DD') as date,
+			TO_CHAR(created_at AT TIME ZONE $4, 'YYYY-MM-DD') as date,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
@@ -982,7 +985,7 @@ func (r *usageLogRepository) GetAccountUsageStats(ctx context.Context, accountID
 		ORDER BY date ASC
 	`
 
-	rows, err := r.sql.QueryContext(ctx, query, accountID, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, accountID, startTime, endTime, tzName)
 	if err != nil {
 		return nil, err
 	}

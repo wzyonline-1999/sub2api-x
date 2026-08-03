@@ -186,8 +186,10 @@ func TestBatchAPIKeyUsageStatsCancelsWhileWaitingForFetchSlot(t *testing.T) {
 	repo := &apiKeyUsageStatsRepositoryStub{}
 	cache := newAPIKeyUsageStatsCacheStub()
 	svc := newUsageService(repo, nil, nil, nil, cache)
-	require.True(t, svc.apiKeyUsageStatsState.acquireFetchSlot(context.Background()))
-	defer svc.apiKeyUsageStatsState.releaseFetchSlot()
+	for range apiKeyUsageStatsMaxConcurrentFetch {
+		require.True(t, svc.apiKeyUsageStatsState.acquireFetchSlot(context.Background()))
+		defer svc.apiKeyUsageStatsState.releaseFetchSlot()
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
@@ -235,6 +237,101 @@ func TestBatchAPIKeyUsageStatsCancelsActiveRepositoryQuery(t *testing.T) {
 	close(release)
 }
 
+func TestBatchAPIKeyUsageStatsKeepsSharedQueryForRemainingWaiter(t *testing.T) {
+	release := make(chan struct{})
+	repo := &apiKeyUsageStatsRepositoryStub{wait: release}
+	cache := newAPIKeyUsageStatsCacheStub()
+	svc := newUsageService(repo, nil, nil, nil, cache)
+
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	firstResult := make(chan error, 1)
+	go func() {
+		_, err := svc.GetDashboardAPIKeyUsageStats(firstCtx, 7, []int64{1})
+		firstResult <- err
+	}()
+	require.Eventually(t, func() bool {
+		return repo.calls.Load() == 1 && repo.active.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	secondResult := make(chan error, 1)
+	go func() {
+		_, err := svc.GetDashboardAPIKeyUsageStats(context.Background(), 7, []int64{1})
+		secondResult <- err
+	}()
+	require.Eventually(t, func() bool {
+		svc.apiKeyUsageStatsState.mu.Lock()
+		defer svc.apiKeyUsageStatsState.mu.Unlock()
+		for _, flight := range svc.apiKeyUsageStatsState.flights {
+			if flight.waiters == 2 {
+				return true
+			}
+		}
+		return false
+	}, time.Second, 10*time.Millisecond)
+
+	cancelFirst()
+	require.ErrorIs(t, <-firstResult, context.Canceled)
+	require.Equal(t, int32(1), repo.active.Load(), "remaining waiter must keep the shared query alive")
+	close(release)
+	require.NoError(t, <-secondResult)
+	require.Equal(t, int32(1), repo.calls.Load())
+}
+
+func TestAPIKeyUsageStatsAbandonedFlightDoesNotCaptureNewCaller(t *testing.T) {
+	var state apiKeyUsageStatsCacheState
+	oldStarted := make(chan struct{})
+	oldCanceled := make(chan struct{})
+	releaseOld := make(chan struct{})
+	oldDone := make(chan struct{})
+
+	oldCtx, cancelOld := context.WithCancel(context.Background())
+	oldResult := make(chan error, 1)
+	go func() {
+		_, err := state.doFetch(oldCtx, "same-key", func(ctx context.Context) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
+			close(oldStarted)
+			<-ctx.Done()
+			close(oldCanceled)
+			<-releaseOld
+			close(oldDone)
+			return nil, ctx.Err()
+		})
+		oldResult <- err
+	}()
+	<-oldStarted
+	cancelOld()
+	require.ErrorIs(t, <-oldResult, context.Canceled)
+	<-oldCanceled
+
+	newStarted := make(chan struct{})
+	releaseNew := make(chan struct{})
+	newResult := make(chan error, 1)
+	go func() {
+		_, err := state.doFetch(context.Background(), "same-key", func(context.Context) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
+			close(newStarted)
+			<-releaseNew
+			return map[int64]*usagestats.BatchAPIKeyUsageStats{
+				1: {APIKeyID: 1},
+			}, nil
+		})
+		newResult <- err
+	}()
+	select {
+	case <-newStarted:
+	case <-time.After(time.Second):
+		t.Fatal("new caller joined the canceled flight instead of starting fresh work")
+	}
+
+	close(releaseOld)
+	<-oldDone
+	state.mu.Lock()
+	newFlightStillRegistered := state.flights["same-key"] != nil
+	state.mu.Unlock()
+	require.True(t, newFlightStillRegistered, "old completion must not remove the replacement flight")
+
+	close(releaseNew)
+	require.NoError(t, <-newResult)
+}
+
 func TestBatchAPIKeyUsageStatsMapsInternalDeadlineToGatewayTimeout(t *testing.T) {
 	repo := &apiKeyUsageStatsRepositoryStub{err: context.DeadlineExceeded}
 	svc := newUsageService(repo, nil, nil, nil, nil)
@@ -247,7 +344,42 @@ func TestBatchAPIKeyUsageStatsMapsInternalDeadlineToGatewayTimeout(t *testing.T)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
-func TestBatchAPIKeyUsageStatsSerializesDistinctCacheMisses(t *testing.T) {
+func TestBatchAPIKeyUsageStatsMapsCallerDeadlineWhileWaitingForFetchSlot(t *testing.T) {
+	repo := &apiKeyUsageStatsRepositoryStub{}
+	svc := newUsageService(repo, nil, nil, nil, nil)
+	for range apiKeyUsageStatsMaxConcurrentFetch {
+		require.True(t, svc.apiKeyUsageStatsState.acquireFetchSlot(context.Background()))
+		defer svc.apiKeyUsageStatsState.releaseFetchSlot()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	_, err := svc.GetDashboardAPIKeyUsageStats(ctx, 7, []int64{1})
+
+	require.True(t, infraerrors.IsGatewayTimeout(err))
+	require.Equal(t, "API_KEY_USAGE_STATS_REQUEST_TIMEOUT", infraerrors.Reason(err))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Zero(t, repo.calls.Load())
+}
+
+func TestBatchAPIKeyUsageStatsPreservesCallerCancellationWhileWaitingForFetchSlot(t *testing.T) {
+	repo := &apiKeyUsageStatsRepositoryStub{}
+	svc := newUsageService(repo, nil, nil, nil, nil)
+	for range apiKeyUsageStatsMaxConcurrentFetch {
+		require.True(t, svc.apiKeyUsageStatsState.acquireFetchSlot(context.Background()))
+		defer svc.apiKeyUsageStatsState.releaseFetchSlot()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := svc.GetDashboardAPIKeyUsageStats(ctx, 7, []int64{1})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.False(t, infraerrors.IsGatewayTimeout(err))
+	require.Zero(t, repo.calls.Load())
+}
+
+func TestBatchAPIKeyUsageStatsBoundsDistinctCacheMissesAtTwo(t *testing.T) {
 	release := make(chan struct{})
 	repo := &apiKeyUsageStatsRepositoryStub{wait: release}
 	cache := newAPIKeyUsageStatsCacheStub()
@@ -267,9 +399,9 @@ func TestBatchAPIKeyUsageStatsSerializesDistinctCacheMisses(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		return repo.calls.Load() == 1
+		return repo.calls.Load() == int32(apiKeyUsageStatsMaxConcurrentFetch)
 	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, int32(1), repo.maxActive.Load())
+	require.Equal(t, int32(apiKeyUsageStatsMaxConcurrentFetch), repo.maxActive.Load())
 	close(release)
 
 	for range requests {

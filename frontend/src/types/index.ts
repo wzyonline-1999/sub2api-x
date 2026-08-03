@@ -1842,6 +1842,8 @@ export interface UserSpendingRankingResponse {
   total_tokens: number
   start_date: string
   end_date: string
+  start_time?: string
+  end_time?: string
 }
 
 export interface ApiKeyUsageTrendPoint {
@@ -1991,6 +1993,8 @@ export interface UsageQueryParams {
   billing_mode?: string | null
   start_date?: string
   end_date?: string
+  start_time?: string
+  end_time?: string
   timezone?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'

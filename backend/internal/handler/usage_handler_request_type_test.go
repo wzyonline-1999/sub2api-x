@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -17,15 +18,16 @@ import (
 
 type userUsageRepoCapture struct {
 	service.UsageLogRepository
-	listParams   pagination.PaginationParams
-	listFilters  usagestats.UsageLogFilters
-	statsFilters usagestats.UsageLogFilters
-	trendFilters usagestats.UsageLogFilters
-	groupFilters usagestats.UsageLogFilters
-	listRows     []service.UsageLog
-	stats        *usagestats.UsageStats
-	modelStats   []usagestats.ModelStat
-	groupStats   []usagestats.GroupStat
+	listParams    pagination.PaginationParams
+	listFilters   usagestats.UsageLogFilters
+	statsFilters  usagestats.UsageLogFilters
+	trendFilters  usagestats.UsageLogFilters
+	trendTimezone string
+	groupFilters  usagestats.UsageLogFilters
+	listRows      []service.UsageLog
+	stats         *usagestats.UsageStats
+	modelStats    []usagestats.ModelStat
+	groupStats    []usagestats.GroupStat
 }
 
 func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
@@ -48,6 +50,9 @@ func (s *userUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters 
 }
 
 func (s *userUsageRepoCapture) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usagestats.TrendDataPoint, error) {
+	if resolved, ok := timezone.ResolvedUserLocationFromContext(ctx); ok {
+		s.trendTimezone = resolved.Name()
+	}
 	s.trendFilters = usagestats.UsageLogFilters{
 		UserID:      userID,
 		APIKeyID:    apiKeyID,
@@ -306,13 +311,14 @@ func TestUserUsageSnapshotUsesScopedFilters(t *testing.T) {
 	}
 	router := newUserUsageRequestTypeTestRouter(repo)
 
-	req := httptest.NewRequest(http.MethodGet, "/usage/dashboard/snapshot-v2?include_trend=true&include_model_stats=true&include_group_stats=true&group_id=11&request_type=stream&start_date=2026-03-01&end_date=2026-03-02", nil)
+	req := httptest.NewRequest(http.MethodGet, "/usage/dashboard/snapshot-v2?include_trend=true&include_model_stats=true&include_group_stats=true&group_id=11&request_type=stream&start_date=2026-03-01&end_date=2026-03-02&timezone=Asia%2FTokyo", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, int64(42), repo.trendFilters.UserID)
 	require.Equal(t, int64(11), repo.trendFilters.GroupID)
+	require.Equal(t, "Asia/Tokyo", repo.trendTimezone)
 	require.NotNil(t, repo.trendFilters.RequestType)
 	require.Equal(t, int16(service.RequestTypeStream), *repo.trendFilters.RequestType)
 	require.Equal(t, int64(42), repo.groupFilters.UserID)

@@ -122,6 +122,7 @@ function simulateGuard(
       '/admin/redeem',
       '/subscriptions',
       '/redeem',
+      '/rankings',
     ]
     if (restrictedPaths.some((path) => toPath.startsWith(path))) {
       return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
@@ -279,6 +280,18 @@ describe('路由守卫逻辑', () => {
         hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/redeem', {}, authState)
+      expect(redirect).toBe('/dashboard')
+    })
+
+    it('普通用户简易模式直接访问 /rankings 重定向到 /dashboard', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: true,
+        backendModeEnabled: false,
+        hasPendingAuthSession: false,
+      }
+      const redirect = simulateGuard('/rankings', {}, authState)
       expect(redirect).toBe('/dashboard')
     })
 

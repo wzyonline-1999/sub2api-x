@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -25,6 +26,7 @@ type dailyUsageRepoStub struct {
 	granularity string
 	userID      int64
 	apiKeyID    int64
+	timezone    string
 }
 
 func (s *dailyUsageRepoStub) GetUsageTrendWithFilters(
@@ -38,6 +40,9 @@ func (s *dailyUsageRepoStub) GetUsageTrendWithFilters(
 	billingType *int8,
 ) ([]usagestats.TrendDataPoint, error) {
 	s.called = true
+	if resolved, ok := timezone.ResolvedUserLocationFromContext(ctx); ok {
+		s.timezone = resolved.Name()
+	}
 	s.startTime = startTime
 	s.endTime = endTime
 	s.granularity = granularity
@@ -166,7 +171,7 @@ func TestGetMyAPIKeyDailyUsageAggregatesByDayForOwnedKey(t *testing.T) {
 	}
 	router := newDailyUsageTestRouter(usageRepo, apiKeyRepo, 42)
 
-	req := httptest.NewRequest(http.MethodGet, "/user/api-keys/7/usage/daily?days=7", nil)
+	req := httptest.NewRequest(http.MethodGet, "/user/api-keys/7/usage/daily?days=7&timezone=Asia%2FTokyo", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -175,6 +180,7 @@ func TestGetMyAPIKeyDailyUsageAggregatesByDayForOwnedKey(t *testing.T) {
 	require.Equal(t, "day", usageRepo.granularity)
 	require.Equal(t, int64(42), usageRepo.userID)
 	require.Equal(t, int64(7), usageRepo.apiKeyID)
+	require.Equal(t, "Asia/Tokyo", usageRepo.timezone)
 	require.True(t, usageRepo.startTime.Before(usageRepo.endTime))
 
 	var got dailyUsageHandlerResponse

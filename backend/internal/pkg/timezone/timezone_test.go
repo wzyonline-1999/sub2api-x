@@ -1,9 +1,37 @@
 package timezone
 
 import (
+	"context"
 	"testing"
 	"time"
 )
+
+func TestResolvedUserLocationContext(t *testing.T) {
+	resolved := ResolveUserLocation("  Asia/Tokyo  ")
+	if got := resolved.Name(); got != "Asia/Tokyo" {
+		t.Fatalf("resolved timezone = %q, want Asia/Tokyo", got)
+	}
+
+	ctx := WithResolvedUserLocation(context.Background(), resolved)
+	fromContext, ok := ResolvedUserLocationFromContext(ctx)
+	if !ok {
+		t.Fatal("expected resolved timezone in context")
+	}
+	if got := fromContext.Name(); got != "Asia/Tokyo" {
+		t.Fatalf("context timezone = %q, want Asia/Tokyo", got)
+	}
+}
+
+func TestResolveUserLocationInvalidFallsBackSafely(t *testing.T) {
+	want := ResolveUserLocation("").Name()
+	if got := ResolveUserLocation("Invalid/Timezone").Name(); got != want {
+		t.Fatalf("invalid timezone fallback = %q, want %q", got, want)
+	}
+
+	if _, ok := ResolvedUserLocationFromContext(nil); ok {
+		t.Fatal("nil context must not contain a resolved timezone")
+	}
+}
 
 func TestInit(t *testing.T) {
 	// Test with valid timezone

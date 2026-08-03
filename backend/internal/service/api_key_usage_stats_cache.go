@@ -27,7 +27,7 @@ const (
 
 	apiKeyUsageStatsCacheFailureBackoff = 5 * time.Second
 	apiKeyUsageStatsL1Capacity          = 256
-	apiKeyUsageStatsMaxConcurrentFetch  = 1
+	apiKeyUsageStatsMaxConcurrentFetch  = 2
 )
 
 // ErrAPIKeyUsageStatsCacheMiss marks a normal shared-cache miss.
@@ -70,9 +70,91 @@ type apiKeyUsageStatsCacheState struct {
 	l1         map[string]apiKeyUsageStatsL1Entry
 	l1Sequence uint64
 	fetchGate  chan struct{}
+	flights    map[string]*apiKeyUsageStatsFlight
 
 	cacheReadUnavailableUntil  time.Time
 	cacheWriteUnavailableUntil time.Time
+}
+
+// apiKeyUsageStatsFlight coalesces one user-scoped key set while still making
+// the shared PostgreSQL query cancellable. A plain singleflight call would
+// either inherit the first caller's cancellation (breaking the other waiters)
+// or detach the query and leave it running after every HTTP request is gone.
+type apiKeyUsageStatsFlight struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	done     chan struct{}
+	waiters  int
+	complete bool
+	stats    map[int64]*usagestats.BatchAPIKeyUsageStats
+	err      error
+}
+
+func (s *apiKeyUsageStatsCacheState) doFetch(
+	ctx context.Context,
+	key string,
+	fn func(context.Context) (map[int64]*usagestats.BatchAPIKeyUsageStats, error),
+) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
+	s.mu.Lock()
+	if s.flights == nil {
+		s.flights = make(map[string]*apiKeyUsageStatsFlight)
+	}
+	flight := s.flights[key]
+	if flight == nil {
+		flightCtx, cancel := context.WithCancel(context.Background())
+		flight = &apiKeyUsageStatsFlight{
+			ctx:     flightCtx,
+			cancel:  cancel,
+			done:    make(chan struct{}),
+			waiters: 1,
+		}
+		s.flights[key] = flight
+		go s.runFetch(key, flight, fn)
+	} else {
+		flight.waiters++
+	}
+	s.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		s.leaveFetch(key, flight)
+		return nil, ctx.Err()
+	case <-flight.done:
+		s.leaveFetch(key, flight)
+		return cloneAPIKeyUsageStats(flight.stats), flight.err
+	}
+}
+
+func (s *apiKeyUsageStatsCacheState) runFetch(
+	key string,
+	flight *apiKeyUsageStatsFlight,
+	fn func(context.Context) (map[int64]*usagestats.BatchAPIKeyUsageStats, error),
+) {
+	stats, err := fn(flight.ctx)
+
+	s.mu.Lock()
+	flight.stats = stats
+	flight.err = err
+	flight.complete = true
+	if s.flights[key] == flight {
+		delete(s.flights, key)
+	}
+	close(flight.done)
+	s.mu.Unlock()
+	flight.cancel()
+}
+
+func (s *apiKeyUsageStatsCacheState) leaveFetch(key string, flight *apiKeyUsageStatsFlight) {
+	s.mu.Lock()
+	flight.waiters--
+	shouldCancel := flight.waiters == 0 && !flight.complete
+	if shouldCancel && s.flights[key] == flight {
+		delete(s.flights, key)
+	}
+	s.mu.Unlock()
+	if shouldCancel {
+		flight.cancel()
+	}
 }
 
 func cloneAPIKeyUsageStats(
@@ -272,7 +354,8 @@ func (s *UsageService) getBatchAPIKeyUsageStats(
 	// Explicit ranges are caller-defined analytical queries. Only the fixed
 	// dashboard window is safe to share under the short-lived cache key.
 	if !startTime.IsZero() || !endTime.IsZero() {
-		return s.fetchBatchAPIKeyUsageStats(ctx, normalizedIDs, startTime, endTime)
+		stats, err := s.fetchBatchAPIKeyUsageStats(ctx, normalizedIDs, startTime, endTime)
+		return stats, normalizeAPIKeyUsageStatsCallerError(err)
 	}
 
 	timezoneName := timezone.Location().String()
@@ -301,11 +384,48 @@ func (s *UsageService) getBatchAPIKeyUsageStats(
 		}
 	}
 
-	// Every cache miss, including a request with a distinct set of key IDs,
-	// must pass through one request-bound gate. This keeps the expensive
-	// usage_logs aggregation from consuming the service's small DB pool. A
-	// canceled request leaves the queue immediately and also cancels an active
-	// PostgreSQL query instead of orphaning it for the full timeout.
+	// Coalesce the exact user/key-set before entering the bounded global gate.
+	// Two unrelated users can make progress concurrently, while equivalent
+	// cache misses still execute one PostgreSQL aggregation. The flight owns a
+	// shared cancellable context and stops the query once its last waiter leaves.
+	stats, err := s.apiKeyUsageStatsState.doFetch(ctx, cacheKey, func(flightCtx context.Context) (
+		map[int64]*usagestats.BatchAPIKeyUsageStats,
+		error,
+	) {
+		return s.refreshAPIKeyUsageStats(
+			flightCtx,
+			cacheScopeUserID,
+			normalizedIDs,
+			cache,
+			cacheEnabled,
+			cacheKey,
+			timezoneName,
+			dayStartUTC,
+		)
+	})
+	return stats, normalizeAPIKeyUsageStatsCallerError(err)
+}
+
+func normalizeAPIKeyUsageStatsCallerError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) && !infraerrors.IsGatewayTimeout(err) {
+		return infraerrors.GatewayTimeout(
+			"API_KEY_USAGE_STATS_REQUEST_TIMEOUT",
+			"API key usage statistics request timed out",
+		).WithCause(err)
+	}
+	return err
+}
+
+func (s *UsageService) refreshAPIKeyUsageStats(
+	ctx context.Context,
+	cacheScopeUserID int64,
+	normalizedIDs []int64,
+	cache APIKeyUsageStatsCache,
+	cacheEnabled bool,
+	cacheKey string,
+	timezoneName string,
+	dayStartUTC string,
+) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
 	if !s.apiKeyUsageStatsState.acquireFetchSlot(ctx) {
 		return nil, ctx.Err()
 	}

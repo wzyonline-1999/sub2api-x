@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +26,30 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	adminService   service.AdminService
 	cleanupService *service.UsageCleanupService
+}
+
+func parseExactUsageTimeRange(c *gin.Context) (time.Time, time.Time, bool, error) {
+	startRaw := strings.TrimSpace(c.Query("start_time"))
+	endRaw := strings.TrimSpace(c.Query("end_time"))
+	if startRaw == "" && endRaw == "" {
+		return time.Time{}, time.Time{}, false, nil
+	}
+	if startRaw == "" || endRaw == "" {
+		return time.Time{}, time.Time{}, true, errors.New("start_time and end_time must be provided together")
+	}
+
+	start, err := time.Parse(time.RFC3339, startRaw)
+	if err != nil {
+		return time.Time{}, time.Time{}, true, errors.New("invalid start_time format, use RFC3339")
+	}
+	end, err := time.Parse(time.RFC3339, endRaw)
+	if err != nil {
+		return time.Time{}, time.Time{}, true, errors.New("invalid end_time format, use RFC3339")
+	}
+	if !end.After(start) {
+		return time.Time{}, time.Time{}, true, errors.New("end_time must be after start_time")
+	}
+	return start, end, true, nil
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -143,27 +168,38 @@ func (h *UsageHandler) List(c *gin.Context) {
 		billingType = &bt
 	}
 
-	// Parse date range
+	// Parse date range. Exact RFC3339 timestamps take precedence so a dashboard
+	// ranking drill-down keeps the same half-open window as the ranked query.
 	var startTime, endTime *time.Time
-	userTZ := c.Query("timezone") // Get user's timezone from request
-	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
-		if err != nil {
-			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
-			return
-		}
-		startTime = &t
+	exactStart, exactEnd, hasExactRange, exactErr := parseExactUsageTimeRange(c)
+	if exactErr != nil {
+		response.BadRequest(c, exactErr.Error())
+		return
 	}
-
-	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
-		if err != nil {
-			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
-			return
+	if hasExactRange {
+		startTime = &exactStart
+		endTime = &exactEnd
+	} else {
+		userTZ := c.Query("timezone") // Get user's timezone from request
+		if startDateStr := c.Query("start_date"); startDateStr != "" {
+			t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
+			if err != nil {
+				response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+				return
+			}
+			startTime = &t
 		}
-		// Use half-open range [start, end), move to next calendar day start (DST-safe).
-		t = t.AddDate(0, 0, 1)
-		endTime = &t
+
+		if endDateStr := c.Query("end_date"); endDateStr != "" {
+			t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
+			if err != nil {
+				response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+				return
+			}
+			// Use half-open range [start, end), move to next calendar day start (DST-safe).
+			t = t.AddDate(0, 0, 1)
+			endTime = &t
+		}
 	}
 
 	params := pagination.PaginationParams{
@@ -276,7 +312,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		billingType = &bt
 	}
 
-	// Parse date range
+	// Parse date range. Exact timestamps take precedence over compatibility dates.
 	userTZ := c.Query("timezone")
 	now := timezone.NowInUserLocation(userTZ)
 	var startTime, endTime time.Time
@@ -284,7 +320,15 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	startDateStr := c.Query("start_date")
 	endDateStr := c.Query("end_date")
 
-	if startDateStr != "" && endDateStr != "" {
+	exactStart, exactEnd, hasExactRange, exactErr := parseExactUsageTimeRange(c)
+	if exactErr != nil {
+		response.BadRequest(c, exactErr.Error())
+		return
+	}
+	if hasExactRange {
+		startTime = exactStart
+		endTime = exactEnd
+	} else if startDateStr != "" && endDateStr != "" {
 		var err error
 		startTime, err = timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
 		if err != nil {

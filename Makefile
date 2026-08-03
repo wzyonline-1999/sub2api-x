@@ -13,11 +13,11 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/admin/ops/components/__tests__/OpsAlertEventsCard.spec.ts \
 	src/views/auth/__tests__/WechatPaymentCallbackView.spec.ts
 
-# 一键编译前后端
-build: build-backend build-frontend
+# 一键编译可发布二进制。后端嵌入 frontend dist，因此构建顺序必须严格为前端后后端。
+build: build-backend
 
-# 编译后端（复用 backend/Makefile）
-build-backend:
+# 编译后端（复用 backend/Makefile）。直接调用该目标也会先刷新前端产物。
+build-backend: build-frontend
 	@$(MAKE) -C backend build
 
 # 编译前端（需要已安装依赖）

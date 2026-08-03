@@ -4,10 +4,83 @@
 package timezone
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 )
+
+// ResolvedUserLocation is a validated request timezone. Its location is kept
+// private so callers cannot place an unchecked timezone name in a context that
+// is later consumed by SQL grouping code.
+type ResolvedUserLocation struct {
+	location *time.Location
+}
+
+type resolvedUserLocationContextKey struct{}
+
+// ResolveUserLocation resolves a caller-provided IANA timezone and safely
+// falls back to the configured server timezone when it is empty or invalid.
+func ResolveUserLocation(userTZ string) ResolvedUserLocation {
+	loc := fallbackUserLocation()
+	if name := strings.TrimSpace(userTZ); name != "" && name != "Local" {
+		if userLoc, err := time.LoadLocation(name); err == nil {
+			loc = userLoc
+		}
+	}
+	return ResolvedUserLocation{location: loc}
+}
+
+func fallbackUserLocation() *time.Location {
+	if loc := Location(); loc != nil && loc.String() != "Local" {
+		return loc
+	}
+	if envTZ := strings.TrimSpace(os.Getenv("TZ")); envTZ != "" && envTZ != "Local" {
+		if loc, err := time.LoadLocation(envTZ); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
+}
+
+// Location returns the validated location, or the configured server location
+// for a zero-value ResolvedUserLocation.
+func (r ResolvedUserLocation) Location() *time.Location {
+	if r.location == nil {
+		return fallbackUserLocation()
+	}
+	return r.location
+}
+
+// Name returns the canonical name of the validated location.
+func (r ResolvedUserLocation) Name() string {
+	return r.Location().String()
+}
+
+// WithResolvedUserLocation carries a validated request timezone through
+// handler, service, and repository layers without changing repository APIs.
+func WithResolvedUserLocation(ctx context.Context, resolved ResolvedUserLocation) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	resolved.location = resolved.Location()
+	return context.WithValue(ctx, resolvedUserLocationContextKey{}, resolved)
+}
+
+// ResolvedUserLocationFromContext returns a previously validated request
+// timezone. The boolean is false when no request timezone was attached.
+func ResolvedUserLocationFromContext(ctx context.Context) (ResolvedUserLocation, bool) {
+	if ctx == nil {
+		return ResolvedUserLocation{}, false
+	}
+	resolved, ok := ctx.Value(resolvedUserLocationContextKey{}).(ResolvedUserLocation)
+	if !ok || resolved.location == nil {
+		return ResolvedUserLocation{}, false
+	}
+	return resolved, true
+}
 
 var (
 	// location is the global timezone location
@@ -131,36 +204,19 @@ func ParseInLocation(layout, value string) (time.Time, error) {
 // ParseInUserLocation parses a time string in the user's timezone.
 // If userTZ is empty or invalid, falls back to the configured server timezone.
 func ParseInUserLocation(layout, value, userTZ string) (time.Time, error) {
-	loc := Location() // default to server timezone
-	if userTZ != "" {
-		if userLoc, err := time.LoadLocation(userTZ); err == nil {
-			loc = userLoc
-		}
-	}
-	return time.ParseInLocation(layout, value, loc)
+	return time.ParseInLocation(layout, value, ResolveUserLocation(userTZ).Location())
 }
 
 // NowInUserLocation returns the current time in the user's timezone.
 // If userTZ is empty or invalid, falls back to the configured server timezone.
 func NowInUserLocation(userTZ string) time.Time {
-	if userTZ == "" {
-		return Now()
-	}
-	if userLoc, err := time.LoadLocation(userTZ); err == nil {
-		return time.Now().In(userLoc)
-	}
-	return Now()
+	return time.Now().In(ResolveUserLocation(userTZ).Location())
 }
 
 // StartOfDayInUserLocation returns the start of the given day in the user's timezone.
 // If userTZ is empty or invalid, falls back to the configured server timezone.
 func StartOfDayInUserLocation(t time.Time, userTZ string) time.Time {
-	loc := Location()
-	if userTZ != "" {
-		if userLoc, err := time.LoadLocation(userTZ); err == nil {
-			loc = userLoc
-		}
-	}
+	loc := ResolveUserLocation(userTZ).Location()
 	t = t.In(loc)
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 }

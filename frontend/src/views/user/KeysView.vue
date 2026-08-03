@@ -81,6 +81,23 @@
       </template>
 
       <template #table>
+        <div
+          v-if="usageError && isColumnVisible('usage')"
+          data-test="usage-error"
+          role="alert"
+          class="mb-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+        >
+          <span>{{ t('usage.failedToLoad') }}</span>
+          <button
+            type="button"
+            data-test="usage-retry"
+            class="font-semibold text-amber-900 underline underline-offset-2 disabled:opacity-50 dark:text-amber-100"
+            :disabled="usageLoading"
+            @click="retryApiKeyUsage"
+          >
+            {{ t('common.retry') }}
+          </button>
+        </div>
         <DataTable
           :columns="columns"
           :data="apiKeys"
@@ -1304,6 +1321,7 @@ const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
 const loading = ref(false)
 const usageLoading = ref(false)
+const usageError = ref(false)
 const submitting = ref(false)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
@@ -1494,6 +1512,7 @@ const cancelUsageLoad = () => {
   usageAbortController?.abort()
   usageAbortController = null
   usageLoading.value = false
+  usageError.value = false
 }
 
 const loadApiKeyUsage = async (keyIds: number[]) => {
@@ -1503,6 +1522,7 @@ const loadApiKeyUsage = async (keyIds: number[]) => {
   const requestId = ++usageRequestId
   usageAbortController = controller
   usageLoading.value = true
+  usageError.value = false
 
   try {
     for (let offset = 0; offset < keyIds.length; offset += API_KEY_USAGE_BATCH_SIZE) {
@@ -1521,6 +1541,8 @@ const loadApiKeyUsage = async (keyIds: number[]) => {
   } catch (error) {
     if (!isAbortError(error) && requestId === usageRequestId) {
       console.error('Failed to load usage stats:', error)
+      usageError.value = true
+      appStore.showError(t('usage.failedToLoad'))
     }
   } finally {
     if (usageAbortController === controller && requestId === usageRequestId) {
@@ -1528,6 +1550,15 @@ const loadApiKeyUsage = async (keyIds: number[]) => {
       usageLoading.value = false
     }
   }
+}
+
+const retryApiKeyUsage = () => {
+  const keyIds = apiKeys.value.map((key) => key.id)
+  if (keyIds.length === 0) {
+    usageError.value = false
+    return
+  }
+  void loadApiKeyUsage(keyIds)
 }
 
 interface LoadAPIKeysOptions {

@@ -244,11 +244,14 @@ describe('RankingsView', () => {
 
     await flushPromises()
 
-    expect(getRankings).toHaveBeenCalledWith({
-      metric: 'tokens',
-      period: 'day',
-      limit: 10,
-    })
+    expect(getRankings).toHaveBeenCalledWith(
+      {
+        metric: 'tokens',
+        period: 'day',
+        limit: 10,
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 
   it('shows ranked state when the current user is in the top 10', async () => {
@@ -511,11 +514,14 @@ describe('RankingsView', () => {
     await wrapper.get('[data-testid="ranking-metric-cost"]').trigger('click')
     await wrapper.get('[data-testid="ranking-period-week"]').trigger('click')
 
-    expect(getRankings).toHaveBeenLastCalledWith({
-      metric: 'cost',
-      period: 'week',
-      limit: 10,
-    })
+    expect(getRankings).toHaveBeenLastCalledWith(
+      {
+        metric: 'cost',
+        period: 'week',
+        limit: 10,
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 
   it('ignores stale responses when filters change quickly', async () => {
@@ -538,7 +544,12 @@ describe('RankingsView', () => {
     })
 
     await wrapper.get('[data-testid="ranking-metric-cost"]').trigger('click')
+    const staleSignal = getRankings.mock.calls.at(-1)?.[1]?.signal as AbortSignal
     await wrapper.get('[data-testid="ranking-period-week"]').trigger('click')
+    const latestSignal = getRankings.mock.calls.at(-1)?.[1]?.signal as AbortSignal
+
+    expect(staleSignal.aborted).toBe(true)
+    expect(latestSignal.aborted).toBe(false)
 
     stale.resolve({
       ...rankingResponse,
@@ -573,7 +584,9 @@ describe('RankingsView', () => {
       },
     })
 
+    const signal = getRankings.mock.calls[0][1].signal as AbortSignal
     wrapper.unmount()
+    expect(signal.aborted).toBe(true)
     pending.reject(new Error('late ranking failure'))
     await flushPromises()
 

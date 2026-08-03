@@ -190,6 +190,8 @@ func TestDashboardUsersRankingLimitAndCache(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "\"total_actual_cost\":88.8")
 	require.Contains(t, rec.Body.String(), "\"total_requests\":44")
 	require.Contains(t, rec.Body.String(), "\"total_tokens\":1234")
+	require.Contains(t, rec.Body.String(), "\"start_time\":")
+	require.Contains(t, rec.Body.String(), "\"end_time\":")
 	require.Equal(t, "miss", rec.Header().Get("X-Snapshot-Cache"))
 
 	req2 := httptest.NewRequest(http.MethodGet, "/admin/dashboard/users-ranking?limit=100&start_date=2025-01-01&end_date=2025-01-02", nil)
@@ -198,4 +200,41 @@ func TestDashboardUsersRankingLimitAndCache(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec2.Code)
 	require.Equal(t, "hit", rec2.Header().Get("X-Snapshot-Cache"))
+}
+
+func TestDashboardRangeHandlersRejectInvalidExactTimeRange(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := &DashboardHandler{}
+	router := gin.New()
+	routes := map[string]gin.HandlerFunc{
+		"/admin/dashboard/snapshot-v2":    handler.GetSnapshotV2,
+		"/admin/dashboard/trend":          handler.GetUsageTrend,
+		"/admin/dashboard/models":         handler.GetModelStats,
+		"/admin/dashboard/groups":         handler.GetGroupStats,
+		"/admin/dashboard/api-keys-trend": handler.GetAPIKeyUsageTrend,
+		"/admin/dashboard/users-trend":    handler.GetUserUsageTrend,
+		"/admin/dashboard/users-ranking":  handler.GetUserSpendingRanking,
+		"/admin/dashboard/user-breakdown": handler.GetUserBreakdown,
+	}
+	for path, route := range routes {
+		router.GET(path, route)
+	}
+
+	invalidQueries := map[string]string{
+		"missing pair":   "start_time=2026-07-30T02%3A20%3A30Z",
+		"invalid format": "start_time=bad&end_time=2026-07-31T02%3A20%3A30Z",
+		"reverse range":  "start_time=2026-07-31T02%3A20%3A30Z&end_time=2026-07-30T02%3A20%3A30Z",
+	}
+
+	for path := range routes {
+		for name, query := range invalidQueries {
+			t.Run(path+"/"+name, func(t *testing.T) {
+				rec := httptest.NewRecorder()
+				req := httptest.NewRequest(http.MethodGet, path+"?"+query, nil)
+				router.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusBadRequest, rec.Code)
+				require.Contains(t, rec.Body.String(), "start_time")
+			})
+		}
+	}
 }

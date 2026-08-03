@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 )
 
@@ -29,6 +30,7 @@ type APIKeyUsageTrendPoint = usagestats.APIKeyUsageTrendPoint
 // GetAPIKeyUsageTrend returns usage trend data grouped by API key and date
 func (r *usageLogRepository) GetAPIKeyUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) (results []APIKeyUsageTrendPoint, err error) {
 	dateFormat := safeDateFormat(granularity)
+	tzName := resolveUsageStatsTimezoneForContext(ctx)
 
 	query := fmt.Sprintf(`
 		WITH top_keys AS (
@@ -40,7 +42,7 @@ func (r *usageLogRepository) GetAPIKeyUsageTrend(ctx context.Context, startTime,
 			LIMIT $3
 		)
 		SELECT
-			TO_CHAR(u.created_at, '%s') as date,
+			TO_CHAR(u.created_at AT TIME ZONE $6, '%s') as date,
 			u.api_key_id,
 			COALESCE(k.name, '') as key_name,
 			COUNT(*) as requests,
@@ -53,7 +55,7 @@ func (r *usageLogRepository) GetAPIKeyUsageTrend(ctx context.Context, startTime,
 		ORDER BY date ASC, tokens DESC
 	`, dateFormat)
 
-	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit, startTime, endTime, tzName)
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +86,7 @@ func (r *usageLogRepository) GetAPIKeyUsageTrend(ctx context.Context, startTime,
 // GetUserUsageTrend returns usage trend data grouped by user and date
 func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) (results []UserUsageTrendPoint, err error) {
 	dateFormat := safeDateFormat(granularity)
+	tzName := resolveUsageStatsTimezoneForContext(ctx)
 
 	query := fmt.Sprintf(`
 		WITH top_users AS (
@@ -95,7 +98,7 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 			LIMIT $3
 		)
 		SELECT
-			TO_CHAR(u.created_at, '%s') as date,
+			TO_CHAR(u.created_at AT TIME ZONE $6, '%s') as date,
 			u.user_id,
 			COALESCE(us.email, '') as email,
 			COALESCE(us.username, '') as username,
@@ -111,7 +114,7 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 		ORDER BY date ASC, tokens DESC
 	`, dateFormat)
 
-	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit, startTime, endTime, tzName)
 	if err != nil {
 		return nil, err
 	}
@@ -222,10 +225,11 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 // GetUserUsageTrendByUserID 获取指定用户的使用趋势
 func (r *usageLogRepository) GetUserUsageTrendByUserID(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string) (results []TrendDataPoint, err error) {
 	dateFormat := safeDateFormat(granularity)
+	tzName := resolveUsageStatsTimezoneForContext(ctx)
 
 	query := fmt.Sprintf(`
 		SELECT
-			TO_CHAR(created_at, '%s') as date,
+			TO_CHAR(created_at AT TIME ZONE $4, '%s') as date,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens), 0) as input_tokens,
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
@@ -240,7 +244,7 @@ func (r *usageLogRepository) GetUserUsageTrendByUserID(ctx context.Context, user
 		ORDER BY date ASC
 	`, dateFormat)
 
-	rows, err := r.sql.QueryContext(ctx, query, userID, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, userID, startTime, endTime, tzName)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +279,9 @@ func (r *usageLogRepository) GetUsageTrendWithUsageFilters(ctx context.Context, 
 }
 
 func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, modelSource string, requestType *int16, stream *bool, billingType *int8, billingMode string) (results []TrendDataPoint, err error) {
-	if shouldUsePreaggregatedTrend(granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, billingMode) {
+	requestTimezone := resolveUsageStatsTimezoneForContext(ctx)
+	if requestTimezone == resolveUsageStatsTimezone() &&
+		shouldUsePreaggregatedTrend(granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, billingMode) {
 		aggregated, aggregatedErr := r.getUsageTrendFromAggregates(ctx, startTime, endTime, granularity)
 		if aggregatedErr == nil && len(aggregated) > 0 {
 			return aggregated, nil
@@ -283,10 +289,11 @@ func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, start
 	}
 
 	dateFormat := safeDateFormat(granularity)
+	tzName := requestTimezone
 
 	query := fmt.Sprintf(`
 		SELECT
-			TO_CHAR(created_at, '%s') as date,
+			TO_CHAR(created_at AT TIME ZONE $3, '%s') as date,
 			COUNT(*) as requests,
 			COALESCE(SUM(input_tokens), 0) as input_tokens,
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
@@ -299,7 +306,7 @@ func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, start
 		WHERE created_at >= $1 AND created_at < $2
 	`, dateFormat)
 
-	args := []any{startTime, endTime}
+	args := []any{startTime, endTime, tzName}
 	if userID > 0 {
 		query += fmt.Sprintf(" AND user_id = $%d", len(args)+1)
 		args = append(args, userID)
@@ -367,23 +374,110 @@ func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, st
 
 	switch granularity {
 	case "hour":
+		fullHourStart, fullHourEnd, ok := completeUsageStatsHourRangeInContext(ctx, startTime, endTime)
+		if !ok {
+			// There is no complete hour to read from the pre-aggregation table.
+			// Let the caller use the raw usage_logs query for the whole range.
+			return nil, nil
+		}
+		args = append(args, fullHourStart, fullHourEnd, resolveUsageStatsTimezoneForContext(ctx))
 		query = fmt.Sprintf(`
+			WITH aggregate_bounds AS (
+				SELECT MIN(bucket_start) AS first_bucket
+				FROM usage_dashboard_hourly
+				WHERE bucket_start >= $3 AND bucket_start < $4
+			), coverage AS (
+				SELECT
+					COALESCE(
+						(SELECT last_aggregated_at FROM usage_dashboard_aggregation_watermark WHERE id = 1),
+						'1970-01-01 00:00:00+00'::timestamptz
+					) >= $4
+					AND NOT EXISTS (
+						SELECT 1
+						FROM usage_logs
+						WHERE created_at >= $3
+						  AND created_at < COALESCE(aggregate_bounds.first_bucket, $4)
+					) AS ready
+				FROM aggregate_bounds
+			), combined AS (
+				-- Preserve the incomplete first/last hours from the source table.
+				SELECT
+					date_trunc('hour', created_at AT TIME ZONE $5) AT TIME ZONE $5 AS bucket_start,
+					COUNT(*) AS requests,
+					COALESCE(SUM(input_tokens), 0) AS input_tokens,
+					COALESCE(SUM(output_tokens), 0) AS output_tokens,
+					COALESCE(SUM(cache_creation_tokens), 0) AS cache_creation_tokens,
+					COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
+					COALESCE(SUM(total_cost), 0) AS cost,
+					COALESCE(SUM(actual_cost), 0) AS actual_cost
+				FROM usage_logs
+				CROSS JOIN coverage
+				WHERE coverage.ready
+				  AND ((created_at >= $1 AND created_at < $3)
+				    OR (created_at >= $4 AND created_at < $2))
+				GROUP BY 1
+
+				UNION ALL
+
+				-- Only complete hours may be sourced from the hourly rollup.
+				SELECT
+					bucket_start,
+					total_requests AS requests,
+					input_tokens,
+					output_tokens,
+					cache_creation_tokens,
+					cache_read_tokens,
+					total_cost AS cost,
+					actual_cost
+				FROM usage_dashboard_hourly
+				CROSS JOIN coverage
+				WHERE coverage.ready
+				  AND bucket_start >= $3 AND bucket_start < $4
+			)
 			SELECT
-				TO_CHAR(bucket_start, '%s') as date,
-				total_requests as requests,
-				input_tokens,
-				output_tokens,
-				cache_creation_tokens,
-				cache_read_tokens,
-				(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as total_tokens,
-				total_cost as cost,
-				actual_cost
-			FROM usage_dashboard_hourly
-			WHERE bucket_start >= $1 AND bucket_start < $2
+				TO_CHAR(bucket_start AT TIME ZONE $5, '%s') AS date,
+				SUM(requests) AS requests,
+				SUM(input_tokens) AS input_tokens,
+				SUM(output_tokens) AS output_tokens,
+				SUM(cache_creation_tokens) AS cache_creation_tokens,
+				SUM(cache_read_tokens) AS cache_read_tokens,
+				SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) AS total_tokens,
+				SUM(cost) AS cost,
+				SUM(actual_cost) AS actual_cost
+			FROM combined
+			GROUP BY bucket_start
 			ORDER BY bucket_start ASC
 		`, dateFormat)
 	case "day":
+		if !isCompleteUsageStatsDayRangeInContext(ctx, startTime, endTime) {
+			// A daily rollup cannot represent partial calendar days. Falling back
+			// avoids silently widening a rolling/custom range.
+			return nil, nil
+		}
+		args = append(args, resolveUsageStatsTimezoneForContext(ctx))
 		query = fmt.Sprintf(`
+			WITH aggregate_bounds AS (
+				SELECT MIN(bucket_date) AS first_bucket
+				FROM usage_dashboard_daily
+				WHERE bucket_date >= ($1 AT TIME ZONE $3)::date
+				  AND bucket_date < ($2 AT TIME ZONE $3)::date
+			), coverage AS (
+				SELECT
+					COALESCE(
+						(SELECT last_aggregated_at FROM usage_dashboard_aggregation_watermark WHERE id = 1),
+						'1970-01-01 00:00:00+00'::timestamptz
+					) >= $2
+					AND NOT EXISTS (
+						SELECT 1
+						FROM usage_logs
+						WHERE created_at >= $1
+						  AND created_at < COALESCE(
+							aggregate_bounds.first_bucket::timestamp AT TIME ZONE $3,
+							$2
+						  )
+					) AS ready
+				FROM aggregate_bounds
+			)
 			SELECT
 				TO_CHAR(bucket_date::timestamp, '%s') as date,
 				total_requests as requests,
@@ -395,7 +489,10 @@ func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, st
 				total_cost as cost,
 				actual_cost
 			FROM usage_dashboard_daily
-			WHERE bucket_date >= $1::date AND bucket_date < $2::date
+			CROSS JOIN coverage
+			WHERE coverage.ready
+			  AND bucket_date >= ($1 AT TIME ZONE $3)::date
+			  AND bucket_date < ($2 AT TIME ZONE $3)::date
 			ORDER BY bucket_date ASC
 		`, dateFormat)
 	default:
@@ -418,6 +515,92 @@ func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, st
 		return nil, err
 	}
 	return results, nil
+}
+
+func usageStatsLocation() *time.Location {
+	loc, err := time.LoadLocation(resolveUsageStatsTimezone())
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
+
+func resolveUsageStatsTimezoneForContext(ctx context.Context) string {
+	if resolved, ok := timezone.ResolvedUserLocationFromContext(ctx); ok {
+		name := resolved.Name()
+		// Only names accepted by the Go timezone database can originate from a
+		// request. This also rejects the process-local pseudo name "Local",
+		// which PostgreSQL cannot reliably interpret across deployments.
+		if name != "" && name != "Local" {
+			if _, err := time.LoadLocation(name); err == nil {
+				return name
+			}
+		}
+	}
+	return resolveUsageStatsTimezone()
+}
+
+func usageStatsLocationForContext(ctx context.Context) *time.Location {
+	loc, err := time.LoadLocation(resolveUsageStatsTimezoneForContext(ctx))
+	if err != nil {
+		return usageStatsLocation()
+	}
+	return loc
+}
+
+func usageStatsHourFloorInLocation(value time.Time, loc *time.Location) time.Time {
+	local := value.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), local.Hour(), 0, 0, 0, loc)
+}
+
+func usageStatsHourFloor(value time.Time) time.Time {
+	return usageStatsHourFloorInLocation(value, usageStatsLocation())
+}
+
+// completeUsageStatsHourRange returns the half-open range of complete local
+// hours inside [startTime, endTime). The excluded edges must be read directly
+// from usage_logs because an hourly rollup represents the entire hour.
+func completeUsageStatsHourRange(startTime, endTime time.Time) (time.Time, time.Time, bool) {
+	return completeUsageStatsHourRangeInLocation(startTime, endTime, usageStatsLocation())
+}
+
+func completeUsageStatsHourRangeInContext(ctx context.Context, startTime, endTime time.Time) (time.Time, time.Time, bool) {
+	return completeUsageStatsHourRangeInLocation(startTime, endTime, usageStatsLocationForContext(ctx))
+}
+
+func completeUsageStatsHourRangeInLocation(startTime, endTime time.Time, loc *time.Location) (time.Time, time.Time, bool) {
+	if !endTime.After(startTime) {
+		return time.Time{}, time.Time{}, false
+	}
+
+	fullStart := usageStatsHourFloorInLocation(startTime, loc)
+	if !startTime.Equal(fullStart) {
+		fullStart = fullStart.Add(time.Hour)
+	}
+	fullEnd := usageStatsHourFloorInLocation(endTime, loc)
+	if !fullEnd.After(fullStart) {
+		return time.Time{}, time.Time{}, false
+	}
+	return fullStart, fullEnd, true
+}
+
+func isCompleteUsageStatsDayRange(startTime, endTime time.Time) bool {
+	return isCompleteUsageStatsDayRangeInLocation(startTime, endTime, usageStatsLocation())
+}
+
+func isCompleteUsageStatsDayRangeInContext(ctx context.Context, startTime, endTime time.Time) bool {
+	return isCompleteUsageStatsDayRangeInLocation(startTime, endTime, usageStatsLocationForContext(ctx))
+}
+
+func isCompleteUsageStatsDayRangeInLocation(startTime, endTime time.Time, loc *time.Location) bool {
+	if !endTime.After(startTime) {
+		return false
+	}
+	startLocal := startTime.In(loc)
+	endLocal := endTime.In(loc)
+	startDay := time.Date(startLocal.Year(), startLocal.Month(), startLocal.Day(), 0, 0, 0, 0, loc)
+	endDay := time.Date(endLocal.Year(), endLocal.Month(), endLocal.Day(), 0, 0, 0, 0, loc)
+	return startTime.Equal(startDay) && endTime.Equal(endDay)
 }
 
 // GetModelStatsWithFilters returns model statistics with optional filters

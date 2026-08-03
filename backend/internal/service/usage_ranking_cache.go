@@ -14,7 +14,6 @@ import (
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -25,9 +24,8 @@ const (
 	// the same bucket again before that boundary.
 	usageRankingCacheTTL = 90 * time.Second
 
-	// The shared fetch outlives an individual HTTP request so one disconnected
-	// caller cannot cancel the query for every waiter. It remains bounded to
-	// protect the database from a wedged aggregation.
+	// A refresh is shared while at least one request is waiting. The repository
+	// query has its own bound and is canceled when the final waiter leaves.
 	usageRankingFetchTimeout = 60 * time.Second
 	usageRankingCacheTimeout = 2 * time.Second
 
@@ -38,10 +36,9 @@ const (
 		2*usageRankingCacheTimeout +
 		5*time.Second
 	usageRankingRefreshPollInterval = 150 * time.Millisecond
-	// Waiting for the global lease and running the aggregation use independent
-	// budgets. The wait must outlive one abandoned lease so a cold instance can
-	// recover after the previous owner exits without releasing it, and still
-	// leave room for the next owner to publish its result.
+	// The lease wait has an independent timer, so a process can recover after one
+	// abandoned lease and still give the eventual query its complete fetch
+	// budget.
 	usageRankingRefreshWaitTimeout = 150 * time.Second
 	// A single cross-key lease serializes every expensive leaderboard refresh
 	// across blue/green instances. Per-key leases still allow metric/timezone
@@ -60,8 +57,11 @@ const (
 	usageRankingCacheFailureBackoff = 5 * time.Second
 )
 
-// ErrUsageRankingCacheMiss marks a normal shared-cache miss.
-var ErrUsageRankingCacheMiss = errors.New("usage ranking cache miss")
+var (
+	// ErrUsageRankingCacheMiss marks a normal shared-cache miss.
+	ErrUsageRankingCacheMiss          = errors.New("usage ranking cache miss")
+	errUsageRankingRefreshWaitTimeout = errors.New("usage ranking refresh lease wait timed out")
+)
 
 // UsageRankingCache is the cross-instance cache for shared leaderboard
 // snapshots. User-specific fields are derived after a cache hit.
@@ -78,14 +78,27 @@ type usageRankingSnapshotRepository interface {
 }
 
 type usageRankingCacheState struct {
-	flight singleflight.Group
-
 	mu                         sync.Mutex
 	l1                         map[string]usageRankingL1Entry
 	l1Sequence                 uint64
 	cacheReadUnavailableUntil  time.Time
 	cacheWriteUnavailableUntil time.Time
 	localRefreshGate           chan struct{}
+	flights                    map[string]*usageRankingFlight
+}
+
+// usageRankingFlight keeps one refresh shared by equivalent callers without
+// orphaning it. The refresh continues while at least one HTTP request waits;
+// when the last waiter leaves, its context is canceled and both lease polling
+// and the repository query stop promptly.
+type usageRankingFlight struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	done     chan struct{}
+	waiters  int
+	complete bool
+	snapshot *usagestats.UsageRankingSnapshot
+	err      error
 }
 
 type usageRankingL1Entry struct {
@@ -102,6 +115,73 @@ const (
 	usageRankingCacheReadHit
 	usageRankingCacheReadUnavailable
 )
+
+func (s *usageRankingCacheState) doRefresh(
+	ctx context.Context,
+	key string,
+	fn func(context.Context) (*usagestats.UsageRankingSnapshot, error),
+) (*usagestats.UsageRankingSnapshot, error) {
+	s.mu.Lock()
+	if s.flights == nil {
+		s.flights = make(map[string]*usageRankingFlight)
+	}
+	flight := s.flights[key]
+	if flight == nil {
+		flightCtx, cancel := context.WithCancel(context.Background())
+		flight = &usageRankingFlight{
+			ctx:     flightCtx,
+			cancel:  cancel,
+			done:    make(chan struct{}),
+			waiters: 1,
+		}
+		s.flights[key] = flight
+		go s.runRefresh(key, flight, fn)
+	} else {
+		flight.waiters++
+	}
+	s.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		s.leaveRefresh(key, flight)
+		return nil, ctx.Err()
+	case <-flight.done:
+		s.leaveRefresh(key, flight)
+		return flight.snapshot, flight.err
+	}
+}
+
+func (s *usageRankingCacheState) runRefresh(
+	key string,
+	flight *usageRankingFlight,
+	fn func(context.Context) (*usagestats.UsageRankingSnapshot, error),
+) {
+	snapshot, err := fn(flight.ctx)
+
+	s.mu.Lock()
+	flight.snapshot = snapshot
+	flight.err = err
+	flight.complete = true
+	if s.flights[key] == flight {
+		delete(s.flights, key)
+	}
+	close(flight.done)
+	s.mu.Unlock()
+	flight.cancel()
+}
+
+func (s *usageRankingCacheState) leaveRefresh(key string, flight *usageRankingFlight) {
+	s.mu.Lock()
+	flight.waiters--
+	shouldCancel := flight.waiters == 0 && !flight.complete
+	if shouldCancel && s.flights[key] == flight {
+		delete(s.flights, key)
+	}
+	s.mu.Unlock()
+	if shouldCancel {
+		flight.cancel()
+	}
+}
 
 func (s *usageRankingCacheState) loadL1(key string, now time.Time) (*usagestats.UsageRankingSnapshot, bool) {
 	entry, ok := s.loadL1Entry(key, now)
@@ -338,14 +418,18 @@ func (s *UsageService) getUsageRankingCached(ctx context.Context, query usagesta
 	if !supportsSnapshot {
 		// Compatibility path for tests and alternate repository implementations.
 		// A personalized response must never be stored under the shared key.
-		return s.fetchUsageRanking(ctx, query)
+		ranking, err := s.fetchUsageRanking(ctx, query)
+		if err != nil {
+			return nil, normalizeUsageRankingFetchError(ctx, err)
+		}
+		return ranking, nil
 	}
 	if s.rankingCache == nil {
 		// Disabling Redis caching must not remove the in-process pressure guard:
 		// the leaderboard aggregation is still expensive enough to exhaust the
 		// database pool if several metric/period combinations run together.
 		if !s.rankingCacheState.acquireLocalRefreshSlot(ctx) {
-			return nil, ctx.Err()
+			return nil, normalizeUsageRankingCallerError(ctx.Err())
 		}
 		defer s.rankingCacheState.releaseLocalRefreshSlot()
 
@@ -378,25 +462,19 @@ func (s *UsageService) getUsageRankingCached(ctx context.Context, query usagesta
 		}
 	}
 
-	resultCh := s.rankingCacheState.flight.DoChan(cacheKey, func() (any, error) {
-		waitCtx, cancel := context.WithTimeout(context.Background(), usageRankingRefreshWaitTimeout)
-		defer cancel()
-		return s.refreshUsageRankingSnapshot(waitCtx, snapshotRepo, query, cacheKey, l1Key)
+	snapshot, err := s.rankingCacheState.doRefresh(ctx, cacheKey, func(flightCtx context.Context) (*usagestats.UsageRankingSnapshot, error) {
+		return s.refreshUsageRankingSnapshot(flightCtx, snapshotRepo, query, cacheKey, l1Key)
 	})
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case result := <-resultCh:
-		if result.Err != nil {
-			return nil, result.Err
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, normalizeUsageRankingCallerError(ctxErr)
 		}
-		snapshot, ok := result.Val.(*usagestats.UsageRankingSnapshot)
-		if !ok || snapshot == nil {
-			return nil, errors.New("get usage ranking: invalid shared result")
-		}
-		return usagestats.PersonalizeUsageRanking(snapshot, query.CurrentUserID, query.Limit), nil
+		return nil, normalizeUsageRankingRefreshError(err)
 	}
+	if snapshot == nil {
+		return nil, errors.New("get usage ranking: invalid shared result")
+	}
+	return usagestats.PersonalizeUsageRanking(snapshot, query.CurrentUserID, query.Limit), nil
 }
 
 func (s *UsageService) refreshUsageRankingSnapshot(
@@ -453,6 +531,8 @@ func (s *UsageService) waitForUsageRankingRefresh(
 ) (*usagestats.UsageRankingSnapshot, error) {
 	ticker := time.NewTicker(usageRankingRefreshPollInterval)
 	defer ticker.Stop()
+	waitTimer := time.NewTimer(usageRankingRefreshWaitTimeout)
+	defer waitTimer.Stop()
 
 	for {
 		select {
@@ -461,6 +541,11 @@ func (s *UsageService) waitForUsageRankingRefresh(
 				return snapshot, nil
 			}
 			return nil, ctx.Err()
+		case <-waitTimer.C:
+			if snapshot, ok := s.rankingCacheState.loadL1(l1Key, time.Now()); ok {
+				return snapshot, nil
+			}
+			return nil, errUsageRankingRefreshWaitTimeout
 		case <-ticker.C:
 		}
 
@@ -523,7 +608,7 @@ func (s *UsageService) fetchUsageRankingSnapshotWithLease(
 	} else if status == usageRankingCacheReadUnavailable {
 		s.rankingCacheState.markCacheReadUnavailable(time.Now())
 	}
-	return s.fetchAndStoreUsageRankingSnapshotWithLocalSlot(repo, query, cacheKey, l1Key)
+	return s.fetchAndStoreUsageRankingSnapshotWithLocalSlot(ctx, repo, query, cacheKey, l1Key)
 }
 
 func (s *UsageService) fallbackOrFetchUsageRankingSnapshot(
@@ -551,10 +636,11 @@ func (s *UsageService) fetchAndStoreUsageRankingSnapshot(
 	}
 	defer s.rankingCacheState.releaseLocalRefreshSlot()
 
-	return s.fetchAndStoreUsageRankingSnapshotWithLocalSlot(repo, query, cacheKey, l1Key)
+	return s.fetchAndStoreUsageRankingSnapshotWithLocalSlot(ctx, repo, query, cacheKey, l1Key)
 }
 
 func (s *UsageService) fetchAndStoreUsageRankingSnapshotWithLocalSlot(
+	ctx context.Context,
 	repo usageRankingSnapshotRepository,
 	query usagestats.UsageRankingQuery,
 	cacheKey string,
@@ -568,11 +654,10 @@ func (s *UsageService) fetchAndStoreUsageRankingSnapshotWithLocalSlot(
 		return snapshot, nil
 	}
 
-	// Time spent waiting for either the cross-instance lease or the local gate
-	// must not consume the database query budget. This is especially important
-	// during a fully cold cache, where several different leaderboard keys queue
-	// behind the single global refresh lease.
-	queryCtx, cancel := context.WithTimeout(context.Background(), usageRankingFetchTimeout)
+	// Lease polling uses its own timer, so the repository receives a fresh query
+	// budget here. The shared parent still cancels this work when every HTTP
+	// waiter has left.
+	queryCtx, cancel := context.WithTimeout(ctx, usageRankingFetchTimeout)
 	defer cancel()
 	snapshot, err := s.fetchUsageRankingSnapshot(queryCtx, repo, query)
 	if err != nil {
@@ -644,13 +729,36 @@ func (s *UsageService) fetchUsageRankingSnapshot(
 func normalizeUsageRankingFetchError(callerCtx context.Context, err error) error {
 	if callerCtx != nil {
 		if ctxErr := callerCtx.Err(); ctxErr != nil {
-			return ctxErr
+			return normalizeUsageRankingCallerError(ctxErr)
 		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return infraerrors.GatewayTimeout(
 			"USAGE_RANKING_TIMEOUT",
 			"usage ranking query timed out",
+		).WithCause(err)
+	}
+	return err
+}
+
+func normalizeUsageRankingCallerError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return infraerrors.GatewayTimeout(
+			"USAGE_RANKING_REQUEST_TIMEOUT",
+			"usage ranking request timed out",
+		).WithCause(err)
+	}
+	return err
+}
+
+func normalizeUsageRankingRefreshError(err error) error {
+	if err == nil || infraerrors.IsGatewayTimeout(err) || infraerrors.IsServiceUnavailable(err) {
+		return err
+	}
+	if errors.Is(err, errUsageRankingRefreshWaitTimeout) || errors.Is(err, context.DeadlineExceeded) {
+		return infraerrors.ServiceUnavailable(
+			"USAGE_RANKING_REFRESH_BUSY",
+			"usage ranking refresh is busy; retry shortly",
 		).WithCause(err)
 	}
 	return err

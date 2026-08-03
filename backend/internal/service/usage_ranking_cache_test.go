@@ -392,6 +392,129 @@ func TestUsageServiceUsageRankingCacheCoalescesConcurrentUsers(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&repo.calls))
 }
 
+func TestUsageServiceUsageRankingSharedRefreshSurvivesOneCanceledWaiter(t *testing.T) {
+	cache := newUsageRankingCacheStub()
+	release := make(chan struct{})
+	queryStarted := make(chan context.Context, 1)
+	repo := &usageRankingRepositoryStub{
+		wait: release,
+		onCall: func(ctx context.Context, _ usagestats.UsageRankingQuery) {
+			queryStarted <- ctx
+		},
+	}
+	service := NewUsageServiceWithRankingCache(repo, nil, nil, nil, cache)
+	query := rankingQueryForCacheTest()
+
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	firstResult := make(chan error, 1)
+	go func() {
+		_, err := service.GetUsageRanking(firstCtx, query)
+		firstResult <- err
+	}()
+	queryCtx := <-queryStarted
+
+	secondResult := make(chan error, 1)
+	go func() {
+		_, err := service.GetUsageRanking(context.Background(), query)
+		secondResult <- err
+	}()
+	require.Eventually(t, func() bool {
+		service.rankingCacheState.mu.Lock()
+		defer service.rankingCacheState.mu.Unlock()
+		for _, flight := range service.rankingCacheState.flights {
+			if flight.waiters == 2 {
+				return true
+			}
+		}
+		return false
+	}, time.Second, time.Millisecond)
+
+	cancelFirst()
+	require.ErrorIs(t, <-firstResult, context.Canceled)
+	require.NoError(t, queryCtx.Err(), "remaining waiter must keep the shared query alive")
+	close(release)
+	require.NoError(t, <-secondResult)
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.calls))
+}
+
+func TestUsageServiceUsageRankingCancelsRefreshAfterLastWaiterLeaves(t *testing.T) {
+	cache := newUsageRankingCacheStub()
+	queryStarted := make(chan context.Context, 1)
+	repo := &usageRankingRepositoryStub{
+		wait: make(chan struct{}),
+		onCall: func(ctx context.Context, _ usagestats.UsageRankingQuery) {
+			queryStarted <- ctx
+		},
+	}
+	service := NewUsageServiceWithRankingCache(repo, nil, nil, nil, cache)
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := service.GetUsageRanking(ctx, rankingQueryForCacheTest())
+		result <- err
+	}()
+	queryCtx := <-queryStarted
+
+	cancel()
+	require.ErrorIs(t, <-result, context.Canceled)
+	require.Eventually(t, func() bool {
+		return errors.Is(queryCtx.Err(), context.Canceled)
+	}, time.Second, time.Millisecond)
+}
+
+func TestUsageRankingAbandonedFlightDoesNotCaptureNewCaller(t *testing.T) {
+	var state usageRankingCacheState
+	oldStarted := make(chan struct{})
+	oldCanceled := make(chan struct{})
+	releaseOld := make(chan struct{})
+	oldDone := make(chan struct{})
+
+	oldCtx, cancelOld := context.WithCancel(context.Background())
+	oldResult := make(chan error, 1)
+	go func() {
+		_, err := state.doRefresh(oldCtx, "same-key", func(ctx context.Context) (*usagestats.UsageRankingSnapshot, error) {
+			close(oldStarted)
+			<-ctx.Done()
+			close(oldCanceled)
+			<-releaseOld
+			close(oldDone)
+			return nil, ctx.Err()
+		})
+		oldResult <- err
+	}()
+	<-oldStarted
+	cancelOld()
+	require.ErrorIs(t, <-oldResult, context.Canceled)
+	<-oldCanceled
+
+	newStarted := make(chan struct{})
+	releaseNew := make(chan struct{})
+	newResult := make(chan error, 1)
+	go func() {
+		_, err := state.doRefresh(context.Background(), "same-key", func(context.Context) (*usagestats.UsageRankingSnapshot, error) {
+			close(newStarted)
+			<-releaseNew
+			return rankingSnapshotForQuery(rankingQueryForCacheTest()), nil
+		})
+		newResult <- err
+	}()
+	select {
+	case <-newStarted:
+	case <-time.After(time.Second):
+		t.Fatal("new caller joined the canceled flight instead of starting fresh work")
+	}
+
+	close(releaseOld)
+	<-oldDone
+	state.mu.Lock()
+	newFlightStillRegistered := state.flights["same-key"] != nil
+	state.mu.Unlock()
+	require.True(t, newFlightStillRegistered, "old completion must not remove the replacement flight")
+
+	close(releaseNew)
+	require.NoError(t, <-newResult)
+}
+
 func TestUsageServiceUsageRankingRefreshLeaseCoalescesAcrossInstances(t *testing.T) {
 	cache := newUsageRankingCacheStub()
 	release := make(chan struct{})
@@ -566,7 +689,7 @@ func TestUsageServiceUsageRankingGlobalLeaseSerializesDifferentKeysAcrossInstanc
 	require.Equal(t, int32(1), atomic.LoadInt32(&secondRepo.calls))
 }
 
-func TestUsageServiceUsageRankingLeaseWaitDoesNotConsumeQueryBudget(t *testing.T) {
+func TestUsageServiceUsageRankingCancelsRepositoryWhenSharedRefreshIsCanceled(t *testing.T) {
 	cache := newUsageRankingCacheStub()
 	query := rankingQueryForCacheTest()
 	queryStarted := make(chan context.Context, 1)
@@ -597,10 +720,12 @@ func TestUsageServiceUsageRankingLeaseWaitDoesNotConsumeQueryBudget(t *testing.T
 
 	queryCtx := <-queryStarted
 	cancelWait()
-	require.Error(t, waitCtx.Err())
-	require.NoError(t, queryCtx.Err(), "database query must have a fresh budget after the lease wait")
+	require.ErrorIs(t, waitCtx.Err(), context.Canceled)
+	require.Eventually(t, func() bool {
+		return errors.Is(queryCtx.Err(), context.Canceled)
+	}, time.Second, time.Millisecond, "database query must stop when the shared refresh is canceled")
+	require.ErrorIs(t, <-result, context.Canceled)
 	close(releaseQuery)
-	require.NoError(t, <-result)
 }
 
 func TestUsageServiceUsageRankingDoesNotHoldGlobalLeaseWhileWaitingForLocalGate(t *testing.T) {
@@ -713,6 +838,22 @@ func TestUsageServiceUsageRankingMapsInternalDeadlineToGatewayTimeout(t *testing
 	require.Error(t, err)
 	require.True(t, infraerrors.IsGatewayTimeout(err))
 	require.Equal(t, "USAGE_RANKING_TIMEOUT", infraerrors.Reason(err))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestUsageServiceUsageRankingMapsLeaseWaitTimeoutToServiceUnavailable(t *testing.T) {
+	err := normalizeUsageRankingRefreshError(errUsageRankingRefreshWaitTimeout)
+
+	require.True(t, infraerrors.IsServiceUnavailable(err))
+	require.Equal(t, "USAGE_RANKING_REFRESH_BUSY", infraerrors.Reason(err))
+	require.ErrorIs(t, err, errUsageRankingRefreshWaitTimeout)
+}
+
+func TestUsageServiceUsageRankingMapsCallerDeadlineToGatewayTimeout(t *testing.T) {
+	err := normalizeUsageRankingCallerError(context.DeadlineExceeded)
+
+	require.True(t, infraerrors.IsGatewayTimeout(err))
+	require.Equal(t, "USAGE_RANKING_REQUEST_TIMEOUT", infraerrors.Reason(err))
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 

@@ -21,6 +21,7 @@ type userUsageFilters struct {
 	Filters   usagestats.UsageLogFilters
 	StartTime time.Time
 	EndTime   time.Time
+	Timezone  timezone.ResolvedUserLocation
 }
 
 type userModelStat struct {
@@ -144,6 +145,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 	}
 
 	userTZ := c.Query("timezone")
+	resolvedTimezone := timezone.ResolveUserLocation(userTZ)
 	now := timezone.NowInUserLocation(userTZ)
 	var startTime, endTime time.Time
 	var startPtr, endPtr *time.Time
@@ -209,6 +211,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 		},
 		StartTime: derefTime(startPtr),
 		EndTime:   derefTime(endPtr),
+		Timezone:  resolvedTimezone,
 	}, true
 }
 
@@ -566,7 +569,8 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 	}
 	granularity := c.DefaultQuery("granularity", "day")
 
-	trend, err := h.usageService.GetUsageTrendWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, granularity, parsed.Filters)
+	trendCtx := timezone.WithResolvedUserLocation(c.Request.Context(), parsed.Timezone)
+	trend, err := h.usageService.GetUsageTrendWithFilters(trendCtx, parsed.StartTime, parsed.EndTime, granularity, parsed.Filters)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -575,7 +579,7 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 	response.Success(c, gin.H{
 		"trend":       trend,
 		"start_date":  parsed.StartTime.Format("2006-01-02"),
-		"end_date":    parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		"end_date":    parsed.EndTime.AddDate(0, 0, -1).Format("2006-01-02"),
 		"granularity": granularity,
 	})
 }
@@ -603,7 +607,7 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 	response.Success(c, gin.H{
 		"models":     userModelStatsFromUsageStats(stats),
 		"start_date": parsed.StartTime.Format("2006-01-02"),
-		"end_date":   parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		"end_date":   parsed.EndTime.AddDate(0, 0, -1).Format("2006-01-02"),
 	})
 }
 
@@ -635,12 +639,13 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 	resp := gin.H{
 		"generated_at": time.Now().UTC().Format(time.RFC3339),
 		"start_date":   parsed.StartTime.Format("2006-01-02"),
-		"end_date":     parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		"end_date":     parsed.EndTime.AddDate(0, 0, -1).Format("2006-01-02"),
 		"granularity":  granularity,
 	}
 
 	if includeTrend {
-		trend, err := h.usageService.GetUsageTrendWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, granularity, parsed.Filters)
+		trendCtx := timezone.WithResolvedUserLocation(c.Request.Context(), parsed.Timezone)
+		trend, err := h.usageService.GetUsageTrendWithFilters(trendCtx, parsed.StartTime, parsed.EndTime, granularity, parsed.Filters)
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return
@@ -805,8 +810,10 @@ func (h *UsageHandler) GetMyAPIKeyDailyUsage(c *gin.Context) {
 	}
 
 	userTZ := c.Query("timezone")
+	resolvedTimezone := timezone.ResolveUserLocation(userTZ)
 	startTime, endTime := apiKeyDailyUsageRange(days, userTZ)
-	items, err := h.usageService.GetAPIKeyDailyUsage(c.Request.Context(), subject.UserID, apiKeyID, startTime, endTime)
+	trendCtx := timezone.WithResolvedUserLocation(c.Request.Context(), resolvedTimezone)
+	items, err := h.usageService.GetAPIKeyDailyUsage(trendCtx, subject.UserID, apiKeyID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

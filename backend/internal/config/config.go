@@ -2068,8 +2068,11 @@ func setDefaults() {
 	viper.SetDefault("database.dbname", "sub2api")
 	viper.SetDefault("database.sslmode", "prefer")
 	viper.SetDefault("database.schema", "")
-	viper.SetDefault("database.max_open_conns", 256)
-	viper.SetDefault("database.max_idle_conns", 128)
+	// Keep the per-process pool conservative by default. A blue/green pair then
+	// reserves at most 16 application connections, leaving room for Supabase's
+	// platform services, migrations, and operator sessions on small instances.
+	viper.SetDefault("database.max_open_conns", 8)
+	viper.SetDefault("database.max_idle_conns", 2)
 	viper.SetDefault("database.conn_max_lifetime_minutes", 30)
 	viper.SetDefault("database.conn_max_idle_time_minutes", 5)
 	viper.SetDefault("database.user_platform_quota_flusher_enabled", false)

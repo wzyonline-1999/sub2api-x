@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -27,6 +28,8 @@ type dashboardSnapshotV2Response struct {
 
 	StartDate   string `json:"start_date"`
 	EndDate     string `json:"end_date"`
+	StartTime   string `json:"start_time"`
+	EndTime     string `json:"end_time"`
 	Granularity string `json:"granularity"`
 
 	Stats      *dashboardSnapshotV2Stats        `json:"stats,omitempty"`
@@ -50,6 +53,7 @@ type dashboardSnapshotV2Filters struct {
 type dashboardSnapshotV2CacheKey struct {
 	StartTime         string `json:"start_time"`
 	EndTime           string `json:"end_time"`
+	Timezone          string `json:"timezone"`
 	Granularity       string `json:"granularity"`
 	UserID            int64  `json:"user_id"`
 	APIKeyID          int64  `json:"api_key_id"`
@@ -68,8 +72,13 @@ type dashboardSnapshotV2CacheKey struct {
 }
 
 func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime, err := parseTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 	granularity := strings.TrimSpace(c.DefaultQuery("granularity", "day"))
+	resolvedTimezone := timezone.ResolveUserLocation(c.Query("timezone"))
 	if granularity != "hour" {
 		granularity = "day"
 	}
@@ -95,6 +104,7 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 	keyRaw, _ := json.Marshal(dashboardSnapshotV2CacheKey{
 		StartTime:         startTime.UTC().Format(time.RFC3339),
 		EndTime:           endTime.UTC().Format(time.RFC3339),
+		Timezone:          resolvedTimezone.Name(),
 		Granularity:       granularity,
 		UserID:            filters.UserID,
 		APIKeyID:          filters.APIKeyID,
@@ -112,12 +122,16 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 		UsersTrendLimit:   usersTrendLimit,
 	})
 	cacheKey := string(keyRaw)
+	startDate, endDate := dashboardResponseDateRange(c, startTime, endTime)
 
-	cached, hit, err := dashboardSnapshotV2Cache.GetOrLoad(cacheKey, func() (any, error) {
+	cached, hit, err := dashboardSnapshotV2Cache.GetOrLoad(c.Request.Context(), cacheKey, func(loadCtx context.Context) (any, error) {
+		loadCtx = timezone.WithResolvedUserLocation(loadCtx, resolvedTimezone)
 		return h.buildSnapshotV2Response(
-			c.Request.Context(),
+			loadCtx,
 			startTime,
 			endTime,
+			startDate,
+			endDate,
 			granularity,
 			filters,
 			includeStats,
@@ -126,6 +140,7 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 			includeGroups,
 			includeUsersTrend,
 			usersTrendLimit,
+			resolvedTimezone,
 		)
 	})
 	if err != nil {
@@ -147,15 +162,19 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 func (h *DashboardHandler) buildSnapshotV2Response(
 	ctx context.Context,
 	startTime, endTime time.Time,
+	startDate, endDate string,
 	granularity string,
 	filters *dashboardSnapshotV2Filters,
 	includeStats, includeTrend, includeModels, includeGroups, includeUsersTrend bool,
 	usersTrendLimit int,
+	resolvedTimezone timezone.ResolvedUserLocation,
 ) (*dashboardSnapshotV2Response, error) {
 	resp := &dashboardSnapshotV2Response{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		StartDate:   startTime.Format("2006-01-02"),
-		EndDate:     endTime.Add(-24 * time.Hour).Format("2006-01-02"),
+		StartDate:   startDate,
+		EndDate:     endDate,
+		StartTime:   startTime.UTC().Format(time.RFC3339),
+		EndTime:     endTime.UTC().Format(time.RFC3339),
 		Granularity: granularity,
 	}
 
@@ -184,6 +203,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 			filters.RequestType,
 			filters.Stream,
 			filters.BillingType,
+			resolvedTimezone,
 		)
 		if err != nil {
 			return nil, errors.New("failed to get usage trend")
@@ -231,7 +251,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 	}
 
 	if includeUsersTrend {
-		usersTrend, _, err := h.getUserUsageTrendCached(ctx, startTime, endTime, granularity, usersTrendLimit)
+		usersTrend, _, err := h.getUserUsageTrendCached(ctx, startTime, endTime, granularity, usersTrendLimit, resolvedTimezone)
 		if err != nil {
 			return nil, errors.New("failed to get user usage trend")
 		}

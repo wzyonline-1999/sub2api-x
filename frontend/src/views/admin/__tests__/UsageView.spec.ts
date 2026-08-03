@@ -244,6 +244,30 @@ describe('admin UsageView route filters', () => {
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ user_id: 42 }), expect.anything())
     expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('42')
   })
+
+  it('forwards an exact dashboard drill-down window to every usage query', async () => {
+    routeQuery.user_id = '42'
+    routeQuery.start_date = '2026-07-30'
+    routeQuery.end_date = '2026-07-31'
+    routeQuery.start_time = '2026-07-30T02:20:30Z'
+    routeQuery.end_time = '2026-07-31T02:20:30Z'
+    getById.mockResolvedValue({ id: 42, email: 'route-user@test.com' })
+
+    mountRouteFilteredUsageView()
+    await flushPromises()
+
+    const exactRange = {
+      start_time: '2026-07-30T02:20:30Z',
+      end_time: '2026-07-31T02:20:30Z'
+    }
+    expect(list).toHaveBeenCalledWith(expect.objectContaining(exactRange), expect.anything())
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining(exactRange))
+    expect(getModelStats).toHaveBeenCalledWith(expect.objectContaining(exactRange))
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining(exactRange))
+  })
 })
 
 describe('admin UsageView distribution metric toggles', () => {

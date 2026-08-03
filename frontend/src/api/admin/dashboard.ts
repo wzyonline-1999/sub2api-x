@@ -47,6 +47,9 @@ export async function getRealtimeMetrics(): Promise<{
 export interface TrendParams {
   start_date?: string
   end_date?: string
+  start_time?: string
+  end_time?: string
+  time_range?: '24h'
   granularity?: 'day' | 'hour'
   user_id?: number
   api_key_id?: number
@@ -62,6 +65,8 @@ export interface TrendResponse {
   trend: TrendDataPoint[]
   start_date: string
   end_date: string
+  start_time?: string
+  end_time?: string
   granularity: string
 }
 
@@ -78,6 +83,8 @@ export async function getUsageTrend(params?: TrendParams): Promise<TrendResponse
 export interface ModelStatsParams {
   start_date?: string
   end_date?: string
+  start_time?: string
+  end_time?: string
   user_id?: number
   api_key_id?: number
   model?: string
@@ -108,6 +115,8 @@ export async function getModelStats(params?: ModelStatsParams): Promise<ModelSta
 export interface GroupStatsParams {
   start_date?: string
   end_date?: string
+  start_time?: string
+  end_time?: string
   user_id?: number
   api_key_id?: number
   account_id?: number
@@ -140,6 +149,8 @@ export interface DashboardSnapshotV2Response {
   generated_at: string
   start_date: string
   end_date: string
+  start_time: string
+  end_time: string
   granularity: string
   stats?: DashboardSnapshotV2Stats
   trend?: TrendDataPoint[]
@@ -238,7 +249,7 @@ export interface UserTrendResponse {
 }
 
 export interface UserSpendingRankingParams
-  extends Pick<TrendParams, 'start_date' | 'end_date'> {
+  extends Pick<TrendParams, 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'time_range'> {
   limit?: number
 }
 

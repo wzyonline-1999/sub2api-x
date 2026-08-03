@@ -933,7 +933,8 @@ router.beforeEach(async (to, _from, next) => {
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',
-      '/redeem'
+      '/redeem',
+      '/rankings'
     ]
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {

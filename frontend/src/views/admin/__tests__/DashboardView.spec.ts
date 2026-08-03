@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { defineComponent } from 'vue'
 
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking, routerPush } = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
   getUserUsageTrend: vi.fn(),
-  getUserSpendingRanking: vi.fn()
+  getUserSpendingRanking: vi.fn(),
+  routerPush: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -29,9 +31,14 @@ vi.mock('@/stores/app', () => ({
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
-    push: vi.fn()
+    push: routerPush
   })
 }))
+
+const ModelDistributionChartStub = defineComponent({
+  emits: ['ranking-click'],
+  template: '<button data-test="ranking-drilldown" @click="$emit(\'ranking-click\', { user_id: 7, email: \'user@test.dev\', actual_cost: 1, requests: 2, tokens: 3 })">open</button>'
+})
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -93,6 +100,7 @@ describe('admin DashboardView', () => {
     getSnapshotV2.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
+    routerPush.mockReset()
 
     getSnapshotV2.mockResolvedValue({
       stats: createDashboardStats(),
@@ -111,7 +119,9 @@ describe('admin DashboardView', () => {
       total_requests: 0,
       total_tokens: 0,
       start_date: '',
-      end_date: ''
+      end_date: '',
+      start_time: '2026-07-30T02:20:30Z',
+      end_time: '2026-07-31T02:20:30Z'
     })
   })
 
@@ -140,7 +150,36 @@ describe('admin DashboardView', () => {
     expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
       start_date: formatLocalDate(yesterday),
       end_date: formatLocalDate(now),
+      time_range: '24h',
       granularity: 'hour'
     }))
+  })
+
+  it('drills into the exact ranking time window', async () => {
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          Select: true,
+          ModelDistributionChart: ModelDistributionChartStub,
+          TokenUsageTrend: true,
+          Line: true
+        }
+      }
+    })
+    await flushPromises()
+
+    await wrapper.find('[data-test="ranking-drilldown"]').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith({
+      path: '/admin/usage',
+      query: expect.objectContaining({
+        user_id: '7',
+        start_time: '2026-07-30T02:20:30Z',
+        end_time: '2026-07-31T02:20:30Z'
+      })
+    })
   })
 })

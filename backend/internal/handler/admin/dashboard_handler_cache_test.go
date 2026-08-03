@@ -4,10 +4,13 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -16,8 +19,27 @@ import (
 
 type dashboardUsageRepoCacheProbe struct {
 	service.UsageLogRepository
-	trendCalls      atomic.Int32
-	usersTrendCalls atomic.Int32
+	trendCalls       atomic.Int32
+	usersTrendCalls  atomic.Int32
+	apiKeyTrendCalls atomic.Int32
+	timezoneMu       sync.Mutex
+	timezones        []string
+}
+
+func (r *dashboardUsageRepoCacheProbe) recordTimezone(ctx context.Context) {
+	resolved, ok := timezone.ResolvedUserLocationFromContext(ctx)
+	if !ok {
+		return
+	}
+	r.timezoneMu.Lock()
+	r.timezones = append(r.timezones, resolved.Name())
+	r.timezoneMu.Unlock()
+}
+
+func (r *dashboardUsageRepoCacheProbe) capturedTimezones() []string {
+	r.timezoneMu.Lock()
+	defer r.timezoneMu.Unlock()
+	return append([]string(nil), r.timezones...)
 }
 
 func (r *dashboardUsageRepoCacheProbe) GetUsageTrendWithFilters(
@@ -31,6 +53,7 @@ func (r *dashboardUsageRepoCacheProbe) GetUsageTrendWithFilters(
 	billingType *int8,
 ) ([]usagestats.TrendDataPoint, error) {
 	r.trendCalls.Add(1)
+	r.recordTimezone(ctx)
 	return []usagestats.TrendDataPoint{{
 		Date:        "2026-03-11",
 		Requests:    1,
@@ -47,6 +70,7 @@ func (r *dashboardUsageRepoCacheProbe) GetUserUsageTrend(
 	limit int,
 ) ([]usagestats.UserUsageTrendPoint, error) {
 	r.usersTrendCalls.Add(1)
+	r.recordTimezone(ctx)
 	return []usagestats.UserUsageTrendPoint{{
 		Date:       "2026-03-11",
 		UserID:     1,
@@ -55,6 +79,23 @@ func (r *dashboardUsageRepoCacheProbe) GetUserUsageTrend(
 		Tokens:     20,
 		Cost:       2,
 		ActualCost: 1,
+	}}, nil
+}
+
+func (r *dashboardUsageRepoCacheProbe) GetAPIKeyUsageTrend(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	granularity string,
+	limit int,
+) ([]usagestats.APIKeyUsageTrendPoint, error) {
+	r.apiKeyTrendCalls.Add(1)
+	r.recordTimezone(ctx)
+	return []usagestats.APIKeyUsageTrendPoint{{
+		Date:     "2026-03-11",
+		APIKeyID: 1,
+		KeyName:  "cache-key",
+		Requests: 2,
+		Tokens:   20,
 	}}, nil
 }
 
@@ -115,4 +156,78 @@ func TestDashboardHandler_GetUserUsageTrend_UsesCache(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec2.Code)
 	require.Equal(t, "hit", rec2.Header().Get("X-Snapshot-Cache"))
 	require.Equal(t, int32(1), repo.usersTrendCalls.Load())
+}
+
+func TestDashboardTrendCachesSeparateTimezoneAndPreserveLoaderContext(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		register  func(*gin.Engine, *DashboardHandler)
+		callCount func(*dashboardUsageRepoCacheProbe) int32
+	}{
+		{
+			name: "overall trend",
+			path: "/admin/dashboard/trend",
+			register: func(router *gin.Engine, handler *DashboardHandler) {
+				router.GET("/admin/dashboard/trend", handler.GetUsageTrend)
+			},
+			callCount: func(repo *dashboardUsageRepoCacheProbe) int32 { return repo.trendCalls.Load() },
+		},
+		{
+			name: "API key trend",
+			path: "/admin/dashboard/api-keys-trend",
+			register: func(router *gin.Engine, handler *DashboardHandler) {
+				router.GET("/admin/dashboard/api-keys-trend", handler.GetAPIKeyUsageTrend)
+			},
+			callCount: func(repo *dashboardUsageRepoCacheProbe) int32 { return repo.apiKeyTrendCalls.Load() },
+		},
+		{
+			name: "user trend",
+			path: "/admin/dashboard/users-trend",
+			register: func(router *gin.Engine, handler *DashboardHandler) {
+				router.GET("/admin/dashboard/users-trend", handler.GetUserUsageTrend)
+			},
+			callCount: func(repo *dashboardUsageRepoCacheProbe) int32 { return repo.usersTrendCalls.Load() },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(resetDashboardReadCachesForTest)
+			resetDashboardReadCachesForTest()
+
+			gin.SetMode(gin.TestMode)
+			repo := &dashboardUsageRepoCacheProbe{}
+			dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
+			handler := NewDashboardHandler(dashboardSvc, nil)
+			router := gin.New()
+			tt.register(router, handler)
+
+			request := func(timezoneName string) *httptest.ResponseRecorder {
+				query := url.Values{
+					"start_time":  {"2026-03-01T00:00:00Z"},
+					"end_time":    {"2026-03-02T00:00:00Z"},
+					"granularity": {"day"},
+					"timezone":    {timezoneName},
+				}
+				req := httptest.NewRequest(http.MethodGet, tt.path+"?"+query.Encode(), nil)
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+				return rec
+			}
+
+			utc := request("UTC")
+			tokyo := request("Asia/Tokyo")
+			tokyoCached := request("Asia/Tokyo")
+
+			require.Equal(t, http.StatusOK, utc.Code)
+			require.Equal(t, "miss", utc.Header().Get("X-Snapshot-Cache"))
+			require.Equal(t, http.StatusOK, tokyo.Code)
+			require.Equal(t, "miss", tokyo.Header().Get("X-Snapshot-Cache"))
+			require.Equal(t, http.StatusOK, tokyoCached.Code)
+			require.Equal(t, "hit", tokyoCached.Header().Get("X-Snapshot-Cache"))
+			require.Equal(t, int32(2), tt.callCount(repo))
+			require.Equal(t, []string{"UTC", "Asia/Tokyo"}, repo.capturedTimezones())
+		})
+	}
 }

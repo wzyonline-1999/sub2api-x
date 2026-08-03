@@ -529,6 +529,7 @@ func TestFrontendServer_Middleware(t *testing.T) {
 			"/setup/init",
 			"/chat/completions",
 			"/health",
+			"/ready",
 			"/responses",
 			"/responses/compact",
 		}
@@ -791,6 +792,7 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 			"/antigravity/test",
 			"/setup/init",
 			"/health",
+			"/ready",
 			"/responses",
 			"/responses/compact",
 		}

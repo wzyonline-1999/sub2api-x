@@ -315,6 +315,7 @@ const summary = ref<UsageRankingSummary>({
 const startDate = ref('')
 const endDate = ref('')
 let latestRankingRequest = 0
+let rankingAbortController: AbortController | null = null
 
 const periods = computed<Array<{ value: UsageRankingPeriod; label: string }>>(() => [
   { value: 'day', label: t('rankings.periods.day') },
@@ -442,17 +443,22 @@ const mineProgressCaption = computed(() => {
 })
 
 async function loadRankings() {
+  rankingAbortController?.abort()
+  const controller = new AbortController()
   const requestID = ++latestRankingRequest
   const requestedMetric = metric.value
   const requestedPeriod = period.value
+  rankingAbortController = controller
   loading.value = true
   try {
     const response = await getRankings({
       metric: requestedMetric,
       period: requestedPeriod,
       limit: 10,
+    }, {
+      signal: controller.signal,
     })
-    if (requestID !== latestRankingRequest) return
+    if (controller.signal.aborted || requestID !== latestRankingRequest) return
     ranking.value = response.ranking ?? []
     summary.value = response.summary ?? summary.value
     currentUser.value = response.current_user ?? null
@@ -462,7 +468,7 @@ async function loadRankings() {
     const generatedAt = response.generated_at ? new Date(response.generated_at) : new Date()
     updatedAt.value = Number.isNaN(generatedAt.getTime()) ? new Date() : generatedAt
   } catch (error: any) {
-    if (requestID !== latestRankingRequest) return
+    if (controller.signal.aborted || isAbortError(error) || requestID !== latestRankingRequest) return
     ranking.value = []
     currentUser.value = null
     currentUserTarget.value = null
@@ -478,9 +484,16 @@ async function loadRankings() {
     appStore.showError(error?.message || t('rankings.loadFailed'))
   } finally {
     if (requestID === latestRankingRequest) {
+      rankingAbortController = null
       loading.value = false
     }
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const { name, code } = error as { name?: string; code?: string }
+  return name === 'AbortError' || code === 'ERR_CANCELED'
 }
 
 function setMetric(next: UsageRankingMetric) {
@@ -603,6 +616,8 @@ onBeforeUnmount(() => {
   // detached ranking view from mutating state or showing an unrelated toast on
   // the page the user navigated to.
   latestRankingRequest++
+  rankingAbortController?.abort()
+  rankingAbortController = null
 })
 </script>
 

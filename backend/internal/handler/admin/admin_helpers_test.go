@@ -21,15 +21,132 @@ func TestParseTimeRange(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/?start_date=2024-01-01&end_date=2024-01-02&timezone=UTC", nil)
 	c.Request = req
 
-	start, end := parseTimeRange(c)
+	start, end, err := parseTimeRange(c)
+	require.NoError(t, err)
 	require.Equal(t, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), start)
 	require.Equal(t, time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC), end)
 
 	req = httptest.NewRequest(http.MethodGet, "/?start_date=bad&timezone=UTC", nil)
 	c.Request = req
-	start, end = parseTimeRange(c)
+	start, end, err = parseTimeRange(c)
+	require.NoError(t, err)
 	require.False(t, start.IsZero())
 	require.False(t, end.IsZero())
+}
+
+func TestParseTimeRangeRolling24Hours(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/?start_date=2024-01-01&end_date=2024-01-02&time_range=24h&timezone=Asia%2FShanghai",
+		nil,
+	)
+
+	now := time.Date(2026, 7, 31, 10, 20, 47, 123, time.FixedZone("CST", 8*60*60))
+	start, end, err := parseTimeRangeAt(c, now)
+	require.NoError(t, err)
+
+	require.Equal(t, 24*time.Hour, end.Sub(start))
+	require.Equal(t, time.Date(2026, 7, 31, 10, 20, 0, 0, now.Location()), end)
+
+	// Requests within the same bucket resolve to an identical range/cache key.
+	startAgain, endAgain, err := parseTimeRangeAt(c, now.Add(10*time.Second))
+	require.NoError(t, err)
+	require.Equal(t, start, startAgain)
+	require.Equal(t, end, endAgain)
+
+	_, nextEnd, err := parseTimeRangeAt(c, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Equal(t, end.Add(dashboardRollingWindowBucket), nextEnd)
+}
+
+func TestParseTimeRangeExactTimestampsTakePriority(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/?start_time=2026-07-30T02%3A20%3A30Z&end_time=2026-07-31T02%3A20%3A30Z&time_range=24h",
+		nil,
+	)
+
+	start, end, err := parseTimeRangeAt(c, time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, "2026-07-30T02:20:30Z", start.Format(time.RFC3339))
+	require.Equal(t, "2026-07-31T02:20:30Z", end.Format(time.RFC3339))
+}
+
+func TestParseTimeRangeRejectsInvalidExactTimestampPairs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{name: "missing end", query: "start_time=2026-07-30T02%3A20%3A30Z"},
+		{name: "missing start", query: "end_time=2026-07-31T02%3A20%3A30Z"},
+		{name: "invalid format", query: "start_time=bad&end_time=2026-07-31T02%3A20%3A30Z"},
+		{name: "reverse range", query: "start_time=2026-07-31T02%3A20%3A30Z&end_time=2026-07-30T02%3A20%3A30Z"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/?"+tt.query, nil)
+
+			start, end, err := parseTimeRangeAt(c, time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC))
+			require.ErrorIs(t, err, errInvalidDashboardExactTimeRange)
+			require.True(t, start.IsZero())
+			require.True(t, end.IsZero())
+		})
+	}
+}
+
+func TestDashboardResponseDateRangeRollingUsesWindowEndDate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/?time_range=24h&timezone=UTC", nil)
+
+	start := time.Date(2026, 7, 30, 2, 20, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	startDate, endDate := dashboardResponseDateRange(c, start, end)
+
+	require.Equal(t, "2026-07-30", startDate)
+	require.Equal(t, "2026-07-31", endDate)
+}
+
+func TestDashboardResponseDateRangeDateOnlyUsesInclusiveEndDate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/?start_date=2026-07-30&end_date=2026-07-31&timezone=UTC", nil)
+
+	start := time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)
+	exclusiveEnd := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	startDate, endDate := dashboardResponseDateRange(c, start, exclusiveEnd)
+
+	require.Equal(t, "2026-07-30", startDate)
+	require.Equal(t, "2026-07-31", endDate)
+}
+
+func TestParseTimeRangeDateOnlyUsesCalendarDayAcrossDST(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/?start_date=2025-03-09&end_date=2025-03-09&timezone=America%2FNew_York",
+		nil,
+	)
+
+	start, end, err := parseTimeRangeAt(c, time.Date(2025, 3, 10, 12, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, 23*time.Hour, end.Sub(start))
+	require.Equal(t, 0, end.In(start.Location()).Hour())
+	require.Equal(t, start.AddDate(0, 0, 1), end)
 }
 
 func TestParseOpsViewParam(t *testing.T) {

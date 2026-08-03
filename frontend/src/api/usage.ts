@@ -264,9 +264,13 @@ export async function getStatsByDateRange(
   return data
 }
 
-export async function getRankings(params: UsageRankingQuery): Promise<UsageRankingResponse> {
+export async function getRankings(
+  params: UsageRankingQuery,
+  options?: { signal?: AbortSignal }
+): Promise<UsageRankingResponse> {
   const { data } = await apiClient.get<UsageRankingResponse>('/usage/rankings', {
-    params
+    params,
+    signal: options?.signal
   })
   return data
 }

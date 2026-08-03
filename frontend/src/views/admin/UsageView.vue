@@ -317,6 +317,8 @@ const getNumericQueryValue = (value: string | null | Array<string | null> | unde
 const applyRouteQueryFilters = () => {
   const queryStartDate = getSingleQueryValue(route.query.start_date)
   const queryEndDate = getSingleQueryValue(route.query.end_date)
+  const queryStartTime = getSingleQueryValue(route.query.start_time)
+  const queryEndTime = getSingleQueryValue(route.query.end_time)
   const queryUserId = getNumericQueryValue(route.query.user_id)
 
   if (queryStartDate) {
@@ -330,7 +332,9 @@ const applyRouteQueryFilters = () => {
     ...filters.value,
     user_id: queryUserId,
     start_date: startDate.value,
-    end_date: endDate.value
+    end_date: endDate.value,
+    start_time: queryStartTime && queryEndTime ? queryStartTime : undefined,
+    end_time: queryStartTime && queryEndTime ? queryEndTime : undefined
   }
   granularity.value = getGranularityForRange(startDate.value, endDate.value)
 }
@@ -361,7 +365,11 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
   filters.value = {
     ...filters.value,
     start_date: range.startDate,
-    end_date: range.endDate
+    end_date: range.endDate,
+    // An explicit picker change starts a new date-based query and must not
+    // retain the exact drill-down window from the route.
+    start_time: undefined,
+    end_time: undefined
   }
   granularity.value = getGranularityForRange(range.startDate, range.endDate)
   applyFilters()
@@ -442,6 +450,8 @@ const loadModelStats = async (source: ModelDistributionSource, force = false) =>
     const baseParams = {
       start_date: filters.value.start_date || startDate.value,
       end_date: filters.value.end_date || endDate.value,
+      start_time: filters.value.start_time,
+      end_time: filters.value.end_time,
       user_id: filters.value.user_id,
       model: filters.value.model,
       api_key_id: filters.value.api_key_id,
@@ -490,6 +500,8 @@ const loadChartData = async () => {
     const snapshot = await adminAPI.dashboard.getSnapshotV2({
       start_date: filters.value.start_date || startDate.value,
       end_date: filters.value.end_date || endDate.value,
+      start_time: filters.value.start_time,
+      end_time: filters.value.end_time,
       granularity: granularity.value,
       user_id: filters.value.user_id,
       model: filters.value.model,
@@ -798,8 +810,8 @@ const loadAdminErrors = async () => {
       page: errPage.value,
       page_size: errPageSize.value,
       view: 'all',
-      start_time: toRFC3339(filters.value.start_date),
-      end_time: toRFC3339(filters.value.end_date, true),
+      start_time: filters.value.start_time || toRFC3339(filters.value.start_date),
+      end_time: filters.value.end_time || toRFC3339(filters.value.end_date, true),
       user_id: filters.value.user_id ?? undefined,
       api_key_id: filters.value.api_key_id ?? undefined,
       account_id: filters.value.account_id ?? undefined,

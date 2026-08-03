@@ -405,6 +405,7 @@ const rankingItems = ref<UserSpendingRankingItem[]>([])
 const rankingTotalActualCost = ref(0)
 const rankingTotalRequests = ref(0)
 const rankingTotalTokens = ref(0)
+const rankingWindow = ref<{ startTime: string; endTime: string } | null>(null)
 let chartLoadSeq = 0
 let usersTrendLoadSeq = 0
 let rankingLoadSeq = 0
@@ -429,6 +430,7 @@ const granularity = ref<'day' | 'hour'>('hour')
 const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start)
 const endDate = ref(defaultRange.end)
+const rollingTimeRange = ref<'24h' | undefined>('24h')
 
 // Granularity options for Select component
 const granularityOptions = computed(() => [
@@ -612,13 +614,18 @@ const formatDuration = (ms: number): string => {
 }
 
 const goToUserUsage = (item: UserSpendingRankingItem) => {
+  const query: Record<string, string> = {
+    user_id: String(item.user_id),
+    start_date: startDate.value,
+    end_date: endDate.value
+  }
+  if (rankingWindow.value) {
+    query.start_time = rankingWindow.value.startTime
+    query.end_time = rankingWindow.value.endTime
+  }
   void router.push({
     path: '/admin/usage',
-    query: {
-      user_id: String(item.user_id),
-      start_date: startDate.value,
-      end_date: endDate.value
-    }
+    query
   })
 }
 
@@ -628,6 +635,9 @@ const onDateRangeChange = (range: {
   endDate: string
   preset: string | null
 }) => {
+  rollingTimeRange.value = range.preset === 'last24Hours' ? '24h' : undefined
+  rankingWindow.value = null
+
   // Auto-select granularity based on date range
   const start = new Date(range.startDate)
   const end = new Date(range.endDate)
@@ -654,6 +664,7 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     const response = await adminAPI.dashboard.getSnapshotV2({
       start_date: startDate.value,
       end_date: endDate.value,
+      time_range: rollingTimeRange.value,
       granularity: granularity.value,
       include_stats: includeStats,
       include_trend: true,
@@ -686,6 +697,7 @@ const loadUsersTrend = async () => {
     const response = await adminAPI.dashboard.getUserUsageTrend({
       start_date: startDate.value,
       end_date: endDate.value,
+      time_range: rollingTimeRange.value,
       granularity: granularity.value,
       limit: 12
     })
@@ -710,6 +722,7 @@ const loadUserSpendingRanking = async () => {
     const response = await adminAPI.dashboard.getUserSpendingRanking({
       start_date: startDate.value,
       end_date: endDate.value,
+      time_range: rollingTimeRange.value,
       limit: rankingLimit
     })
     if (currentSeq !== rankingLoadSeq) return
@@ -717,6 +730,9 @@ const loadUserSpendingRanking = async () => {
     rankingTotalActualCost.value = response.total_actual_cost || 0
     rankingTotalRequests.value = response.total_requests || 0
     rankingTotalTokens.value = response.total_tokens || 0
+    rankingWindow.value = response.start_time && response.end_time
+      ? { startTime: response.start_time, endTime: response.end_time }
+      : null
   } catch (error) {
     if (currentSeq !== rankingLoadSeq) return
     console.error('Error loading user spending ranking:', error)
@@ -724,6 +740,7 @@ const loadUserSpendingRanking = async () => {
     rankingTotalActualCost.value = 0
     rankingTotalRequests.value = 0
     rankingTotalTokens.value = 0
+    rankingWindow.value = null
     rankingError.value = true
   } finally {
     if (currentSeq === rankingLoadSeq) {

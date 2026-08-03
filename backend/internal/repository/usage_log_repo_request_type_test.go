@@ -426,8 +426,8 @@ func TestUsageLogRepositoryGetUsageTrendWithFiltersRequestTypePriority(t *testin
 	requestType := int16(service.RequestTypeStream)
 	stream := true
 
-	mock.ExpectQuery("AND \\(request_type = \\$3 OR \\(request_type = 0 AND stream = TRUE AND openai_ws_mode = FALSE\\)\\)").
-		WithArgs(start, end, requestType).
+	mock.ExpectQuery("(?s)TO_CHAR\\(created_at AT TIME ZONE \\$3, 'YYYY-MM-DD'\\).*AND \\(request_type = \\$4 OR \\(request_type = 0 AND stream = TRUE AND openai_ws_mode = FALSE\\)\\)").
+		WithArgs(start, end, resolveUsageStatsTimezone(), requestType).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "cost", "actual_cost"}))
 
 	trend, err := repo.GetUsageTrendWithFilters(context.Background(), start, end, "day", 0, 0, 0, 0, "", &requestType, &stream, nil)
@@ -447,13 +447,172 @@ func TestUsageLogRepositoryGetUsageTrendWithUsageFiltersRequestedModelSource(t *
 		ModelFilterSource: usagestats.ModelSourceRequested,
 	}
 
-	mock.ExpectQuery("AND COALESCE\\(NULLIF\\(TRIM\\(requested_model\\), ''\\), model\\) = \\$3").
-		WithArgs(start, end, "gpt-5").
+	mock.ExpectQuery("(?s)TO_CHAR\\(created_at AT TIME ZONE \\$3, 'YYYY-MM-DD'\\).*AND COALESCE\\(NULLIF\\(TRIM\\(requested_model\\), ''\\), model\\) = \\$4").
+		WithArgs(start, end, resolveUsageStatsTimezone(), "gpt-5").
 		WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "cost", "actual_cost"}))
 
 	trend, err := repo.GetUsageTrendWithUsageFilters(context.Background(), start, end, "day", filters)
 	require.NoError(t, err)
 	require.Empty(t, trend)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryHourlyAggregateTrendUsesExplicitTimezone(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 7, 30, 14, 0, 0, 0, time.UTC)
+	end := start.Add(2 * time.Hour)
+	tzName := resolveUsageStatsTimezone()
+	fullStart, fullEnd, ok := completeUsageStatsHourRange(start, end)
+	require.True(t, ok)
+
+	mock.ExpectQuery("(?s)WITH aggregate_bounds AS.*MIN\\(bucket_start\\) AS first_bucket.*coverage AS.*COALESCE\\(aggregate_bounds.first_bucket, \\$4\\).*combined AS.*TO_CHAR\\(bucket_start AT TIME ZONE \\$5, 'YYYY-MM-DD HH24:00'\\) AS date").
+		WithArgs(start, end, fullStart, fullEnd, tzName).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost",
+		}).AddRow("2026-07-30 23:00", int64(1), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08))
+
+	trend, err := repo.getUsageTrendFromAggregates(context.Background(), start, end, "hour")
+	require.NoError(t, err)
+	require.Len(t, trend, 1)
+	require.Equal(t, "2026-07-30 23:00", trend[0].Date)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryRolling24HourTrendReadsPartialEdgesFromUsageLogs(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 7, 30, 14, 20, 30, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	fullStart, fullEnd, ok := completeUsageStatsHourRange(start, end)
+	require.True(t, ok)
+	require.True(t, fullStart.After(start))
+	require.True(t, end.After(fullEnd))
+	require.Equal(t, 23*time.Hour, fullEnd.Sub(fullStart))
+
+	mock.ExpectQuery("(?s)FROM usage_logs.*created_at >= \\$1 AND created_at < \\$3.*created_at >= \\$4 AND created_at < \\$2.*UNION ALL.*FROM usage_dashboard_hourly.*bucket_start >= \\$3 AND bucket_start < \\$4").
+		WithArgs(start, end, fullStart, fullEnd, resolveUsageStatsTimezone()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost",
+		}).
+			AddRow("2026-07-30 22:00", int64(2), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08).
+			AddRow("2026-07-30 23:00", int64(3), int64(20), int64(30), int64(0), int64(0), int64(50), 0.2, 0.16).
+			AddRow("2026-07-31 00:00", int64(1), int64(5), int64(5), int64(0), int64(0), int64(10), 0.05, 0.04))
+
+	trend, err := repo.getUsageTrendFromAggregates(context.Background(), start, end, "hour")
+	require.NoError(t, err)
+	require.Len(t, trend, 3)
+	require.Equal(t, int64(6), trend[0].Requests+trend[1].Requests+trend[2].Requests)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryAggregateTrendFallsBackWithoutCompleteBucket(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 7, 30, 14, 20, 0, 0, time.UTC)
+	trend, err := repo.getUsageTrendFromAggregates(context.Background(), start, start.Add(20*time.Minute), "hour")
+	require.NoError(t, err)
+	require.Nil(t, trend)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryHourlyTrendFallsBackWhenAggregateCoverageIsUnavailable(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 7, 30, 14, 20, 30, 0, time.UTC)
+	end := start.Add(2 * time.Hour)
+	fullStart, fullEnd, ok := completeUsageStatsHourRange(start, end)
+	require.True(t, ok)
+
+	// An empty hybrid result represents raw data before the first available rollup
+	// bucket. The indexed prefix check rejects aggregate coverage and the caller
+	// must query the exact raw range instead.
+	mock.ExpectQuery("(?s)WITH aggregate_bounds AS.*MIN\\(bucket_start\\) AS first_bucket.*NOT EXISTS.*FROM usage_logs.*created_at >= \\$3.*created_at < COALESCE\\(aggregate_bounds.first_bucket, \\$4\\).*FROM usage_dashboard_hourly").
+		WithArgs(start, end, fullStart, fullEnd, resolveUsageStatsTimezone()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost",
+		}))
+	mock.ExpectQuery("(?s)TO_CHAR\\(created_at AT TIME ZONE \\$3, 'YYYY-MM-DD HH24:00'\\).*FROM usage_logs.*created_at >= \\$1 AND created_at < \\$2").
+		WithArgs(start, end, resolveUsageStatsTimezone()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost",
+		}).AddRow("2026-07-30 22:00", int64(4), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08))
+
+	trend, err := repo.GetUsageTrendWithFilters(context.Background(), start, end, "hour", 0, 0, 0, 0, "", nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, trend, 1)
+	require.Equal(t, int64(4), trend[0].Requests)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryDailyTrendFallsBackWhenRawDataPrecedesAggregateCoverage(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	loc := usageStatsLocation()
+	start := time.Date(2026, 7, 28, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 0, 2)
+
+	// Simulate the indexed prefix check finding raw data before the first daily rollup.
+	mock.ExpectQuery("(?s)WITH aggregate_bounds AS.*MIN\\(bucket_date\\) AS first_bucket.*NOT EXISTS.*FROM usage_logs.*created_at >= \\$1.*COALESCE\\(.*aggregate_bounds.first_bucket::timestamp AT TIME ZONE \\$3.*\\$2.*CROSS JOIN coverage.*WHERE coverage.ready").
+		WithArgs(start, end, resolveUsageStatsTimezone()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost",
+		}))
+	mock.ExpectQuery("(?s)TO_CHAR\\(created_at AT TIME ZONE \\$3, 'YYYY-MM-DD'\\).*FROM usage_logs.*created_at >= \\$1 AND created_at < \\$2").
+		WithArgs(start, end, resolveUsageStatsTimezone()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost",
+		}).AddRow("2026-07-28", int64(7), int64(20), int64(30), int64(0), int64(0), int64(50), 0.2, 0.16))
+
+	trend, err := repo.GetUsageTrendWithFilters(context.Background(), start, end, "day", 0, 0, 0, 0, "", nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, trend, 1)
+	require.Equal(t, int64(7), trend[0].Requests)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryHourlyCoverageDoesNotRequireZeroTrafficBuckets(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2026, 7, 30, 14, 0, 0, 0, time.UTC)
+	end := start.Add(3 * time.Hour)
+	fullStart, fullEnd, ok := completeUsageStatsHourRange(start, end)
+	require.True(t, ok)
+
+	// Coverage only checks the indexed prefix before the first aggregate bucket,
+	// so a legitimate zero-traffic hour does not require a synthetic rollup row.
+	mock.ExpectQuery("(?s)WITH aggregate_bounds AS \\(.*MIN\\(bucket_start\\) AS first_bucket.*FROM usage_dashboard_hourly.*NOT EXISTS.*FROM usage_logs.*created_at < COALESCE\\(aggregate_bounds.first_bucket, \\$4\\)").
+		WithArgs(start, end, fullStart, fullEnd, resolveUsageStatsTimezone()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost",
+		}).
+			AddRow("2026-07-30 22:00", int64(2), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08).
+			AddRow("2026-07-31 00:00", int64(3), int64(20), int64(30), int64(0), int64(0), int64(50), 0.2, 0.16))
+
+	trend, err := repo.getUsageTrendFromAggregates(context.Background(), start, end, "hour")
+	require.NoError(t, err)
+	require.Len(t, trend, 2)
+	require.Equal(t, int64(5), trend[0].Requests+trend[1].Requests)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
