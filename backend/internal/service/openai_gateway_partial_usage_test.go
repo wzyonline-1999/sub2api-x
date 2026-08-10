@@ -52,6 +52,8 @@ func TestHasObservedOpenAIUsageResultIncludesPerCallMediaAndSearch(t *testing.T)
 	require.True(t, HasObservedOpenAIUsageResult(&OpenAIForwardResult{ImageCount: 1}))
 	require.True(t, HasObservedOpenAIUsageResult(&OpenAIForwardResult{VideoCount: 1}))
 	require.True(t, HasObservedOpenAIUsageResult(&OpenAIForwardResult{WebSearchCalls: 1}))
+	require.True(t, HasObservedOpenAIUsageResult(&OpenAIForwardResult{SearchCount: 1}))
+	require.True(t, HasObservedOpenAIUsageResult(&OpenAIForwardResult{AudioUsage: &AudioUsage{Mode: "tts", DurationOrUnits: 1}}))
 }
 
 func TestOpenAICompatPartialUsagePreservesBillingMetadataOnError(t *testing.T) {

@@ -617,7 +617,20 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 	}
 
-	wsHeaders, _, buildHdrErr := s.buildOpenAIWSHeaders(ctx, c, account, token, wsDecision, isCodexCLI, turnState, strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader)), firstPayload.promptCacheKey)
+	firstRoutingFields := gjson.GetManyBytes(firstPayload.payloadRaw, "model", "service_tier")
+	wsHeaders, _, buildHdrErr := s.buildOpenAIWSHeaders(
+		ctx,
+		c,
+		account,
+		token,
+		wsDecision,
+		isCodexCLI,
+		turnState,
+		strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader)),
+		firstPayload.promptCacheKey,
+		firstRoutingFields[0].String(),
+		firstRoutingFields[1].String(),
+	)
 	if buildHdrErr != nil {
 		return fmt.Errorf("build ws headers: %w", buildHdrErr)
 	}
@@ -785,6 +798,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 
 	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, imageBillingModel string, imageSizeTier string, imageInputSize string) (*OpenAIForwardResult, error) {
+		responseModelObserver := &upstreamResponseModelObserver{}
 		if lease == nil {
 			return nil, errors.New("upstream websocket lease is nil")
 		}
@@ -837,11 +851,43 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				mappedModelBytes = []byte(mappedModel)
 			}
 		}
+		resultWithUsage := func(terminalEvent string) *OpenAIForwardResult {
+			imageCount := imageCounter.Count()
+			result := &OpenAIForwardResult{
+				RequestID:                     responseID,
+				Usage:                         usage,
+				Model:                         originalModel,
+				UpstreamModel:                 mappedModel,
+				UpstreamResponseModel:         responseModelObserver.Model(),
+				UpstreamResponseModelConflict: responseModelObserver.Conflict(),
+				ServiceTier:                   extractOpenAIServiceTierFromBody(payload),
+				ReasoningEffort:               ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel), payload, mappedModel),
+				Stream:                        reqStream,
+				OpenAIWSMode:                  true,
+				UpstreamTerminalEvent:         terminalEvent,
+				ResponseHeaders:               lease.HandshakeHeaders(),
+				Duration:                      time.Since(turnStart),
+				FirstTokenMs:                  firstTokenMs,
+				ClientDisconnect:              clientDisconnected,
+			}
+			if replayInput := replayCollector.Items(); len(replayInput) > 0 {
+				result.wsReplayInput = replayInput
+				result.wsReplayInputExists = true
+			}
+			if imageCount > 0 {
+				result.ImageCount = imageCount
+				result.ImageSize = imageSizeTier
+				result.ImageInputSize = imageInputSize
+				result.ImageOutputSizes = imageCounter.Sizes()
+				result.BillingModel = imageBillingModel
+			}
+			return result
+		}
 		for {
 			upstreamMessage, readErr := lease.ReadMessageWithContextTimeout(ctx, s.openAIWSReadTimeout())
 			if readErr != nil {
 				lease.MarkBroken()
-				return nil, wrapOpenAIWSIngressTurnError(
+				return resultWithUsage(""), wrapOpenAIWSIngressTurnError(
 					"read_upstream",
 					fmt.Errorf("read upstream websocket event: %w", readErr),
 					wroteDownstream,
@@ -852,6 +898,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 
 			eventType, eventResponseID, _ := parseOpenAIWSEventEnvelope(upstreamMessage)
+			responseModelObserver.ObserveOpenAI(upstreamMessage, eventType)
 			if responseID == "" && eventResponseID != "" {
 				responseID = eventResponseID
 			}
@@ -949,6 +996,18 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				parseOpenAIWSResponseUsageFromCompletedEvent(upstreamMessage, &usage)
 			}
 			imageCounter.AddSSEData(upstreamMessage)
+			if !wroteDownstream && isOpenAIUpstreamCapacityShedEvent(upstreamMessage) {
+				lease.MarkBroken()
+				return resultWithUsage(""), s.newOpenAIStreamFailoverError(
+					c,
+					account,
+					false,
+					responseID,
+					upstreamMessage,
+					extractOpenAISSEErrorMessage(upstreamMessage),
+					lease.HandshakeHeaders(),
+				)
+			}
 
 			if eventType == "response.failed" {
 				if hit, code, msg := detectOpenAICyberPolicy(upstreamMessage); hit {
@@ -963,7 +1022,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 			}
 
+			observedUpstreamMessage := upstreamMessage
 			if !clientDisconnected {
+				if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(upstreamMessage); changed {
+					upstreamMessage = rewritten
+				}
 				if needModelReplace && len(mappedModelBytes) > 0 && openAIWSEventMayContainModel(eventType) && bytes.Contains(upstreamMessage, mappedModelBytes) {
 					upstreamMessage = replaceOpenAIWSMessageModel(upstreamMessage, mappedModel, originalModel)
 				}
@@ -998,7 +1061,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 			if isTerminalEvent {
 				canonicalModel := canonicalOpenAIAccountSchedulingModel(account, originalModel)
-				terminalEvent := s.handleOpenAIWSTerminalTransientFailure(ctx, account, canonicalModel, lease.HandshakeHeaders(), upstreamMessage)
+				terminalEvent := s.handleOpenAIWSTerminalTransientFailure(ctx, account, canonicalModel, lease.HandshakeHeaders(), observedUpstreamMessage)
 				// 客户端已断连时，上游连接的 session 状态不可信，标记 broken 避免回池复用。
 				if clientDisconnected {
 					lease.MarkBroken()
@@ -1024,33 +1087,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 						clientDisconnected,
 					)
 				}
-				imageCount := imageCounter.Count()
-				result := &OpenAIForwardResult{
-					RequestID:             responseID,
-					Usage:                 usage,
-					Model:                 originalModel,
-					UpstreamModel:         mappedModel,
-					ServiceTier:           extractOpenAIServiceTierFromBody(payload),
-					ReasoningEffort:       ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel), payload, mappedModel),
-					Stream:                reqStream,
-					OpenAIWSMode:          true,
-					UpstreamTerminalEvent: terminalEvent,
-					ResponseHeaders:       lease.HandshakeHeaders(),
-					Duration:              time.Since(turnStart),
-					FirstTokenMs:          firstTokenMs,
-				}
-				if replayInput := replayCollector.Items(); len(replayInput) > 0 {
-					result.wsReplayInput = replayInput
-					result.wsReplayInputExists = true
-				}
-				if imageCount > 0 {
-					result.ImageCount = imageCount
-					result.ImageSize = imageSizeTier
-					result.ImageInputSize = imageInputSize
-					result.ImageOutputSizes = imageCounter.Sizes()
-					result.BillingModel = imageBillingModel
-				}
-				return result, nil
+				return resultWithUsage(terminalEvent), nil
 			}
 		}
 	}
@@ -1562,7 +1599,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				finalErr = unwrapped
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
-				hooks.AfterTurn(turn, nil, finalErr)
+				hooks.AfterTurn(turn, result, finalErr)
 			}
 			sessionLease.MarkBroken()
 			return finalErr
@@ -1632,16 +1669,30 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		if parseErr != nil {
 			return parseErr
 		}
+		nextRoutingFields := gjson.GetManyBytes(nextPayload.payloadRaw, "model", "service_tier")
 		if nextPayload.promptCacheKey != "" {
 			// ingress 会话在整个客户端 WS 生命周期内复用同一上游连接；
 			// prompt_cache_key 对握手头的更新仅在未来需要重新建连时生效。
-			updatedHeaders, _, updHdrErr := s.buildOpenAIWSHeaders(ctx, c, account, token, wsDecision, isCodexCLI, turnState, strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader)), nextPayload.promptCacheKey)
+			updatedHeaders, _, updHdrErr := s.buildOpenAIWSHeaders(
+				ctx,
+				c,
+				account,
+				token,
+				wsDecision,
+				isCodexCLI,
+				turnState,
+				strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader)),
+				nextPayload.promptCacheKey,
+				nextRoutingFields[0].String(),
+				nextRoutingFields[1].String(),
+			)
 			if updHdrErr != nil {
 				logOpenAIWSModeInfo("ingress_ws_update_headers_failed account_id=%d err=%v", account.ID, updHdrErr)
 			} else {
 				baseAcquireReq.Headers = updatedHeaders
 			}
 		}
+		setOpenAICodexRoutingHint(baseAcquireReq.Headers, account, nextRoutingFields[0].String(), nextRoutingFields[1].String())
 		if nextPayload.previousResponseID != "" {
 			expectedPrev := strings.TrimSpace(lastTurnResponseID)
 			chainedFromLast := expectedPrev != "" && nextPayload.previousResponseID == expectedPrev

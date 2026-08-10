@@ -33,7 +33,7 @@ func newSessionIDUsageLog(sessionID *string) *service.UsageLog {
 // The customized schema stores three additional session metadata fields between
 // session_id and created_at.
 func TestPrepareUsageLogInsert_SessionIDArgWiring(t *testing.T) {
-	require.Len(t, usageLogInsertArgTypes, 60, "arg-type table must include session metadata")
+	require.Len(t, usageLogInsertArgTypes, 62, "arg-type table must include upstream model and session metadata")
 
 	sessionID := "sess-persisted-123"
 	prepared := prepareUsageLogInsert(newSessionIDUsageLog(&sessionID))

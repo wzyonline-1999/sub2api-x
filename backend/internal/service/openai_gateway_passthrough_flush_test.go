@@ -226,6 +226,7 @@ func TestOpenAIStreamingPassthroughClientDisconnectStillDrainsTerminalUsage(t *t
 	require.Equal(t, 1, writer.failedWrites)
 	require.Equal(t, 11, result.usage.InputTokens)
 	require.Equal(t, 4, result.usage.OutputTokens)
+	require.True(t, result.clientDisconnect)
 }
 
 func TestOpenAIStreamingPassthroughScannerErrorFlushesWrittenResidual(t *testing.T) {

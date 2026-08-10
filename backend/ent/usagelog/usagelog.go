@@ -36,6 +36,10 @@ const (
 	FieldSessionHash = "session_hash"
 	// FieldSessionExplicit holds the string denoting the session_explicit field in the database.
 	FieldSessionExplicit = "session_explicit"
+	// FieldUpstreamResponseModel holds the string denoting the upstream_response_model field in the database.
+	FieldUpstreamResponseModel = "upstream_response_model"
+	// FieldUpstreamModelMismatch holds the string denoting the upstream_model_mismatch field in the database.
+	FieldUpstreamModelMismatch = "upstream_model_mismatch"
 	// FieldChannelID holds the string denoting the channel_id field in the database.
 	FieldChannelID = "channel_id"
 	// FieldModelMappingChain holds the string denoting the model_mapping_chain field in the database.
@@ -175,6 +179,8 @@ var Columns = []string{
 	FieldSessionIDSource,
 	FieldSessionHash,
 	FieldSessionExplicit,
+	FieldUpstreamResponseModel,
+	FieldUpstreamModelMismatch,
 	FieldChannelID,
 	FieldModelMappingChain,
 	FieldBillingTier,
@@ -240,6 +246,8 @@ var (
 	SessionIDSourceValidator func(string) error
 	// SessionHashValidator is a validator for the "session_hash" field. It is called by the builders before save.
 	SessionHashValidator func(string) error
+	// UpstreamResponseModelValidator is a validator for the "upstream_response_model" field. It is called by the builders before save.
+	UpstreamResponseModelValidator func(string) error
 	// ModelMappingChainValidator is a validator for the "model_mapping_chain" field. It is called by the builders before save.
 	ModelMappingChainValidator func(string) error
 	// BillingTierValidator is a validator for the "billing_tier" field. It is called by the builders before save.
@@ -363,6 +371,16 @@ func BySessionHash(opts ...sql.OrderTermOption) OrderOption {
 // BySessionExplicit orders the results by the session_explicit field.
 func BySessionExplicit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSessionExplicit, opts...).ToFunc()
+}
+
+// ByUpstreamResponseModel orders the results by the upstream_response_model field.
+func ByUpstreamResponseModel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamResponseModel, opts...).ToFunc()
+}
+
+// ByUpstreamModelMismatch orders the results by the upstream_model_mismatch field.
+func ByUpstreamModelMismatch(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamModelMismatch, opts...).ToFunc()
 }
 
 // ByChannelID orders the results by the channel_id field.

@@ -18,7 +18,7 @@ import (
 )
 
 func buildResponsesFailedSSEStream(errType, errorMessage string) string {
-	failed := fmt.Sprintf(`{"type":"response.failed","response":{"id":"resp_err","object":"response","status":"failed","error":{"type":"%s","message":"%s"},"output":[],"usage":{"input_tokens":10,"output_tokens":0,"total_tokens":10}}}`, errType, errorMessage)
+	failed := fmt.Sprintf(`{"type":"response.failed","response":{"id":"resp_err","object":"response","model":"gpt-5.4","status":"failed","error":{"type":"%s","message":"%s"},"output":[],"usage":{"input_tokens":10,"output_tokens":0,"total_tokens":10}}}`, errType, errorMessage)
 	return fmt.Sprintf("data: %s\n\n", failed)
 }
 
@@ -43,10 +43,13 @@ func TestForwardAsAnthropic_BufferedResponseFailed_ReturnsError(t *testing.T) {
 	}
 
 	account := rawChatCompletionsTestAccount()
-	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err, "non-cyber response.failed must return an error, not swallow as 200")
 	require.Contains(t, err.Error(), "upstream response failed")
+	require.NotNil(t, result)
+	require.Equal(t, 10, result.Usage.InputTokens)
+	require.Equal(t, "gpt-5.4", result.UpstreamResponseModel)
 	require.Equal(t, http.StatusBadGateway, rec.Code, "should write 502 for non-failover failed response")
 }
 

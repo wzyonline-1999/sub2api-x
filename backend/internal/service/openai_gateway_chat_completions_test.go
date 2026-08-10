@@ -397,6 +397,7 @@ func TestForwardAsChatCompletions_ClientDisconnectDrainsUpstreamUsage(t *testing
 	require.Equal(t, 11, result.Usage.InputTokens)
 	require.Equal(t, 5, result.Usage.OutputTokens)
 	require.Equal(t, 4, result.Usage.CacheReadInputTokens)
+	require.True(t, result.ClientDisconnect)
 }
 
 func TestForwardAsChatCompletions_BufferedContextWindowResponseFailedReturnsErrorWithoutFailover(t *testing.T) {
@@ -410,7 +411,7 @@ func TestForwardAsChatCompletions_BufferedContextWindowResponseFailedReturnsErro
 
 	upstreamBody := strings.Join([]string{
 		`event: response.failed`,
-		`data: {"type":"response.failed","response":{"id":"resp_failed","object":"response","model":"gpt-5.5","status":"failed","output":[],"error":{"code":"upstream_error","message":"input exceeds the context window"}}}`,
+		`data: {"type":"response.failed","response":{"id":"resp_failed","object":"response","model":"gpt-5.5","status":"failed","output":[],"usage":{"input_tokens":17,"output_tokens":2,"total_tokens":19},"error":{"code":"upstream_error","message":"input exceeds the context window"}}}`,
 		"",
 	}, "\n")
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
@@ -434,7 +435,10 @@ func TestForwardAsChatCompletions_BufferedContextWindowResponseFailedReturnsErro
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
 	require.Error(t, err)
-	require.Nil(t, result)
+	require.NotNil(t, result)
+	require.Equal(t, 17, result.Usage.InputTokens)
+	require.Equal(t, 2, result.Usage.OutputTokens)
+	require.Equal(t, "gpt-5.5", result.UpstreamResponseModel)
 	var failoverErr *UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.True(t, c.Writer.Written())

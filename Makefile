@@ -5,6 +5,7 @@ PNPM ?= npx --yes pnpm@9.15.9
 FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/client.spec.ts \
 	src/api/__tests__/tokenRefresh.spec.ts \
+	src/api/__tests__/channelMonitorV2.spec.ts \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
 	src/views/auth/__tests__/WechatCallbackView.spec.ts \
 	src/views/user/__tests__/PaymentView.spec.ts \
@@ -13,7 +14,11 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts \
 	src/views/admin/ops/components/__tests__/OpsAlertEventsCard.spec.ts \
-	src/views/auth/__tests__/WechatPaymentCallbackView.spec.ts
+	src/views/auth/__tests__/WechatPaymentCallbackView.spec.ts \
+	src/views/user/__tests__/ChannelStatusView.mode.spec.ts \
+	src/features/channel-monitor-v2/__tests__/designSystem.structure.spec.ts \
+	src/features/channel-monitor-v2/__tests__/monitorFormat.spec.ts \
+	src/features/channel-monitor-v2/__tests__/monitorZoom.spec.ts
 
 # 一键编译可发布二进制。后端嵌入 frontend dist，因此构建顺序必须严格为前端后后端。
 build: build-backend

@@ -127,6 +127,7 @@ func TestRunUpstreamToClient_ErrorAndDropPaths(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			drop,
 			nil,
 			nil,
@@ -154,6 +155,7 @@ func TestRunUpstreamToClient_ErrorAndDropPaths(t *testing.T) {
 			time.Now(),
 			time.Now,
 			&relayState{},
+			nil,
 			nil,
 			nil,
 			nil,
@@ -196,6 +198,7 @@ func TestRunUpstreamToClient_ErrorAndDropPaths(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			drop,
 			nil,
 			dropped,
@@ -207,6 +210,45 @@ func TestRunUpstreamToClient_ErrorAndDropPaths(t *testing.T) {
 		require.Equal(t, "drain_terminal", sig.stage)
 		require.True(t, sig.graceful)
 		require.Equal(t, int64(1), dropped.Load())
+	})
+
+	t.Run("transform payload before client write", func(t *testing.T) {
+		t.Parallel()
+
+		exitCh := make(chan relayExitSignal, 1)
+		drop := &atomic.Bool{}
+		var written []byte
+		runUpstreamToClient(
+			context.Background(),
+			newPassthroughTestFrameConn([]passthroughTestFrame{
+				{msgType: coderws.MessageText, payload: []byte(`{"code":"server_is_overloaded"}`)},
+			}, true),
+			func(_ coderws.MessageType, payload []byte) error {
+				written = append([]byte(nil), payload...)
+				return nil
+			},
+			time.Now(),
+			time.Now,
+			&relayState{},
+			nil,
+			nil,
+			nil,
+			func(_ coderws.MessageType, _ []byte, _ bool) []byte {
+				return []byte(`{"code":"server_error"}`)
+			},
+			nil,
+			nil,
+			nil,
+			drop,
+			nil,
+			nil,
+			func() {},
+			nil,
+			exitCh,
+		)
+		sig := <-exitCh
+		require.Equal(t, "read_upstream", sig.stage)
+		require.JSONEq(t, `{"code":"server_error"}`, string(written))
 	})
 }
 
@@ -455,6 +497,60 @@ func TestRelayTurnTimingHelpersCoverage(t *testing.T) {
 	// 删除不存在键
 	_, ok = openAIWSRelayDeleteTurnTiming(state, "resp_a")
 	require.False(t, ok)
+}
+
+func TestObserveUpstreamMessage_ResponseModelIsTurnLocalAndTerminalWins(t *testing.T) {
+	t.Parallel()
+
+	state := &relayState{requestModel: "gpt-5.6-sol"}
+	startAt := time.Unix(0, 0)
+	now := startAt
+	nowFn := func() time.Time {
+		now = now.Add(5 * time.Millisecond)
+		return now
+	}
+
+	created := observeUpstreamMessage(
+		state,
+		[]byte(`{"type":"response.created","response":{"id":"resp_1","model":"gpt-5.5"}}`),
+		startAt,
+		nowFn,
+		nil,
+	)
+	require.False(t, created.terminal)
+
+	completed := observeUpstreamMessage(
+		state,
+		[]byte(`{"type":"response.completed","response":{"id":"resp_1","model":"gpt-5.4","usage":{"input_tokens":1,"output_tokens":2}}}`),
+		startAt,
+		nowFn,
+		nil,
+	)
+	require.True(t, completed.terminal)
+	require.Equal(t, "gpt-5.4", completed.responseModel)
+	require.True(t, completed.responseConflict)
+
+	var firstTurn RelayTurnResult
+	emitTurnComplete(func(turn RelayTurnResult) { firstTurn = turn }, state, completed)
+	require.Equal(t, "gpt-5.4", firstTurn.ResponseModel)
+	require.True(t, firstTurn.ResponseModelConflict)
+
+	observeUpstreamMessage(
+		state,
+		[]byte(`{"type":"response.created","response":{"id":"resp_2","model":"gpt-5.3"}}`),
+		startAt,
+		nowFn,
+		nil,
+	)
+	second := observeUpstreamMessage(
+		state,
+		[]byte(`{"type":"response.completed","response":{"id":"resp_2","model":"GPT-5.3","usage":{"input_tokens":3,"output_tokens":4}}}`),
+		startAt,
+		nowFn,
+		nil,
+	)
+	require.Equal(t, "GPT-5.3", second.responseModel)
+	require.False(t, second.responseConflict, "the previous turn must not contaminate this turn")
 }
 
 func TestObserveUpstreamMessage_ResponseIDFallbackPolicy(t *testing.T) {

@@ -800,7 +800,19 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		turnState = strings.TrimSpace(c.GetHeader(openAIWSTurnStateHeader))
 		turnMetadata = strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader))
 	}
-	headers, _, buildHdrErr := s.buildOpenAIWSHeaders(ctx, c, account, token, wsDecision, isCodexCLI, turnState, turnMetadata, promptCacheKey)
+	headers, _, buildHdrErr := s.buildOpenAIWSHeaders(
+		ctx,
+		c,
+		account,
+		token,
+		wsDecision,
+		isCodexCLI,
+		turnState,
+		turnMetadata,
+		promptCacheKey,
+		gjson.GetBytes(firstClientMessage, "model").String(),
+		gjson.GetBytes(firstClientMessage, "service_tier").String(),
+	)
 	if buildHdrErr != nil {
 		return fmt.Errorf("build ws headers: %w", buildHdrErr)
 	}
@@ -1103,16 +1115,18 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 						CacheReadInputTokens:     turn.Usage.CacheReadInputTokens,
 						ImageOutputTokens:        turn.Usage.ImageOutputTokens,
 					},
-					Model:                 turnRequestModel,
-					UpstreamModel:         openAIWSDifferentModel(turnRequestModel, turnUpstreamModel),
-					ServiceTier:           usageMeta.serviceTier.Load(),
-					ReasoningEffort:       usageMeta.reasoningEffort.Load(),
-					Stream:                true,
-					OpenAIWSMode:          true,
-					UpstreamTerminalEvent: normalizeOpenAIWSTerminalEvent(turn.TerminalEventType),
-					ResponseHeaders:       cloneHeader(handshakeHeaders),
-					Duration:              turn.Duration,
-					FirstTokenMs:          turn.FirstTokenMs,
+					Model:                         turnRequestModel,
+					UpstreamModel:                 openAIWSDifferentModel(turnRequestModel, turnUpstreamModel),
+					UpstreamResponseModel:         turn.ResponseModel,
+					UpstreamResponseModelConflict: turn.ResponseModelConflict,
+					ServiceTier:                   usageMeta.serviceTier.Load(),
+					ReasoningEffort:               usageMeta.reasoningEffort.Load(),
+					Stream:                        true,
+					OpenAIWSMode:                  true,
+					UpstreamTerminalEvent:         normalizeOpenAIWSTerminalEvent(turn.TerminalEventType),
+					ResponseHeaders:               cloneHeader(handshakeHeaders),
+					Duration:                      turn.Duration,
+					FirstTokenMs:                  turn.FirstTokenMs,
 				}
 				logOpenAIWSV2Passthrough(
 					"relay_turn_completed account_id=%d turn=%d request_id=%s terminal_event=%s turn_requested_model=%s turn_upstream_model=%s duration_ms=%d first_token_ms=%d input_tokens=%d output_tokens=%d cache_read_tokens=%d",
@@ -1164,26 +1178,43 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				if eventType == "error" {
 					s.handleOpenAIWSErrorEventTransientFailure(ctx, account, capturedSessionModel, handshakeHeaders, payload)
 				}
-				if wroteDownstream || eventType != "error" {
+				if wroteDownstream {
 					return nil
 				}
 				errCodeRaw, errTypeRaw, errMsgRaw := parseOpenAIWSErrorEventFields(payload)
-				if !isOpenAIWSRateLimitError(errCodeRaw, errTypeRaw, errMsgRaw) {
+				isRateLimit := eventType == "error" && isOpenAIWSRateLimitError(errCodeRaw, errTypeRaw, errMsgRaw)
+				isCapacityShed := isOpenAIUpstreamCapacityShedEvent(payload)
+				if !isRateLimit && !isCapacityShed {
 					return nil
 				}
-				s.persistOpenAIWSRateLimitSignal(ctx, account, handshakeHeaders, payload, errCodeRaw, errTypeRaw, errMsgRaw)
+				statusCode := http.StatusBadGateway
+				if isRateLimit {
+					statusCode = http.StatusTooManyRequests
+					s.persistOpenAIWSRateLimitSignal(ctx, account, handshakeHeaders, payload, errCodeRaw, errTypeRaw, errMsgRaw)
+				}
 				logOpenAIWSV2Passthrough(
-					"relay_rate_limit_failover account_id=%d err_code=%s err_type=%s err_message=%s",
+					"relay_transient_failover account_id=%d status=%d capacity_shed=%v err_code=%s err_type=%s err_message=%s",
 					account.ID,
+					statusCode,
+					isCapacityShed,
 					truncateOpenAIWSLogValue(errCodeRaw, openAIWSLogValueMaxLen),
 					truncateOpenAIWSLogValue(errTypeRaw, openAIWSLogValueMaxLen),
 					truncateOpenAIWSLogValue(errMsgRaw, openAIWSLogValueMaxLen),
 				)
 				return &UpstreamFailoverError{
-					StatusCode:      http.StatusTooManyRequests,
-					ResponseBody:    append([]byte(nil), payload...),
-					ResponseHeaders: cloneHeader(handshakeHeaders),
+					StatusCode:             statusCode,
+					ResponseBody:           append([]byte(nil), payload...),
+					ResponseHeaders:        cloneHeader(handshakeHeaders),
+					RetryableOnSameAccount: isCapacityShed,
+					RequestScopedTransient: isCapacityShed,
 				}
+			},
+			TransformClientPayload: func(msgType coderws.MessageType, payload []byte, _ bool) []byte {
+				if msgType != coderws.MessageText {
+					return payload
+				}
+				rewritten, _ := sanitizeOpenAICapacityShedErrorCodeForClient(payload)
+				return rewritten
 			},
 			OnTrace: func(event openaiwsv2.RelayTraceEvent) {
 				logOpenAIWSV2Passthrough(
@@ -1222,16 +1253,18 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			CacheReadInputTokens:     relayResult.Usage.CacheReadInputTokens,
 			ImageOutputTokens:        relayResult.Usage.ImageOutputTokens,
 		},
-		Model:                 resultRequestModel,
-		UpstreamModel:         openAIWSDifferentModel(resultRequestModel, resultUpstreamModel),
-		ServiceTier:           usageMeta.serviceTier.Load(),
-		ReasoningEffort:       usageMeta.reasoningEffort.Load(),
-		Stream:                true,
-		OpenAIWSMode:          true,
-		UpstreamTerminalEvent: normalizeOpenAIWSTerminalEvent(relayResult.TerminalEventType),
-		ResponseHeaders:       cloneHeader(handshakeHeaders),
-		Duration:              relayResult.Duration,
-		FirstTokenMs:          relayResult.FirstTokenMs,
+		Model:                         resultRequestModel,
+		UpstreamModel:                 openAIWSDifferentModel(resultRequestModel, resultUpstreamModel),
+		UpstreamResponseModel:         relayResult.ResponseModel,
+		UpstreamResponseModelConflict: relayResult.ResponseModelConflict,
+		ServiceTier:                   usageMeta.serviceTier.Load(),
+		ReasoningEffort:               usageMeta.reasoningEffort.Load(),
+		Stream:                        true,
+		OpenAIWSMode:                  true,
+		UpstreamTerminalEvent:         normalizeOpenAIWSTerminalEvent(relayResult.TerminalEventType),
+		ResponseHeaders:               cloneHeader(handshakeHeaders),
+		Duration:                      relayResult.Duration,
+		FirstTokenMs:                  relayResult.FirstTokenMs,
 	}
 
 	turnCount := int(completedTurns.Load())

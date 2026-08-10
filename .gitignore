@@ -148,3 +148,6 @@ output/
 .pnpm-store/
 .workflow/
 frontend/.codex-preview-rankings/
+
+# Vitest / Vite cache at repo root
+.vite/
