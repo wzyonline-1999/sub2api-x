@@ -56,6 +56,7 @@ func cloneGroupForDuplicateTest(group *Group) *Group {
 	cloned.VideoPrice720P = cloneGroupValuePointer(group.VideoPrice720P)
 	cloned.VideoPrice1080P = cloneGroupValuePointer(group.VideoPrice1080P)
 	cloned.WebSearchPricePerCall = cloneGroupValuePointer(group.WebSearchPricePerCall)
+	cloned.ModelPricing = cloneGroupModelPricing(group.ModelPricing)
 	cloned.FallbackGroupID = cloneGroupValuePointer(group.FallbackGroupID)
 	cloned.FallbackGroupIDOnInvalidRequest = cloneGroupValuePointer(group.FallbackGroupIDOnInvalidRequest)
 	cloned.ModelRouting = cloneGroupModelRouting(group.ModelRouting)
@@ -155,7 +156,23 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		VideoModelPrices: map[string]map[string]float64{
 			VideoPriceFamilyGrokImagineVideo15: {VideoBillingResolution720P: 0.14},
 		},
-		WebSearchPricePerCall:           groupDuplicateTestPointer(0.005),
+		WebSearchPricePerCall:     groupDuplicateTestPointer(0.005),
+		LongContextPricingEnabled: true,
+		ModelPricing: []ChannelModelPricing{{
+			Platform:        PlatformOpenAI,
+			Models:          []string{"gpt-5.6", "gpt-5.6-*"},
+			BillingMode:     BillingModeToken,
+			InputPrice:      groupDuplicateTestPointer(1.25e-6),
+			OutputPrice:     groupDuplicateTestPointer(10e-6),
+			CacheWritePrice: groupDuplicateTestPointer(0.5e-6),
+			Intervals: []PricingInterval{{
+				MinTokens:       200_000,
+				MaxTokens:       groupDuplicateTestPointer(400_000),
+				InputPrice:      groupDuplicateTestPointer(2.5e-6),
+				OutputPrice:     groupDuplicateTestPointer(20e-6),
+				PerRequestPrice: groupDuplicateTestPointer(0.02),
+			}},
+		}},
 		ClaudeCodeOnly:                  true,
 		FallbackGroupID:                 groupDuplicateTestPointer(int64(7)),
 		FallbackGroupIDOnInvalidRequest: groupDuplicateTestPointer(int64(8)),
@@ -209,6 +226,8 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, source.ImagePrice4K, duplicate.ImagePrice4K)
 	require.Equal(t, source.VideoModelPrices, duplicate.VideoModelPrices)
 	require.Equal(t, source.WebSearchPricePerCall, duplicate.WebSearchPricePerCall)
+	require.Equal(t, source.LongContextPricingEnabled, duplicate.LongContextPricingEnabled)
+	require.Equal(t, source.ModelPricing, duplicate.ModelPricing)
 	require.Equal(t, source.FallbackGroupID, duplicate.FallbackGroupID)
 	require.Equal(t, source.ModelRouting, duplicate.ModelRouting)
 	require.Equal(t, source.MessagesDispatchModelConfig, duplicate.MessagesDispatchModelConfig)
@@ -227,6 +246,10 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 
 	duplicate.ModelRouting["gpt-*"][0] = 999
 	duplicate.VideoModelPrices[VideoPriceFamilyGrokImagineVideo15][VideoBillingResolution720P] = 999
+	duplicate.ModelPricing[0].Models[0] = "changed"
+	*duplicate.ModelPricing[0].InputPrice = 999
+	*duplicate.ModelPricing[0].Intervals[0].MaxTokens = 999
+	*duplicate.ModelPricing[0].Intervals[0].PerRequestPrice = 999
 	duplicate.SupportedModelScopes[0] = "changed"
 	duplicate.MessagesDispatchModelConfig.ExactModelMappings["claude-special"] = "changed"
 	duplicate.ModelsListConfig.Models[0] = "changed"
@@ -234,6 +257,10 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	*duplicate.DailyLimitUSD = 999
 	require.Equal(t, int64(13), source.ModelRouting["gpt-*"][0])
 	require.Equal(t, 0.14, source.VideoModelPrices[VideoPriceFamilyGrokImagineVideo15][VideoBillingResolution720P])
+	require.Equal(t, "gpt-5.6", source.ModelPricing[0].Models[0])
+	require.Equal(t, 1.25e-6, *source.ModelPricing[0].InputPrice)
+	require.Equal(t, 400_000, *source.ModelPricing[0].Intervals[0].MaxTokens)
+	require.Equal(t, 0.02, *source.ModelPricing[0].Intervals[0].PerRequestPrice)
 	require.Equal(t, "claude", source.SupportedModelScopes[0])
 	require.Equal(t, "gpt-special", source.MessagesDispatchModelConfig.ExactModelMappings["claude-special"])
 	require.Equal(t, "gpt-5.4", source.ModelsListConfig.Models[0])
